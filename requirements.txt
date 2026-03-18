@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+openai-agents
+openai
+pydantic
+aiosqlite
+sqlite-vec
+numpy
+python-multipart
+httpx
+python-dotenv
+rich>=13.0
+marp-cli

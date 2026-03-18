@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+import json
+import os
+from typing import List
+
+import httpx
+import numpy as np
+
+from helpers.config_loader import load_config
+from helpers.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _ollama_base_url() -> str:
+    config = load_config()
+    # Derive Ollama base from the orchestrator base_url (strip /v1)
+    base = config["orchestrator"]["base_url"].rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    return base
+
+
+def embed_text(text: str) -> List[float]:
+    """
+    Encode *text* into a dense embedding vector using Ollama's embeddings API.
+
+    Returns a plain Python list of floats.
+    """
+    config = load_config()
+    model = config["rag"]["embedding_model"]
+    url = f"{_ollama_base_url()}/api/embed"
+
+    response = httpx.post(url, json={"model": model, "input": text}, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    # Ollama returns {"embeddings": [[...]] } for /api/embed
+    vector: List[float] = data["embeddings"][0]
+
+    # L2-normalise so cosine similarity == dot product
+    arr = np.array(vector, dtype=np.float32)
+    norm = np.linalg.norm(arr)
+    if norm > 0:
+        arr = arr / norm
+    return arr.tolist()
+
+
+def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
+    """
+    Split *text* into overlapping chunks of ~*chunk_size* characters with
+    *overlap* characters of overlap between consecutive chunks.
+
+    Splitting is done on whitespace boundaries to avoid cutting words.
+    """
+    if not text:
+        return []
+
+    words = text.split()
+    chunks: List[str] = []
+    start = 0
+
+    while start < len(words):
+        current_words: List[str] = []
+        current_chars = 0
+
+        for i in range(start, len(words)):
+            word = words[i]
+            if current_chars + len(word) + (1 if current_words else 0) > chunk_size and current_words:
+                break
+            current_words.append(word)
+            current_chars += len(word) + (1 if len(current_words) > 1 else 0)
+
+        chunk = " ".join(current_words)
+        chunks.append(chunk)
+
+        advance_chars = max(chunk_size - overlap, 1)
+        consumed = 0
+        step = 0
+        for w in current_words:
+            consumed += len(w) + (1 if step > 0 else 0)
+            step += 1
+            if consumed >= advance_chars:
+                break
+
+        start += max(step, 1)
+
+    return [c for c in chunks if c.strip()]
+
+
+def compute_similarity(vec1: List[float], vec2: List[float]) -> float:
+    """
+    Cosine similarity between two L2-normalised embedding vectors.
+    Returns a float in [-1, 1].
+    """
+    a = np.array(vec1, dtype=np.float32)
+    b = np.array(vec2, dtype=np.float32)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return float(np.dot(a, b) / (norm_a * norm_b))
+
+
+def store_embedding(
+    entry_id: int,
+    text: str,
+    embedding: List[float],
+    embeddings_path: str,
+) -> None:
+    """
+    Persist an embedding to disk as a NumPy ``.npy`` file alongside a
+    small JSON sidecar that stores the originating text for debugging.
+    """
+    os.makedirs(embeddings_path, exist_ok=True)
+
+    npy_path = os.path.join(embeddings_path, f"{entry_id}.npy")
+    meta_path = os.path.join(embeddings_path, f"{entry_id}.json")
+
+    np.save(npy_path, np.array(embedding, dtype=np.float32))
+
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({"entry_id": entry_id, "text_preview": text[:200]}, f)
+
+    logger.debug("Stored embedding for entry %d at %s", entry_id, npy_path)
+
+
+def search_embeddings(
+    query: str,
+    top_k: int,
+    embeddings_path: str,
+    similarity_threshold: float,
+) -> List[int]:
+    """
+    Search all stored embeddings for entries most similar to *query*.
+
+    Returns up to *top_k* entry IDs whose similarity exceeds
+    *similarity_threshold*, sorted by descending similarity.
+    """
+    if not os.path.isdir(embeddings_path):
+        logger.warning("Embeddings directory does not exist: %s", embeddings_path)
+        return []
+
+    query_vec = embed_text(query)
+    scores: List[tuple[float, int]] = []
+
+    for filename in os.listdir(embeddings_path):
+        if not filename.endswith(".npy"):
+            continue
+        try:
+            entry_id = int(filename[:-4])
+        except ValueError:
+            continue
+
+        npy_path = os.path.join(embeddings_path, filename)
+        stored_vec = np.load(npy_path).tolist()
+        sim = compute_similarity(query_vec, stored_vec)
+
+        if sim >= similarity_threshold:
+            scores.append((sim, entry_id))
+
+    scores.sort(key=lambda x: x[0], reverse=True)
+    return [entry_id for _, entry_id in scores[:top_k]]

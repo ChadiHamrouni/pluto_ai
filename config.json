@@ -1,0 +1,41 @@
+{
+  "orchestrator": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.5,
+    "max_tokens": 1024,
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "ollama"
+  },
+  "notes_agent": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.5,
+    "max_tokens": 1024
+  },
+  "slides_agent": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.6,
+    "max_tokens": 1024
+  },
+  "rag": {
+    "embedding_model": "nomic-embed-text",
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "top_k": 5,
+    "similarity_threshold": 0.75
+  },
+  "memory": {
+    "db_path": "data/memory.db",
+    "embeddings_path": "data/embeddings",
+    "categories": ["teaching", "research", "career", "personal", "ideas"],
+    "prune_threshold_days": 90,
+    "max_entries": 5000
+  },
+  "storage": {
+    "notes_dir": "data/notes",
+    "slides_dir": "data/slides"
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000
+  }
+}
