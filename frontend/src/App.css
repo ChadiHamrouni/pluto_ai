@@ -276,8 +276,9 @@
   resize: none;
   outline: none;
   transition: border-color 0.2s;
-  max-height: 120px;
-  overflow-y: auto;
+  overflow-y: hidden;
+  min-height: 42px;
+  max-height: 300px;
 }
 
 .msg-input:focus {
@@ -298,13 +299,19 @@
 /* ── Attachment bar ── */
 .attachment-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   padding: 6px 10px;
   background: var(--panel-light);
   border: 1px solid var(--neon-border);
   border-radius: 8px;
   margin-bottom: 8px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .attachment-thumb {

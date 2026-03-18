@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import base64
+import time
+from pathlib import Path
+
+from my_agents.orchestrator import get_orchestrator
+from my_agents.notes_agent import get_notes_agent
+from my_agents.slides_agent import get_slides_agent
+from helpers.agents.command_parser import parse_command
+from helpers.agents.runner import run_agent
+from helpers.agents.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
+from helpers.core.logger import get_logger
+from helpers.tools.memory import get_db_path, load_all_memories
+from models.chat import ChatMessage
+
+logger = get_logger(__name__)
+
+_COMMAND_AGENTS = {
+    "note":   get_notes_agent,
+    "slides": get_slides_agent,
+}
+
+
+async def text_handler(
+    message: str,
+    history: list[ChatMessage],
+    image_path: Path | None = None,
+) -> tuple[str, float]:
+    t0 = time.perf_counter()
+
+    parsed = parse_command(message)
+
+    if parsed.intent in _COMMAND_AGENTS:
+        agent = _COMMAND_AGENTS[parsed.intent]()
+        content = parsed.content
+        logger.info("Hard-routing to %s via slash command", agent.name)
+    else:
+        agent = get_orchestrator()
+        content = message
+
+    # Load memory facts and inject into system prompt
+    try:
+        memory_entries = load_all_memories(get_db_path())
+    except Exception as exc:
+        logger.warning("Memory load skipped: %s", exc)
+        memory_entries = []
+
+    memory_context = format_memory_context(memory_entries)
+    messages: list[dict] = []
+
+    if memory_context:
+        messages.append({
+            "role": "system",
+            "content": build_system_prompt("You are a helpful personal AI assistant.", memory_context),
+        })
+
+    messages.extend(format_chat_history(history))
+
+    if image_path and image_path.exists():
+        mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+        b64 = base64.b64encode(image_path.read_bytes()).decode()
+        user_content = [
+            {"type": "text", "text": content or message},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+        ]
+        logger.info("Attaching image %s (%d bytes)", image_path.name, image_path.stat().st_size)
+    else:
+        user_content = content or message
+
+    messages.append({"role": "user", "content": user_content})
+
+    response = await run_agent(agent, messages)
+    return response, time.perf_counter() - t0

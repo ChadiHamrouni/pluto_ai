@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { sendMessage } from "./api";
 import "./App.css";
@@ -10,7 +10,7 @@ export default function App() {
   const [input, setInput]           = useState("");
   const [thinking, setThinking]     = useState(false);
   const [error, setError]           = useState(null);
-  const [attachment, setAttachment] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [dragging, setDragging]     = useState(false);
   const [recording, setRecording]   = useState(false);
   const [expanded, setExpanded]     = useState(false);
@@ -30,6 +30,23 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  // ── Autofocus input on mount ───────────────────────────────────────────────
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // ── Ctrl+I → toggle maximize ───────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.key === "i") {
+        e.preventDefault();
+        handleExpand();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   // ── Init Whisper worker ────────────────────────────────────────────────────
   useEffect(() => {
@@ -165,54 +182,50 @@ export default function App() {
     }
   }
 
-  // ── Drag-and-drop via Tauri file drop events ───────────────────────────────
+  // ── Drag-and-drop via Tauri v2 webview API ────────────────────────────────
   useEffect(() => {
-    let unlistenHover, unlistenDrop, unlistenCancel;
+    let unlisten;
 
     const setup = async () => {
-      unlistenHover = await listen("tauri://file-drop-hover", () => {
-        setDragging(true);
-      });
+      unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
+        const type = event.payload.type;
 
-      unlistenDrop = await listen("tauri://file-drop", async (event) => {
-        setDragging(false);
-        const paths = event.payload;
-        if (!paths || paths.length === 0) return;
+        if (type === "over") {
+          setDragging(true);
+        } else if (type === "cancelled") {
+          setDragging(false);
+        } else if (type === "drop") {
+          setDragging(false);
+          const paths = event.payload.paths;
+          if (!paths || paths.length === 0) return;
 
-        const filePath = paths[0];
-        const ext = filePath.split(".").pop().toLowerCase();
-        const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
-        if (!imageExts.includes(ext)) {
-          setError("Only image files are supported right now.");
-          return;
+          const filePath = paths[0];
+          const ext = filePath.split(".").pop().toLowerCase();
+          const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
+          if (!imageExts.includes(ext)) {
+            setError("Only image files are supported right now.");
+            return;
+          }
+
+          try {
+            const bytes = await readFile(filePath);
+            const mimeMap = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", bmp: "image/bmp" };
+            const mime = mimeMap[ext] || "image/png";
+            const blob = new Blob([bytes], { type: mime });
+            const fileName = filePath.split(/[\\/]/).pop();
+            const file = new File([blob], fileName, { type: mime });
+            const preview = URL.createObjectURL(blob);
+            setAttachments((prev) => [...prev, { file, preview }]);
+            inputRef.current?.focus();
+          } catch (e) {
+            setError("Failed to read image: " + e.message);
+          }
         }
-
-        try {
-          const bytes = await readFile(filePath);
-          const mimeMap = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", bmp: "image/bmp" };
-          const mime = mimeMap[ext] || "image/png";
-          const blob = new Blob([bytes], { type: mime });
-          const fileName = filePath.split(/[\\/]/).pop();
-          const file = new File([blob], fileName, { type: mime });
-          const preview = URL.createObjectURL(blob);
-          setAttachment({ file, preview });
-          inputRef.current?.focus();
-        } catch (e) {
-          setError("Failed to read image: " + e.message);
-        }
-      });
-
-      unlistenCancel = await listen("tauri://file-drop-cancelled", () => {
-        setDragging(false);
       });
     };
 
     setup();
-    return () => {
-      unlistenHover?.();
-      unlistenDrop?.();
-      unlistenCancel?.();
-    };
+    return () => { unlisten?.(); };
   }, []);
 
   // ── Send ───────────────────────────────────────────────────────────────────
@@ -220,24 +233,29 @@ export default function App() {
 
   async function handleSend() {
     const text = input.trim();
-    if ((!text && !attachment) || thinking) return;
+    if ((!text && !attachments.length) || thinking) return;
 
-    const sentAttachment = attachment;
+    const sentAttachments = attachments;
     setInput("");
-    setAttachment(null);
+    resetInputHeight();
+    setAttachments([]);
     setError(null);
     setMessages((prev) => [
       ...prev,
       {
         role: "user",
         content: text || "(image)",
-        preview: sentAttachment?.preview ?? null,
+        previews: sentAttachments.map((a) => a.preview),
       },
     ]);
     setThinking(true);
 
     try {
-      const reply = await sendMessage(text || "(describe this image)", history, sentAttachment?.file ?? null);
+      const reply = await sendMessage(
+        text || "(describe this image)",
+        history,
+        sentAttachments[0]?.file ?? null
+      );
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       setError(e.message);
@@ -254,9 +272,20 @@ export default function App() {
     }
   }
 
-  function removeAttachment() {
-    if (attachment?.preview) URL.revokeObjectURL(attachment.preview);
-    setAttachment(null);
+  function handleInputChange(e) {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+
+  function resetInputHeight() {
+    if (inputRef.current) inputRef.current.style.height = "auto";
+  }
+
+  function removeAttachment(index) {
+    URL.revokeObjectURL(attachments[index].preview);
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleClose() {
@@ -319,9 +348,9 @@ export default function App() {
           <div key={i} className={`bubble-row ${m.role}`}>
             <div className="bubble">
               {m.role === "assistant" && <span className="bubble-label">Jarvis</span>}
-              {m.preview && (
-                <img src={m.preview} alt="attachment" className="bubble-img" />
-              )}
+              {m.previews?.map((p, i) => (
+                <img key={i} src={p} alt="attachment" className="bubble-img" />
+              ))}
               {m.content !== "(image)" && (
                 <p className="bubble-text">{m.content}</p>
               )}
@@ -347,12 +376,16 @@ export default function App() {
 
       {/* Footer */}
       <footer className="footer">
-        {/* Attachment preview */}
-        {attachment && (
+        {/* Attachment previews */}
+        {attachments.length > 0 && (
           <div className="attachment-bar">
-            <img src={attachment.preview} alt="attachment preview" className="attachment-thumb" />
-            <span className="attachment-name">{attachment.file.name}</span>
-            <button className="attachment-remove" onClick={removeAttachment}>✕</button>
+            {attachments.map((a, i) => (
+              <div key={i} className="attachment-item">
+                <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
+                <span className="attachment-name">{a.file.name}</span>
+                <button className="attachment-remove" onClick={() => removeAttachment(i)}>✕</button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -375,11 +408,10 @@ export default function App() {
           <textarea
             ref={inputRef}
             className="msg-input"
-            placeholder={attachment ? "Add a message… (or just Send)" : "Message Jarvis…"}
+            placeholder={attachments.length ? "Add a message… (or just Enter)" : "Message Jarvis…"}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKey}
-            rows={1}
             disabled={thinking}
           />
           <button
