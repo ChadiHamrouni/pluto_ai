@@ -1,0 +1,75 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.env.*
+!.env.example
+
+# Data directories
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+.eggs/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+logs/
+
+# Node (for marp-cli)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dev and internal docs
+dev.py
+requirements.md
+docker.md
+CLAUDE.md

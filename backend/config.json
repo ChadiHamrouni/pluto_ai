@@ -1,0 +1,63 @@
+{
+  "orchestrator": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.5,
+    "max_tokens": 1024,
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "ollama"
+  },
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "service_token": "",
+    "verify_ssl": true,
+    "request_timeout_seconds": 30
+  },
+  "auth": {
+    "secret_key": "18d8525847d94f83da1dc791703be45dbc11947df83c29a83bc4ac22f24480da",
+    "algorithm": "HS256",
+    "username": "admin",
+    "password_hash": "$2b$12$D/aVEXpNMkAjD1gjpYjXyO8qgOQp2v2YGj87IVrlqEQHRQustn7iy",
+    "access_token_expires_minutes": 15,
+    "refresh_token_expires_days": 7
+  },
+  "notes_agent": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.5,
+    "max_tokens": 1024
+  },
+  "slides_agent": {
+    "model": "qwen3.5:2b",
+    "temperature": 0.6,
+    "max_tokens": 1024
+  },
+  "rag": {
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "top_k": 5,
+    "similarity_threshold": 0.75
+  },
+  "memory": {
+    "db_path": "data/memory.db",
+    "categories": ["teaching", "research", "career", "personal", "ideas"],
+    "default_prune_threshold_days": 90
+  },
+  "knowledge_base": {
+    "embedding_model": "nomic-ai/nomic-embed-multimodal-3b",
+    "embeddings_path": "data/embeddings",
+    "files_path": "data/files"
+  },
+  "storage": {
+    "notes_dir": "data/notes",
+    "slides_dir": "data/slides",
+    "title_slug_max_length": 60
+  },
+  "slides": {
+    "marp_timeout_seconds": 120,
+    "marp_check_timeout_seconds": 10,
+    "default_theme": "default"
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000
+  }
+}
