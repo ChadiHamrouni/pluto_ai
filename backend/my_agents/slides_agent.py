@@ -9,7 +9,6 @@ from tools.slides_tools import generate_slides
 
 _slides_agent: Agent | None = None
 
-
 def get_slides_agent() -> Agent:
     """
     Return the slides agent singleton, creating it on first call.

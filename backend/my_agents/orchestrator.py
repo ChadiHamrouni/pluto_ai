@@ -4,8 +4,8 @@ import time
 
 from agents import Agent, Runner, handoff
 
-from agents.notes_agent import get_notes_agent
-from agents.slides_agent import get_slides_agent
+from my_agents.notes_agent import get_notes_agent
+from my_agents.slides_agent import get_slides_agent
 from helpers.agents.command_parser import parse_command
 from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions

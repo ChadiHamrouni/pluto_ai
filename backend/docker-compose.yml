@@ -35,6 +35,16 @@ services:
     depends_on:
       - ollama
     restart: unless-stopped
+    develop:
+      watch:
+        - action: sync+restart
+          path: .
+          target: /app
+          ignore:
+            - data/
+            - __pycache__/
+            - "**/__pycache__"
+            - "*.pyc"
     deploy:
       resources:
         limits:
