@@ -1,0 +1,37 @@
+{
+  "productName": "personal-ai",
+  "version": "0.1.0",
+  "identifier": "com.personalai.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Personal AI",
+        "width": 420,
+        "height": 750,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": false,
+        "x": 1490,
+        "y": 160
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico",
+      "icons/128x128.png",
+      "icons/128x128@2x.png"
+    ]
+  }
+}
