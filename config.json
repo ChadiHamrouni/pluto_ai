@@ -37,10 +37,12 @@
   },
   "memory": {
     "db_path": "data/memory.db",
-    "embeddings_path": "data/embeddings",
     "categories": ["teaching", "research", "career", "personal", "ideas"],
-    "prune_threshold_days": 90,
-    "max_entries": 5000
+    "prune_threshold_days": 90
+  },
+  "knowledge_base": {
+    "embeddings_path": "data/embeddings",
+    "files_path": "data/files"
   },
   "storage": {
     "notes_dir": "data/notes",

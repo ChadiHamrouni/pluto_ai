@@ -5,34 +5,25 @@ from typing import Any, Dict, List
 
 def format_memory_context(memories: list) -> str:
     """
-    Format a list of memory entries (dicts or MemoryEntry-like objects)
-    into a readable block suitable for inclusion in a system prompt.
+    Format all memory facts into a compact block for the system prompt.
 
-    Each entry is rendered as a numbered item showing its category,
-    tags, and content.
+    Grouped by category so the model can scan them easily.
     """
     if not memories:
         return ""
 
-    lines: List[str] = ["## Relevant Memory Context\n"]
-    for i, mem in enumerate(memories, start=1):
-        # Support both dict and object access
-        if isinstance(mem, dict):
-            category = mem.get("category", "unknown")
-            tags = mem.get("tags", [])
-            content = mem.get("content", "")
-            score = mem.get("relevance_score")
-        else:
-            category = getattr(mem, "category", "unknown")
-            tags = getattr(mem, "tags", [])
-            content = getattr(mem, "content", "")
-            score = getattr(mem, "relevance_score", None)
+    by_category: dict[str, list[str]] = {}
+    for mem in memories:
+        category = mem.get("category", "general") if isinstance(mem, dict) else getattr(mem, "category", "general")
+        content = mem.get("content", "") if isinstance(mem, dict) else getattr(mem, "content", "")
+        by_category.setdefault(category, []).append(content)
 
-        tag_str = ", ".join(tags) if tags else "none"
-        score_str = f" (score: {score:.3f})" if score is not None else ""
-        lines.append(
-            f"{i}. [{category.upper()}]{score_str} — tags: {tag_str}\n   {content}"
-        )
+    lines: List[str] = ["## What I know about you\n"]
+    for category, facts in by_category.items():
+        lines.append(f"**{category.capitalize()}**")
+        for fact in facts:
+            lines.append(f"- {fact}")
+        lines.append("")
 
     return "\n".join(lines)
 

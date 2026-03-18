@@ -12,12 +12,11 @@ logger = get_logger(__name__)
 
 CREATE_MEMORIES_TABLE = """
 CREATE TABLE IF NOT EXISTS memories (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    content         TEXT    NOT NULL,
-    category        TEXT    NOT NULL,
-    tags            TEXT    NOT NULL DEFAULT '[]',
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-    relevance_score REAL    NOT NULL DEFAULT 1.0
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    content    TEXT    NOT NULL,
+    category   TEXT    NOT NULL,
+    tags       TEXT    NOT NULL DEFAULT '[]',
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 """
 

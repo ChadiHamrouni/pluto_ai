@@ -1,16 +1,12 @@
 from __future__ import annotations
 
+import json
+
 from agents import function_tool
 
 from helpers.config_loader import load_config
 from helpers.logger import get_logger
-from helpers.memory import (
-    delete_old_memories,
-    get_db_path,
-    get_embeddings_path,
-    insert_memory,
-    search_memories,
-)
+from helpers.memory import delete_memory_by_id, delete_old_memories, get_db_path, insert_memory
 
 logger = get_logger(__name__)
 
@@ -18,18 +14,20 @@ logger = get_logger(__name__)
 @function_tool
 def store_memory(content: str, category: str, tags: str) -> str:
     """
-    Store a new memory entry in the SQLite database and persist its embedding.
+    Save a fact about the user to persistent memory.
+
+    Call this silently after any turn where the user shares something worth
+    remembering: a preference, goal, personal detail, or recurring context.
+    Keep content concise and factual — one idea per entry.
 
     Args:
-        content:  The text content to remember.
+        content:  Short factual statement to remember (e.g. "User is a TA").
         category: One of teaching, research, career, personal, ideas.
-        tags:     Comma-separated list of tags (e.g. "python,async,tips").
+        tags:     Comma-separated tags (e.g. "schedule,teaching").
 
     Returns:
-        A confirmation string with the new entry ID.
+        Confirmation with the new memory id.
     """
-    import json
-
     valid_categories = load_config()["memory"]["categories"]
     if category not in valid_categories:
         return f"Error: invalid category '{category}'. Must be one of: {valid_categories}"
@@ -38,54 +36,58 @@ def store_memory(content: str, category: str, tags: str) -> str:
     tags_json = json.dumps(tag_list)
 
     try:
-        entry_id = insert_memory(get_db_path(), get_embeddings_path(), content, category, tags_json)
-        logger.info("Stored memory entry id=%d category=%s", entry_id, category)
-        return f"Memory stored successfully with id={entry_id}."
+        entry_id = insert_memory(get_db_path(), content, category, tags_json)
+        logger.info("Stored memory id=%d category=%s", entry_id, category)
+        return f"Memory stored (id={entry_id})."
     except Exception as exc:
         logger.error("Failed to store memory: %s", exc)
         return f"Error storing memory: {exc}"
 
 
 @function_tool
-def search_memory(query: str, category: str = "", top_k: int = 5) -> str:
+def forget_memory(memory_id: int) -> str:
     """
-    Search stored memories for entries semantically similar to the query.
+    Delete a specific memory entry by its id.
+
+    Use this when the user explicitly asks to forget something or when a
+    stored fact is no longer accurate (e.g. user corrects a previous statement).
 
     Args:
-        query:    Natural-language search query.
-        category: Optional category filter.
-        top_k:    Maximum number of results to return (default 5).
+        memory_id: The integer id of the memory to delete.
 
     Returns:
-        JSON-encoded list of matching memory entries.
+        Confirmation or error message.
     """
     try:
-        return search_memories(query=query, category=category, top_k=top_k)
+        deleted = delete_memory_by_id(get_db_path(), memory_id)
+        if deleted:
+            logger.info("Deleted memory id=%d", memory_id)
+            return f"Memory {memory_id} forgotten."
+        return f"No memory found with id={memory_id}."
     except Exception as exc:
-        logger.error("Failed to search memories: %s", exc)
-        return f"Error searching memories: {exc}"
+        logger.error("Failed to forget memory: %s", exc)
+        return f"Error deleting memory: {exc}"
 
 
 @function_tool
 def prune_memory(days: int = 90) -> str:
     """
-    Remove memory entries older than *days* days that have low relevance.
+    Delete all memory entries older than *days* days.
 
-    Entries with relevance_score < 0.5 created more than *days* days ago
-    are deleted from both the database and the embeddings directory.
+    Call this only when the user explicitly asks to clean up old memories.
 
     Args:
         days: Age threshold in days (default 90).
 
     Returns:
-        A summary of how many entries were pruned.
+        A summary of how many entries were deleted.
     """
     try:
-        deleted, files_removed = delete_old_memories(get_db_path(), get_embeddings_path(), days)
+        deleted = delete_old_memories(get_db_path(), days)
         if deleted == 0:
-            return "No memories met the pruning criteria."
+            return "No memories older than the threshold found."
         logger.info("Pruned %d memories older than %d days.", deleted, days)
-        return f"Pruned {deleted} memory entries older than {days} days (removed {files_removed} embedding files)."
+        return f"Pruned {deleted} memory entries older than {days} days."
     except Exception as exc:
         logger.error("Failed to prune memories: %s", exc)
         return f"Error pruning memories: {exc}"
