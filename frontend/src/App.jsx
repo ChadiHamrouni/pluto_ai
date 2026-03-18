@@ -202,23 +202,28 @@ export default function App() {
           const filePath = paths[0];
           const ext = filePath.split(".").pop().toLowerCase();
           const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
-          if (!imageExts.includes(ext)) {
-            setError("Only image files are supported right now.");
+          const supported = [...imageExts, "pdf"];
+          if (!supported.includes(ext)) {
+            setError("Supported files: images and PDFs.");
             return;
           }
 
           try {
             const bytes = await readFile(filePath);
-            const mimeMap = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", bmp: "image/bmp" };
-            const mime = mimeMap[ext] || "image/png";
+            const mimeMap = {
+              jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+              webp: "image/webp", gif: "image/gif", bmp: "image/bmp",
+              pdf: "application/pdf",
+            };
+            const mime = mimeMap[ext] || "application/octet-stream";
             const blob = new Blob([bytes], { type: mime });
             const fileName = filePath.split(/[\\/]/).pop();
             const file = new File([blob], fileName, { type: mime });
-            const preview = URL.createObjectURL(blob);
-            setAttachments((prev) => [...prev, { file, preview }]);
+            const preview = ext === "pdf" ? null : URL.createObjectURL(blob);
+            setAttachments((prev) => [...prev, { file, preview, isPdf: ext === "pdf" }]);
             inputRef.current?.focus();
           } catch (e) {
-            setError("Failed to read image: " + e.message);
+            setError("Failed to read file: " + e.message);
           }
         }
       });
@@ -306,7 +311,7 @@ export default function App() {
         <div className="drag-overlay">
           <div className="drag-overlay-inner">
             <span className="drag-icon">🖼</span>
-            <p>Drop image to attach</p>
+            <p>Drop image or PDF to attach</p>
           </div>
         </div>
       )}
@@ -381,7 +386,10 @@ export default function App() {
           <div className="attachment-bar">
             {attachments.map((a, i) => (
               <div key={i} className="attachment-item">
-                <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
+                {a.isPdf
+                  ? <span className="attachment-pdf-icon">PDF</span>
+                  : <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
+                }
                 <span className="attachment-name">{a.file.name}</span>
                 <button className="attachment-remove" onClick={() => removeAttachment(i)}>✕</button>
               </div>
@@ -433,7 +441,7 @@ export default function App() {
             )}
           </button>
         </div>
-        <p className="hint">Shift+Enter for newline · Drop image to attach</p>
+        <p className="hint">Shift+Enter for newline · Drop image or PDF to attach</p>
       </footer>
     </div>
   );

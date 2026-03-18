@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
 
 from handlers.text_handler import text_handler
 from handlers.file_handler import file_handler
@@ -28,9 +27,6 @@ async def chat(
     _user: dict = Depends(get_current_user),
 ):
     """Dispatch to text, file, or voice handler based on payload."""
-    t_start = time.perf_counter()
-    handler_name = "UNKNOWN"
-    handler_time = 0.0
 
     try:
         parsed_history = [ChatMessage(**m) for m in json.loads(history)]

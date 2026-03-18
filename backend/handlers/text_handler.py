@@ -10,6 +10,7 @@ from my_agents.slides_agent import get_slides_agent
 from helpers.agents.command_parser import parse_command
 from helpers.agents.runner import run_agent
 from helpers.agents.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
+from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.memory import get_db_path, load_all_memories
 from models.chat import ChatMessage
@@ -46,16 +47,22 @@ async def text_handler(
         logger.warning("Memory load skipped: %s", exc)
         memory_entries = []
 
+    # Rolling window — keep last N turns (pairs), configurable
+    window = load_config().get("orchestrator", {}).get("history_window", 20)
+    windowed_history = history[-(window * 2):]  # 2 messages per turn (user + assistant)
+    if len(history) > len(windowed_history):
+        logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
+
     memory_context = format_memory_context(memory_entries)
     messages: list[dict] = []
 
-    if memory_context:
-        messages.append({
-            "role": "system",
-            "content": build_system_prompt("You are a helpful personal AI assistant.", memory_context),
-        })
+    # System prompt — always includes memories regardless of window size
+    messages.append({
+        "role": "system",
+        "content": build_system_prompt("You are a helpful personal AI assistant.", memory_context),
+    })
 
-    messages.extend(format_chat_history(history))
+    messages.extend(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
         mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
