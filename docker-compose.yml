@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data          # persist DB, notes, slides, embeddings
+      - ./config.json:/app/config.json:ro
+    environment:
+      - OPENAI_AGENTS_DISABLE_TRACING=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach Ollama on the host
+    restart: unless-stopped

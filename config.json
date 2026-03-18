@@ -6,6 +6,18 @@
     "base_url": "http://localhost:11434/v1",
     "api_key": "ollama"
   },
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "service_token": "",
+    "verify_ssl": true
+  },
+  "auth": {
+    "secret_key": "18d8525847d94f83da1dc791703be45dbc11947df83c29a83bc4ac22f24480da",
+    "username": "admin",
+    "password_hash": "$2b$12$D/aVEXpNMkAjD1gjpYjXyO8qgOQp2v2YGj87IVrlqEQHRQustn7iy",
+    "access_token_expires_minutes": 15,
+    "refresh_token_expires_days": 7
+  },
   "notes_agent": {
     "model": "qwen3.5:2b",
     "temperature": 0.5,

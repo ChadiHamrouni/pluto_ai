@@ -4,22 +4,13 @@ import json
 import os
 from typing import List
 
-import httpx
 import numpy as np
 
 from helpers.config_loader import load_config
 from helpers.logger import get_logger
+from helpers.ollama_client import get_httpx_client
 
 logger = get_logger(__name__)
-
-
-def _ollama_base_url() -> str:
-    config = load_config()
-    # Derive Ollama base from the orchestrator base_url (strip /v1)
-    base = config["orchestrator"]["base_url"].rstrip("/")
-    if base.endswith("/v1"):
-        base = base[:-3]
-    return base
 
 
 def embed_text(text: str) -> List[float]:
@@ -30,9 +21,9 @@ def embed_text(text: str) -> List[float]:
     """
     config = load_config()
     model = config["rag"]["embedding_model"]
-    url = f"{_ollama_base_url()}/api/embed"
 
-    response = httpx.post(url, json={"model": model, "input": text}, timeout=30)
+    client = get_httpx_client()
+    response = client.post("/api/embed", json={"model": model, "input": text})
     response.raise_for_status()
     data = response.json()
 

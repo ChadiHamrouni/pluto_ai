@@ -10,4 +10,5 @@ python-multipart
 httpx
 python-dotenv
 rich>=13.0
-marp-cli
+PyJWT>=2.8
+passlib[bcrypt]>=1.7

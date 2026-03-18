@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from my_agents.orchestrator import run_orchestrator
+from agents.orchestrator import run_orchestrator
+from helpers.dependencies import get_current_user
 from helpers.logger import get_logger
 from models.chat import ChatRequest, ChatResponse
 
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, _user: dict = Depends(get_current_user)):
     """Send a message to the AI assistant and receive a response."""
     try:
         response_text = await run_orchestrator(

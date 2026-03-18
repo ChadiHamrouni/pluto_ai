@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from helpers.config_loader import load_config
 from helpers.db import init_db
 from helpers.logger import get_logger
+from routes.auth import router as auth_router
 from routes.chat import router as chat_router
 
 logger = get_logger(__name__)
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     )
 
     # Mount routers
+    app.include_router(auth_router)
     app.include_router(chat_router)
 
     @app.get("/", tags=["health"])

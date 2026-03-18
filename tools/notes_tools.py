@@ -1,39 +1,21 @@
 from __future__ import annotations
 
 import json
-import os
-import re
-import sqlite3
-from datetime import datetime
 
 from agents import function_tool
 
 from helpers.config_loader import load_config
 from helpers.logger import get_logger
+from helpers.notes import (
+    fetch_note_by_title,
+    get_db_path,
+    get_notes_dir,
+    insert_note_db,
+    query_notes,
+    write_note_file,
+)
 
 logger = get_logger(__name__)
-
-
-def _get_db_path() -> str:
-    return load_config()["memory"]["db_path"]
-
-
-def _get_notes_dir() -> str:
-    return load_config()["storage"]["notes_dir"]
-
-
-def _sync_db_connection(db_path: str) -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _slugify(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[\s_-]+", "-", text)
-    return text[:80]
 
 
 @function_tool
@@ -50,56 +32,18 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
     Returns:
         Confirmation string with the note ID and file path.
     """
-    config = load_config()
-    valid_categories = config["memory"]["categories"]
+    valid_categories = load_config()["memory"]["categories"]
     if category not in valid_categories:
         return f"Error: invalid category '{category}'. Must be one of: {valid_categories}"
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     tags_json = json.dumps(tag_list)
-    notes_dir = _get_notes_dir()
-    db_path = _get_db_path()
-
-    os.makedirs(notes_dir, exist_ok=True)
-
-    slug = _slugify(title)
-    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-    filename = f"{timestamp}-{slug}.md"
-    file_path = os.path.join(notes_dir, filename)
-
-    front_matter = (
-        f"---\n"
-        f"title: {title}\n"
-        f"category: {category}\n"
-        f"tags: [{', '.join(tag_list)}]\n"
-        f"created_at: {datetime.utcnow().isoformat()}\n"
-        f"---\n\n"
-    )
-    full_content = front_matter + content
 
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(full_content)
-
-        conn = _sync_db_connection(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO notes (title, content, category, tags, created_at, file_path)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (title, content, category, tags_json, datetime.utcnow().isoformat(), file_path),
-        )
-        conn.commit()
-        note_id = cursor.lastrowid
-        conn.close()
-
+        file_path = write_note_file(get_notes_dir(), title, content, category, tag_list)
+        note_id = insert_note_db(get_db_path(), title, content, category, tags_json, file_path)
         logger.info("Created note id=%d title='%s' path=%s", note_id, title, file_path)
         return f"Note created successfully. id={note_id}, file={file_path}"
-    except sqlite3.IntegrityError:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        return f"Error: a note with title '{title}' already exists."
     except Exception as exc:
         logger.error("Failed to create note: %s", exc)
         return f"Error creating note: {exc}"
@@ -116,25 +60,9 @@ def list_notes(category: str = "") -> str:
     Returns:
         JSON-encoded list of note summaries (id, title, category, tags, created_at).
     """
-    db_path = _get_db_path()
-
     try:
-        conn = _sync_db_connection(db_path)
-
-        if category:
-            cursor = conn.execute(
-                "SELECT id, title, category, tags, created_at, file_path FROM notes WHERE category = ? ORDER BY created_at DESC",
-                (category,),
-            )
-        else:
-            cursor = conn.execute(
-                "SELECT id, title, category, tags, created_at, file_path FROM notes ORDER BY created_at DESC"
-            )
-
-        rows = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-
-        return json.dumps(rows if rows else [], default=str)
+        rows = query_notes(get_db_path(), category)
+        return json.dumps(rows, default=str)
     except Exception as exc:
         logger.error("Failed to list notes: %s", exc)
         return f"Error listing notes: {exc}"
@@ -151,30 +79,11 @@ def get_note(title: str) -> str:
     Returns:
         JSON-encoded note data, or an error message if not found.
     """
-    db_path = _get_db_path()
-
     try:
-        conn = _sync_db_connection(db_path)
-        cursor = conn.execute(
-            "SELECT * FROM notes WHERE title = ? LIMIT 1",
-            (title,),
-        )
-        row = cursor.fetchone()
-        conn.close()
-
-        if row is None:
-            conn = _sync_db_connection(db_path)
-            cursor = conn.execute(
-                "SELECT * FROM notes WHERE title LIKE ? LIMIT 1",
-                (f"%{title}%",),
-            )
-            row = cursor.fetchone()
-            conn.close()
-
+        row = fetch_note_by_title(get_db_path(), title)
         if row is None:
             return f"Note with title '{title}' not found."
-
-        return json.dumps(dict(row), default=str)
+        return json.dumps(row, default=str)
     except Exception as exc:
         logger.error("Failed to get note: %s", exc)
         return f"Error retrieving note: {exc}"

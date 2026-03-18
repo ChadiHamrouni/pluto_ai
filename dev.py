@@ -16,7 +16,7 @@ from rich.console import Console
 
 from helpers.config_loader import load_config
 from helpers.db import init_db
-from my_agents.orchestrator import run_orchestrator
+from agents.orchestrator import run_orchestrator
 
 console = Console()
 
