@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import time
+from pathlib import Path
 
 from agents import Agent, Runner, handoff
 
@@ -43,7 +45,7 @@ def get_orchestrator() -> Agent:
     return _orchestrator
 
 
-async def run_orchestrator(message: str, history: list) -> str:
+async def run_orchestrator(message: str, history: list, image_path: Path | None = None) -> str:
     # Parse optional slash command — deterministic routing if present
     parsed = parse_command(message)
 
@@ -82,7 +84,20 @@ async def run_orchestrator(message: str, history: list) -> str:
         })
 
     messages.extend(formatted_history)
-    messages.append({"role": "user", "content": content or message})
+
+    # Build user message — include image as base64 if provided
+    if image_path and image_path.exists():
+        mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+        b64 = base64.b64encode(image_path.read_bytes()).decode()
+        user_content = [
+            {"type": "text", "text": content or message},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+        ]
+        logger.info("Attaching image %s (%d bytes)", image_path.name, image_path.stat().st_size)
+    else:
+        user_content = content or message
+
+    messages.append({"role": "user", "content": user_content})
 
     try:
         t_run = time.perf_counter()

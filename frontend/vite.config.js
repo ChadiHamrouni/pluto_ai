@@ -8,6 +8,10 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     open: false,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {

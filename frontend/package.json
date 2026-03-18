@@ -9,12 +9,14 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@tauri-apps/plugin-fs": "^2.4.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/cli": "^2.0.0",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.8"
   }

@@ -26,32 +26,30 @@ async function refresh() {
   refreshToken = d.refresh_token;
 }
 
-export async function sendMessage(message, history) {
+async function _doChat(formData) {
+  return fetch(`${BASE}/chat`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+}
+
+export async function sendMessage(message, history, imageFile = null) {
   if (!accessToken) await login();
 
-  const payload = { message, history };
-  let r = await fetch(`${BASE}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const formData = new FormData();
+  formData.append("message", message);
+  formData.append("history", JSON.stringify(history));
+  if (imageFile) formData.append("image", imageFile);
+
+  let r = await _doChat(formData);
 
   if (r.status === 401) {
     await refresh();
-    r = await fetch(`${BASE}/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    r = await _doChat(formData);
   }
 
-  if (!r.ok) throw new Error(`Chat error: ${r.status}`);
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   const d = await r.json();
   return d.response;
 }

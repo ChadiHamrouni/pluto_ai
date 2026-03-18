@@ -18,3 +18,4 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+    has_image: bool = False

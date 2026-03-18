@@ -11,18 +11,27 @@
   "app": {
     "windows": [
       {
-        "title": "Personal AI",
+        "title": "Jarvis",
         "width": 420,
         "height": 750,
-        "resizable": false,
+        "resizable": true,
         "decorations": false,
         "alwaysOnTop": false,
         "x": 1490,
-        "y": 160
+        "y": 160,
+        "dragDropEnabled": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'wasm-unsafe-eval'; connect-src ipc: http://ipc.localhost https://*.huggingface.co http://localhost:8000; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'unsafe-inline' 'self'",
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {

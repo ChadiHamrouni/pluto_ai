@@ -16,9 +16,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download embedding model weights at build time so the container
-# starts without needing internet access and with no cold-start delay.
+# Pre-download embedding model into /app/model_cache (baked into image layer,
+# not overridden by any volume mount at runtime).
 ARG EMBEDDING_MODEL=nomic-ai/nomic-embed-multimodal-3b
+ARG HF_TOKEN=""
+ENV HF_TOKEN=$HF_TOKEN
+ENV HF_HOME=/app/model_cache
 RUN python -c "\
 from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor; \
 ColQwen2_5_Processor.from_pretrained('${EMBEDDING_MODEL}'); \
