@@ -70,7 +70,7 @@ def forget_memory(memory_id: int) -> str:
 
 
 @function_tool
-def prune_memory(days: int = 90) -> str:
+def prune_memory(days: int = 0) -> str:
     """
     Delete all memory entries older than *days* days.
 
@@ -82,6 +82,8 @@ def prune_memory(days: int = 90) -> str:
     Returns:
         A summary of how many entries were deleted.
     """
+    if days == 0:
+        days = load_config()["memory"].get("default_prune_threshold_days", 90)
     try:
         deleted = delete_old_memories(get_db_path(), days)
         if deleted == 0:

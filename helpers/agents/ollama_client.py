@@ -39,7 +39,7 @@ def _build_headers() -> dict[str, str]:
     return {}
 
 
-def get_httpx_client(timeout: float = 30) -> httpx.Client:
+def get_httpx_client(timeout: float | None = None) -> httpx.Client:
     """
     Build an httpx.Client pre-configured for the Ollama server.
 
@@ -48,6 +48,8 @@ def get_httpx_client(timeout: float = 30) -> httpx.Client:
     """
     cfg = _ollama_cfg()
     verify = cfg.get("verify_ssl", True)
+    if timeout is None:
+        timeout = cfg.get("request_timeout_seconds", 30)
 
     return httpx.Client(
         base_url=get_ollama_base_url(),

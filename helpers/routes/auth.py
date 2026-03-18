@@ -60,7 +60,7 @@ def create_access_token(subject: str, extra: dict | None = None) -> str:
     if extra:
         payload.update(extra)
 
-    token = jwt.encode(payload, _secret_key(), algorithm="HS256")
+    token = jwt.encode(payload, _secret_key(), algorithm=_auth_cfg().get("algorithm", "HS256"))
     logger.debug("Created access token for %s (expires in %dm)", subject, expires_minutes)
     return token
 
@@ -78,7 +78,7 @@ def create_refresh_token(subject: str) -> str:
         "jti": secrets.token_hex(16),
     }
 
-    token = jwt.encode(payload, _secret_key(), algorithm="HS256")
+    token = jwt.encode(payload, _secret_key(), algorithm=_auth_cfg().get("algorithm", "HS256"))
     logger.debug("Created refresh token for %s (expires in %dd)", subject, expires_days)
     return token
 
@@ -94,7 +94,7 @@ def decode_token(token: str) -> dict:
     Raises jwt.ExpiredSignatureError if expired.
     Raises jwt.InvalidTokenError for any other issue.
     """
-    return jwt.decode(token, _secret_key(), algorithms=["HS256"])
+    return jwt.decode(token, _secret_key(), algorithms=[_auth_cfg().get("algorithm", "HS256")])
 
 
 def validate_access_token(token: str) -> dict:

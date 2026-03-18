@@ -2,40 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List
+from pathlib import Path
+from typing import List, Union
 
 import numpy as np
+from PIL import Image
 
-from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
-from helpers.agents.ollama_client import get_httpx_client
+from helpers.tools.embedder import embed
 
 logger = get_logger(__name__)
-
-
-def embed_text(text: str) -> List[float]:
-    """
-    Encode *text* into a dense embedding vector using Ollama's embeddings API.
-
-    Returns a plain Python list of floats.
-    """
-    config = load_config()
-    model = config["rag"]["embedding_model"]
-
-    client = get_httpx_client()
-    response = client.post("/api/embed", json={"model": model, "input": text})
-    response.raise_for_status()
-    data = response.json()
-
-    # Ollama returns {"embeddings": [[...]] } for /api/embed
-    vector: List[float] = data["embeddings"][0]
-
-    # L2-normalise so cosine similarity == dot product
-    arr = np.array(vector, dtype=np.float32)
-    norm = np.linalg.norm(arr)
-    if norm > 0:
-        arr = arr / norm
-    return arr.tolist()
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
@@ -96,35 +72,40 @@ def compute_similarity(vec1: List[float], vec2: List[float]) -> float:
 
 def store_embedding(
     entry_id: int,
-    text: str,
-    embedding: List[float],
+    content: Union[str, Path, "Image.Image"],
     embeddings_path: str,
 ) -> None:
     """
-    Persist an embedding to disk as a NumPy ``.npy`` file alongside a
-    small JSON sidecar that stores the originating text for debugging.
+    Embed *content* (text, image path, or PIL Image) and persist the vector
+    as a NumPy ``.npy`` file with a JSON sidecar for debugging.
     """
     os.makedirs(embeddings_path, exist_ok=True)
+
+    vector = embed(content)
 
     npy_path = os.path.join(embeddings_path, f"{entry_id}.npy")
     meta_path = os.path.join(embeddings_path, f"{entry_id}.json")
 
-    np.save(npy_path, np.array(embedding, dtype=np.float32))
+    np.save(npy_path, np.array(vector, dtype=np.float32))
 
+    preview = str(content)[:200] if not isinstance(content, Image.Image) else "<image>"
     with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump({"entry_id": entry_id, "text_preview": text[:200]}, f)
+        json.dump({"entry_id": entry_id, "preview": preview}, f)
 
     logger.debug("Stored embedding for entry %d at %s", entry_id, npy_path)
 
 
 def search_embeddings(
-    query: str,
+    query: Union[str, Path, "Image.Image"],
     top_k: int,
     embeddings_path: str,
     similarity_threshold: float,
 ) -> List[int]:
     """
     Search all stored embeddings for entries most similar to *query*.
+
+    *query* can be text, an image path, or a PIL Image — anything the
+    embedder understands.
 
     Returns up to *top_k* entry IDs whose similarity exceeds
     *similarity_threshold*, sorted by descending similarity.
@@ -133,7 +114,7 @@ def search_embeddings(
         logger.warning("Embeddings directory does not exist: %s", embeddings_path)
         return []
 
-    query_vec = embed_text(query)
+    query_vec = embed(query)
     scores: List[tuple[float, int]] = []
 
     for filename in os.listdir(embeddings_path):
@@ -144,8 +125,7 @@ def search_embeddings(
         except ValueError:
             continue
 
-        npy_path = os.path.join(embeddings_path, filename)
-        stored_vec = np.load(npy_path).tolist()
+        stored_vec = np.load(os.path.join(embeddings_path, filename)).tolist()
         sim = compute_similarity(query_vec, stored_vec)
 
         if sim >= similarity_threshold:

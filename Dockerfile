@@ -12,17 +12,25 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Python deps first (layer caching)
+# Install Python deps (separate layer for caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download embedding model weights at build time so the container
+# starts without needing internet access and with no cold-start delay.
+ARG EMBEDDING_MODEL=nomic-ai/nomic-embed-multimodal-3b
+RUN python -c "\
+from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor; \
+ColQwen2_5_Processor.from_pretrained('${EMBEDDING_MODEL}'); \
+ColQwen2_5.from_pretrained('${EMBEDDING_MODEL}'); \
+print('Embedding model cached.')"
 
 # Copy source
 COPY . .
 
-# Create data dirs
-RUN mkdir -p data/notes data/slides data/embeddings
+# Create runtime data dirs
+RUN mkdir -p data/notes data/slides data/embeddings data/files
 
-# Disable OpenAI Agents SDK tracing
 ENV OPENAI_AGENTS_DISABLE_TRACING=1
 
 EXPOSE 8000

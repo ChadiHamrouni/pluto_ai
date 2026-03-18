@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
@@ -18,58 +19,49 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    FastAPI lifespan context manager.
-    Runs startup logic before yielding and cleanup (if any) after.
-    """
     logger.info("Starting personal AI assistant...")
 
-    # Load configuration
     config = load_config()
-    logger.info("Configuration loaded successfully.")
 
     # Ensure required data directories exist
     for dir_key in ("notes_dir", "slides_dir"):
         path = config["storage"][dir_key]
         os.makedirs(path, exist_ok=True)
-        logger.info("Ensured directory exists: %s", path)
 
-    embeddings_path = config["memory"]["embeddings_path"]
-    os.makedirs(embeddings_path, exist_ok=True)
-    logger.info("Ensured embeddings directory exists: %s", embeddings_path)
+    for path in (
+        config["knowledge_base"]["embeddings_path"],
+        config["knowledge_base"]["files_path"],
+    ):
+        os.makedirs(path, exist_ok=True)
 
-    # Initialise the SQLite database (creates tables if absent)
-    db_path = config["memory"]["db_path"]
-    await init_db(db_path)
-    logger.info("Database ready at %s", db_path)
+    # Initialise SQLite database
+    await init_db(config["memory"]["db_path"])
 
-    logger.info(
-        "Server ready. Listening on %s:%d",
-        config["api"]["host"],
-        config["api"]["port"],
-    )
+    # Load embedding model into memory before accepting traffic
+    from helpers.tools.embedder import load_model
+    load_model()
 
-    yield  # application runs here
+    logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 
-    logger.info("Shutting down personal AI assistant.")
+    yield
+
+    logger.info("Shutting down.")
 
 
 def create_app() -> FastAPI:
-    """Construct and configure the FastAPI application."""
     config = load_config()
 
     app = FastAPI(
         title="Personal AI Assistant",
         description=(
             "A local AI assistant powered by Ollama, OpenAI Agents SDK, "
-            "FastAPI, and SQLite.  Supports note-taking, slide generation, "
-            "and persistent memory with semantic search."
+            "FastAPI, and SQLite. Supports note-taking, slide generation, "
+            "and persistent memory."
         ),
         version="1.0.0",
         lifespan=lifespan,
     )
 
-    # CORS — allow all origins for local development; tighten in production
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -78,29 +70,30 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount routers
     app.include_router(auth_router)
     app.include_router(chat_router)
 
     @app.get("/", tags=["health"])
     async def root():
-        """Health-check endpoint."""
-        return {
-            "status": "ok",
-            "service": "personal-ai-assistant",
-            "version": "1.0.0",
-        }
+        return {"status": "ok", "service": "personal-ai-assistant", "version": "1.0.0"}
 
     @app.get("/health", tags=["health"])
     async def health():
-        """Detailed health check including config summary."""
+        from helpers.tools.embedder import is_ready
         cfg = load_config()
+
+        if not is_ready():
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "reason": "embedding model not loaded yet"},
+            )
+
         return {
             "status": "healthy",
             "orchestrator_model": cfg["orchestrator"]["model"],
-            "ollama_base_url": cfg["orchestrator"]["base_url"],
+            "ollama_base_url": cfg["ollama"]["base_url"],
             "db_path": cfg["memory"]["db_path"],
-            "streaming_enabled": cfg["api"]["streaming"],
+            "embedding_model": cfg["knowledge_base"]["embedding_model"],
         }
 
     return app
@@ -110,7 +103,6 @@ app = create_app()
 
 
 if __name__ == "__main__":
-
     config = load_config()
     uvicorn.run(
         "main:app",
