@@ -7,9 +7,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from helpers.config_loader import load_config
-from helpers.db import init_db
-from helpers.logger import get_logger
+from helpers.core.config_loader import load_config
+from helpers.core.db import init_db
+from helpers.core.logger import get_logger
 from routes.auth import router as auth_router
 from routes.chat import router as chat_router
 

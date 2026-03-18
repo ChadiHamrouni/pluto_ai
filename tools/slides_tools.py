@@ -4,8 +4,8 @@ import os
 
 from agents import function_tool
 
-from helpers.logger import get_logger
-from helpers.slides import (
+from helpers.core.logger import get_logger
+from helpers.tools.slides import (
     MARP_THEMES,
     build_marp_markdown,
     build_slide_paths,

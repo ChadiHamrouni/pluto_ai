@@ -6,7 +6,7 @@ import httpx
 from agents import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
 
-from helpers.config_loader import load_config
+from helpers.core.config_loader import load_config
 
 
 def _ollama_cfg() -> dict:

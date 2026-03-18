@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
-from helpers.logger import get_logger
+from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 

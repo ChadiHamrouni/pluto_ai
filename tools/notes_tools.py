@@ -4,9 +4,9 @@ import json
 
 from agents import function_tool
 
-from helpers.config_loader import load_config
-from helpers.logger import get_logger
-from helpers.notes import (
+from helpers.core.config_loader import load_config
+from helpers.core.logger import get_logger
+from helpers.tools.notes import (
     fetch_note_by_title,
     get_db_path,
     get_notes_dir,

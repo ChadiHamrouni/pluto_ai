@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from passlib.context import CryptContext
 
-from helpers.config_loader import load_config
-from helpers.logger import get_logger
+from helpers.core.config_loader import load_config
+from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 

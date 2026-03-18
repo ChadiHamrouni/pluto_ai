@@ -6,7 +6,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from helpers.auth import validate_access_token
+from helpers.routes.auth import validate_access_token
 
 _bearer_scheme = HTTPBearer()
 

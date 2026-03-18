@@ -6,14 +6,14 @@ from agents import Agent, Runner, handoff
 
 from agents.notes_agent import get_notes_agent
 from agents.slides_agent import get_slides_agent
-from helpers.command_parser import parse_command
-from helpers.config_loader import load_config
-from helpers.instructions_loader import load_instructions
-from helpers.logger import get_logger
-from helpers.memory import get_db_path, load_all_memories
-from helpers.ollama_client import get_model
-from helpers.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
-from helpers.tracer import print_trace
+from helpers.agents.command_parser import parse_command
+from helpers.core.config_loader import load_config
+from helpers.agents.instructions_loader import load_instructions
+from helpers.core.logger import get_logger
+from helpers.tools.memory import get_db_path, load_all_memories
+from helpers.agents.ollama_client import get_model
+from helpers.agents.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
+from helpers.agents.tracer import print_trace
 from tools.memory_tools import forget_memory, prune_memory, store_memory
 
 logger = get_logger(__name__)

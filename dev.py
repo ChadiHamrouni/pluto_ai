@@ -14,8 +14,8 @@ os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
 
 from rich.console import Console
 
-from helpers.config_loader import load_config
-from helpers.db import init_db
+from helpers.core.config_loader import load_config
+from helpers.core.db import init_db
 from agents.orchestrator import run_orchestrator
 
 console = Console()

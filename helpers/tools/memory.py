@@ -6,8 +6,8 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 
-from helpers.config_loader import load_config
-from helpers.logger import get_logger
+from helpers.core.config_loader import load_config
+from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -6,8 +6,8 @@ import os
 import subprocess
 from datetime import datetime
 
-from helpers.config_loader import load_config
-from helpers.logger import get_logger
+from helpers.core.config_loader import load_config
+from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 

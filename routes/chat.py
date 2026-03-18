@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from agents.orchestrator import run_orchestrator
-from helpers.dependencies import get_current_user
-from helpers.logger import get_logger
+from helpers.routes.dependencies import get_current_user
+from helpers.core.logger import get_logger
 from models.chat import ChatRequest, ChatResponse
 
 logger = get_logger(__name__)

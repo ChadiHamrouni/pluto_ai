@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from agents import Agent
 
-from helpers.config_loader import load_config
-from helpers.instructions_loader import load_instructions
-from helpers.ollama_client import get_model
+from helpers.core.config_loader import load_config
+from helpers.agents.instructions_loader import load_instructions
+from helpers.agents.ollama_client import get_model
 from tools.notes_tools import create_note, get_note, list_notes
 
 _notes_agent: Agent | None = None

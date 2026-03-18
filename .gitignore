@@ -67,3 +67,7 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Dev and internal docs
+dev.py
+requirements.md

@@ -6,8 +6,8 @@ import jwt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from helpers.auth import authenticate_user, refresh_access_token, validate_access_token
-from helpers.logger import get_logger
+from helpers.routes.auth import authenticate_user, refresh_access_token, validate_access_token
+from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])

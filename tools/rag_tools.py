@@ -6,9 +6,9 @@ from typing import List
 
 import numpy as np
 
-from helpers.config_loader import load_config
-from helpers.logger import get_logger
-from helpers.ollama_client import get_httpx_client
+from helpers.core.config_loader import load_config
+from helpers.core.logger import get_logger
+from helpers.agents.ollama_client import get_httpx_client
 
 logger = get_logger(__name__)
 
