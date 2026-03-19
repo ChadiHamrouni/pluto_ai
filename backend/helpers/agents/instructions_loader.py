@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "instructions")
+_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "instructions")
 
 
 def load_instructions(name: str) -> str:

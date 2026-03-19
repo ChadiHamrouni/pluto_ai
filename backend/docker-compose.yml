@@ -7,7 +7,8 @@ services:
     volumes:
       - ollama_data:/root/.ollama    # persists downloaded models across restarts
     environment:
-      - OLLAMA_KEEP_ALIVE=-1         # never unload model from VRAM between requests
+      - OLLAMA_KEEP_ALIVE=5m         # unload model after 5min idle — lets VRAM free up for the other model
+      - OLLAMA_MAX_LOADED_MODELS=1   # only one model in VRAM at a time (8GB RTX 4060 can't hold both)
     restart: unless-stopped
     # GPU passthrough — requires nvidia-container-toolkit installed on the HOST (not inside Docker).
     # Install guide: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
@@ -23,7 +24,8 @@ services:
           cpus: "6"                  # adjust to (your_total_cores - 2) to leave headroom for OS
 
   app:
-    build: .
+    build:
+      context: .
     ports:
       - "8000:8000"
     volumes:
@@ -37,10 +39,11 @@ services:
       - ollama
     restart: unless-stopped
     # develop.watch is intentionally disabled — `sync+restart` restarts uvicorn
-    # on every file change, which interrupts the ~2 min ColQwen2.5 CPU load and
-    # causes an infinite crash loop. Use `docker compose exec app <cmd>` or
-    # rebuild + restart manually when you need code changes picked up.
-    # To re-enable hot-reload: `docker compose --profile dev up --watch`
+    # on every file change, which caused an infinite crash loop with the old
+    # HuggingFace model load (~2 min on CPU). With Ollama-backed embeddings
+    # startup is now instant — but hot-reload is still disabled to avoid
+    # accidental restarts mid-request.
+    # To enable: `docker compose --profile dev up --watch`
     deploy:
       resources:
         limits:

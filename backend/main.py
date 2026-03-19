@@ -40,10 +40,6 @@ async def lifespan(app: FastAPI):
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
 
-    # Load embedding model into memory before accepting traffic
-    from helpers.tools.embedder import load_model
-    load_model()
-
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 
     yield
@@ -83,21 +79,12 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     async def health():
-        from helpers.tools.embedder import is_ready
         cfg = load_config()
-
-        if not is_ready():
-            return JSONResponse(
-                status_code=503,
-                content={"status": "unavailable", "reason": "embedding model not loaded yet"},
-            )
-
         return {
             "status": "healthy",
             "orchestrator_model": cfg["orchestrator"]["model"],
             "ollama_base_url": cfg["ollama"]["base_url"],
             "db_path": cfg["memory"]["db_path"],
-            "embedding_model": cfg["knowledge_base"]["embedding_model"],
         }
 
     return app

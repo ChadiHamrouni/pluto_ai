@@ -51,7 +51,7 @@
     "max_retries_per_step": 2
   },
   "knowledge_base": {
-    "embedding_model": "nomic-ai/nomic-embed-multimodal-3b",
+    "embedding_model": "qwen3-embedding:0.6b",
     "embeddings_path": "data/embeddings",
     "files_path": "data/files"
   },

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import List, Union
 
 import numpy as np
-from PIL import Image
 
 from helpers.core.logger import get_logger
 from helpers.tools.embedder import embed
@@ -72,7 +71,7 @@ def compute_similarity(vec1: List[float], vec2: List[float]) -> float:
 
 def store_embedding(
     entry_id: int,
-    content: Union[str, Path, "Image.Image"],
+    content: Union[str, Path],
     embeddings_path: str,
 ) -> None:
     """
@@ -88,7 +87,7 @@ def store_embedding(
 
     np.save(npy_path, np.array(vector, dtype=np.float32))
 
-    preview = str(content)[:200] if not isinstance(content, Image.Image) else "<image>"
+    preview = str(content)[:200]
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump({"entry_id": entry_id, "preview": preview}, f)
 
@@ -96,7 +95,7 @@ def store_embedding(
 
 
 def search_embeddings(
-    query: Union[str, Path, "Image.Image"],
+    query: Union[str, Path],
     top_k: int,
     embeddings_path: str,
     similarity_threshold: float,

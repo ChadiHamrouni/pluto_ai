@@ -16,23 +16,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download embedding model into /app/model_cache (baked into image layer,
-# not overridden by any volume mount at runtime).
-ARG EMBEDDING_MODEL=nomic-ai/nomic-embed-multimodal-3b
-ARG HF_TOKEN=""
-ENV HF_TOKEN=$HF_TOKEN
-ENV HF_HOME=/app/model_cache
-RUN python -c "\
-from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor; \
-ColQwen2_5_Processor.from_pretrained('${EMBEDDING_MODEL}'); \
-ColQwen2_5.from_pretrained('${EMBEDDING_MODEL}'); \
-print('Embedding model cached.')"
-
 # Copy source
 COPY . .
 
 # Create runtime data dirs
-RUN mkdir -p data/notes data/slides data/embeddings data/files
+RUN mkdir -p data/notes data/slides data/embeddings data/files data/memory
 
 ENV OPENAI_AGENTS_DISABLE_TRACING=1
 

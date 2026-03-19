@@ -1,11 +1,10 @@
 """
-Multimodal embedder backed by nomic-embed-multimodal-3b via HuggingFace.
+Text embedder backed by Ollama's /api/embeddings endpoint.
 
-Handles text, images (PIL or path), and PDF pages uniformly — all inputs
-are embedded into the same vector space.
+Uses qwen3-embedding:0.6b (or whatever model is set in config.json
+knowledge_base.embedding_model) running inside the Ollama container.
 
-Dependencies: colpali-engine, torch, Pillow
-    pip install colpali-engine torch Pillow
+No model weights are loaded in the app process — Ollama owns the model.
 """
 
 from __future__ import annotations
@@ -13,112 +12,79 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Union
 
+import httpx
 import numpy as np
-import torch
-from PIL import Image
-from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-_model: ColQwen2_5 | None = None
-_processor: ColQwen2_5_Processor | None = None
 _ready: bool = False
 
 
 def is_ready() -> bool:
-    """Return True once the model has been loaded into memory."""
+    """Return True once we have confirmed Ollama embedding endpoint is reachable."""
     return _ready
 
 
 def load_model() -> None:
     """
-    Eagerly load the embedding model into memory.
+    Mark embedding as ready without probing Ollama at startup.
 
-    Call this once at application startup so the model is warm before
-    any requests arrive. Safe to call multiple times — subsequent calls
-    are no-ops.
+    We skip the warm-up probe so the embedding model is NOT loaded into VRAM
+    at startup — the LLM (qwen3.5:2b) needs that VRAM. The embedding model
+    will load on first actual use (RAG search), at which point Ollama will
+    evict the LLM if needed (OLLAMA_MAX_LOADED_MODELS=1).
     """
-    _load_model()
-
-
-def _load_model() -> tuple[ColQwen2_5, ColQwen2_5_Processor]:
-    global _model, _processor, _ready
-    if _model is not None:
-        return _model, _processor  # type: ignore[return-value]
-
-    config = load_config()
-    model_name = config["knowledge_base"]["embedding_model"]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    logger.info("Loading multimodal embedding model '%s' on %s ...", model_name, device)
-
-    _processor = ColQwen2_5_Processor.from_pretrained(model_name)
-    _model = ColQwen2_5.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        device_map=device,
-    ).eval()
-
+    global _ready
     _ready = True
-    logger.info("Multimodal embedding model loaded.")
-    return _model, _processor
+    logger.info("Embedding model ready (lazy — will load on first use via Ollama).")
 
 
-def _normalise(vec: np.ndarray) -> List[float]:
-    norm = np.linalg.norm(vec)
+def _call_ollama(base_url: str, model: str, text: str) -> List[float]:
+    """POST to Ollama /api/embeddings and return the embedding vector."""
+    url = base_url.rstrip("/") + "/api/embeddings"
+    timeout = load_config()["ollama"].get("request_timeout_seconds", 30)
+
+    response = httpx.post(
+        url,
+        json={"model": model, "prompt": text},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    embedding = data.get("embedding")
+    if not embedding:
+        raise ValueError(f"Ollama returned no embedding. Response: {data}")
+
+    return embedding
+
+
+def _normalise(vec: List[float]) -> List[float]:
+    arr = np.array(vec, dtype=np.float32)
+    norm = np.linalg.norm(arr)
     if norm > 0:
-        vec = vec / norm
-    return vec.tolist()
+        arr = arr / norm
+    return arr.tolist()
 
 
 def embed_text(text: str) -> List[float]:
-    """Embed a text string into a dense vector."""
-    model, processor = _load_model()
-    inputs = processor.process_queries([text]).to(model.device)
-    with torch.no_grad():
-        output = model(**inputs)
-    # ColQwen2.5 returns per-token embeddings — mean pool to a single vector
-    vec = output.last_hidden_state.mean(dim=1).squeeze().cpu().float().numpy()
+    """Embed a text string into a dense vector via Ollama."""
+    global _ready
+    config = load_config()
+    model = config["knowledge_base"]["embedding_model"]
+    base_url = config["ollama"]["base_url"]
+
+    vec = _call_ollama(base_url, model, text)
+    _ready = True  # mark ready on first successful call
     return _normalise(vec)
 
 
-def embed_image(image: Union[str, Path, "Image.Image"]) -> List[float]:
+def embed(content: Union[str, Path]) -> List[float]:
     """
-    Embed an image into the same vector space as text.
-
-    *image* can be a file path (str or Path) or a PIL Image object.
+    Embed text content. Images are not supported with the text-only
+    qwen3-embedding model — pass the text description or extracted text instead.
     """
-    model, processor = _load_model()
-
-    if not isinstance(image, Image.Image):
-        image = Image.open(image).convert("RGB")
-
-    inputs = processor.process_images([image]).to(model.device)
-    with torch.no_grad():
-        output = model(**inputs)
-    vec = output.last_hidden_state.mean(dim=1).squeeze().cpu().float().numpy()
-    return _normalise(vec)
-
-
-def embed(content: Union[str, Path, "Image.Image"]) -> List[float]:
-    """
-    Unified entry point — routes to embed_text or embed_image based on input type.
-
-    - str/Path pointing to an image file (.jpg, .jpeg, .png, .webp) → embed_image
-    - PIL Image → embed_image
-    - anything else (str text, etc.) → embed_text
-    """
-    IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"}
-
-    if isinstance(content, Image.Image):
-        return embed_image(content)
-
-    if isinstance(content, (str, Path)):
-        path = Path(content)
-        if path.suffix.lower() in IMAGE_EXTS and path.exists():
-            return embed_image(path)
-
     return embed_text(str(content))
