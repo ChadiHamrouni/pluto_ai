@@ -12,6 +12,7 @@ from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
 from helpers.core.logger import get_logger
 from routes.auth import router as auth_router
+from routes.autonomous import router as autonomous_router
 from routes.chat import router as chat_router
 
 logger = get_logger(__name__)
@@ -24,6 +25,8 @@ async def lifespan(app: FastAPI):
     config = load_config()
 
     # Ensure required data directories exist
+    memory_dir = config.get("memory", {}).get("memory_dir", "data/memory")
+    os.makedirs(memory_dir, exist_ok=True)
     for dir_key in ("notes_dir", "slides_dir"):
         path = config["storage"][dir_key]
         os.makedirs(path, exist_ok=True)
@@ -72,6 +75,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(chat_router)
+    app.include_router(autonomous_router)
 
     @app.get("/", tags=["health"])
     async def root():

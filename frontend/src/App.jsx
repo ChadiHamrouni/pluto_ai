@@ -2,8 +2,88 @@ import { useState, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { sendMessage } from "./api";
+import { sendMessage, startAutonomous, cancelAutonomous, streamAutonomous } from "./api";
+import PlanTracker from "./PlanTracker";
 import "./App.css";
+
+const THINKING_WORDS = [
+ "Echkher ya talyena...", "Onfokh el zokra...",
+  "Chil aayounak aani", "يا قمر الليل", "ليلة و المزود خدام", "ام الشعور السود", "نمدح الأقطاب ", "يامه الأسمر دوني"
+];
+
+const TRANSCRIBING_WORDS = [
+  "Transcribing", "Listening", "Parsing", "Decoding",
+  "Converting", "Reading", "Interpreting",
+];
+
+function StatusLabel({ words }) {
+  const [index, setIndex] = useState(0);
+  const [phase, setPhase] = useState("in"); // "in" | "hold" | "out"
+  const [stars, setStars] = useState([]);
+
+  // Spawn a new star particle
+  function spawnStar() {
+    const id = Math.random();
+    const x = Math.random() * 14;
+    const y = Math.random() * 14;
+    const size = 7 + Math.random() * 7;
+    const delay = Math.random() * 0.4;
+    setStars((prev) => [...prev.slice(-5), { id, x, y, size, delay }]);
+    setTimeout(() => setStars((prev) => prev.filter((s) => s.id !== id)), 900);
+  }
+
+  // Continuous star loop
+  useEffect(() => {
+    const loop = setInterval(() => {
+      spawnStar();
+    }, 350);
+    return () => clearInterval(loop);
+  }, []);
+
+  // Word cycling
+  useEffect(() => {
+    let t1, t2;
+    const cycle = setInterval(() => {
+      setPhase("out");
+      t1 = setTimeout(() => {
+        setIndex((i) => (i + 1) % words.length);
+        setPhase("in");
+        t2 = setTimeout(() => setPhase("hold"), 500);
+      }, 500);
+    }, 4000);
+
+    setTimeout(() => setPhase("hold"), 500);
+
+    return () => {
+      clearInterval(cycle);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [words]);
+
+  return (
+    <span className="status-container">
+      <span className={`status-word status-${phase}`}>
+        {words[index]}
+      </span>
+      <span className="status-stars" aria-hidden="true">
+        {stars.map((s) => (
+          <svg
+            key={s.id}
+            className="status-star"
+            style={{ left: s.x, top: s.y, width: s.size, height: s.size, animationDelay: `${s.delay}s` }}
+            viewBox="0 0 24 24"
+          >
+            <polygon
+              points="12,2 14.5,9.5 22,9.5 16,14.5 18.5,22 12,17.5 5.5,22 8,14.5 2,9.5 9.5,9.5"
+              fill="var(--neon)"
+            />
+          </svg>
+        ))}
+      </span>
+    </span>
+  );
+}
 
 export default function App() {
   const [messages, setMessages]     = useState([]);
@@ -15,6 +95,10 @@ export default function App() {
   const [recording, setRecording]   = useState(false);
   const [expanded, setExpanded]     = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [autoMode, setAutoMode]     = useState(false);
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const autoTaskIdRef = useRef(null);
+  const autoEsRef     = useRef(null);
 
   const bottomRef    = useRef(null);
   const inputRef     = useRef(null);
@@ -47,6 +131,31 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
+
+  // ── Ctrl+L → toggle autonomous mode ───────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.key === "l") {
+        e.preventDefault();
+        setAutoMode((prev) => !prev);
+        setCurrentPlan(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // ── Ctrl+V → toggle voice recording ───────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.key === "v" && !thinking && !transcribing) {
+        e.preventDefault();
+        handleVoiceBtn();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recording, thinking, transcribing]);
 
   // ── Init Whisper worker ────────────────────────────────────────────────────
   useEffect(() => {
@@ -202,9 +311,9 @@ export default function App() {
           const filePath = paths[0];
           const ext = filePath.split(".").pop().toLowerCase();
           const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
-          const supported = [...imageExts, "pdf"];
+          const supported = [...imageExts, "pdf", "txt"];
           if (!supported.includes(ext)) {
-            setError("Supported files: images and PDFs.");
+            setError("Supported files: images, PDFs, and .txt files.");
             return;
           }
 
@@ -214,13 +323,15 @@ export default function App() {
               jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
               webp: "image/webp", gif: "image/gif", bmp: "image/bmp",
               pdf: "application/pdf",
+              txt: "text/plain",
             };
             const mime = mimeMap[ext] || "application/octet-stream";
             const blob = new Blob([bytes], { type: mime });
             const fileName = filePath.split(/[\\/]/).pop();
             const file = new File([blob], fileName, { type: mime });
             const preview = ext === "pdf" ? null : URL.createObjectURL(blob);
-            setAttachments((prev) => [...prev, { file, preview, isPdf: ext === "pdf" }]);
+            const isNonImage = ext === "pdf" || ext === "txt";
+            setAttachments((prev) => [...prev, { file, preview: isNonImage ? null : preview, isPdf: isNonImage, fileExt: ext }]);
             inputRef.current?.focus();
           } catch (e) {
             setError("Failed to read file: " + e.message);
@@ -233,18 +344,67 @@ export default function App() {
     return () => { unlisten?.(); };
   }, []);
 
-  // ── Send ───────────────────────────────────────────────────────────────────
-  const history = messages.map((m) => ({ role: m.role, content: m.content }));
+  // ── Autonomous cancel ──────────────────────────────────────────────────────
+  async function handleAutoCancel() {
+    if (autoTaskIdRef.current) {
+      await cancelAutonomous(autoTaskIdRef.current);
+      autoTaskIdRef.current = null;
+    }
+    autoEsRef.current?.close();
+    autoEsRef.current = null;
+    setThinking(false);
+  }
 
+  // ── Send ───────────────────────────────────────────────────────────────────
   async function handleSend() {
     const text = input.trim();
     if ((!text && !attachments.length) || thinking) return;
 
-    const sentAttachments = attachments;
     setInput("");
     resetInputHeight();
-    setAttachments([]);
     setError(null);
+
+    // ── Autonomous mode ────────────────────────────────────────────────────
+    if (autoMode && text) {
+      setAttachments([]);
+      setMessages((prev) => [...prev, { role: "user", content: `[AUTO] ${text}` }]);
+      setThinking(true);
+      setCurrentPlan(null);
+
+      try {
+        const { task_id } = await startAutonomous(text);
+        autoTaskIdRef.current = task_id;
+
+        const es = streamAutonomous(
+          task_id,
+          (event) => {
+            if (event.plan) setCurrentPlan(event.plan);
+          },
+          (event) => {
+            if (event?.plan) setCurrentPlan(event.plan);
+            autoTaskIdRef.current = null;
+            autoEsRef.current = null;
+            setThinking(false);
+            const failed = event?.plan?.steps?.filter((s) => s.status === "failed") ?? [];
+            const done = event?.plan?.status === "completed";
+            const summary = done
+              ? `Autonomous task completed${failed.length ? ` (${failed.length} step(s) failed)` : ""}.`
+              : "Autonomous task stopped.";
+            setMessages((prev) => [...prev, { role: "assistant", content: summary }]);
+            inputRef.current?.focus();
+          }
+        );
+        autoEsRef.current = es;
+      } catch (e) {
+        setError(e.message);
+        setThinking(false);
+      }
+      return;
+    }
+
+    // ── Normal mode ────────────────────────────────────────────────────────
+    const sentAttachments = attachments;
+    setAttachments([]);
     setMessages((prev) => [
       ...prev,
       {
@@ -255,19 +415,27 @@ export default function App() {
     ]);
     setThinking(true);
 
-    try {
-      const reply = await sendMessage(
-        text || "(describe this image)",
-        history,
-        sentAttachments[0]?.file ?? null
-      );
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setThinking(false);
-      inputRef.current?.focus();
-    }
+    const tryFetch = async () => {
+      try {
+        const reply = await sendMessage(
+          text || "(describe this image)",
+          sentAttachments.map((a) => a.file)
+        );
+        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+        setThinking(false);
+        inputRef.current?.focus();
+      } catch (e) {
+        if (e.message === "Failed to fetch") {
+          setTimeout(tryFetch, 3000);
+        } else {
+          setError(e.message);
+          setThinking(false);
+          inputRef.current?.focus();
+        }
+      }
+    };
+
+    tryFetch();
   }
 
   function handleKey(e) {
@@ -320,7 +488,12 @@ export default function App() {
       <header className="header" data-tauri-drag-region>
         <div className="header-left" data-tauri-drag-region>
           <span className="header-title" data-tauri-drag-region>JARVIS</span>
-          <span className="header-sub" data-tauri-drag-region>personal assistant</span>
+          <span className="header-sub" data-tauri-drag-region>
+            {autoMode ? "autonomous mode" : "personal assistant"}
+          </span>
+          {autoMode && (
+            <span className="header-auto-badge" data-tauri-drag-region>AUTO</span>
+          )}
         </div>
         <div className="header-actions">
           <button className="expand-btn" onClick={handleExpand} title={expanded ? "Collapse" : "Expand"}>
@@ -363,11 +536,24 @@ export default function App() {
           </div>
         ))}
 
-        {thinking && (
+        {currentPlan && (
+          <PlanTracker plan={currentPlan} onCancel={handleAutoCancel} />
+        )}
+
+        {thinking && !currentPlan && (
           <div className="bubble-row assistant">
             <div className="bubble">
               <span className="bubble-label">Jarvis</span>
-              <span className="dots"><span /><span /><span /></span>
+              <StatusLabel words={THINKING_WORDS} />
+            </div>
+          </div>
+        )}
+
+        {thinking && currentPlan && (
+          <div className="bubble-row assistant">
+            <div className="bubble">
+              <span className="bubble-label">Jarvis</span>
+              <StatusLabel words={["Executing plan…", "Running step…", "Working on it…"]} />
             </div>
           </div>
         )}
@@ -387,7 +573,7 @@ export default function App() {
             {attachments.map((a, i) => (
               <div key={i} className="attachment-item">
                 {a.isPdf
-                  ? <span className="attachment-pdf-icon">PDF</span>
+                  ? <span className="attachment-pdf-icon">{a.fileExt?.toUpperCase() || "FILE"}</span>
                   : <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
                 }
                 <span className="attachment-name">{a.file.name}</span>
@@ -407,8 +593,7 @@ export default function App() {
         {/* Transcribing indicator */}
         {transcribing && (
           <div className="transcribing-row">
-            <span className="dots"><span /><span /><span /></span>
-            <span className="transcribing-label">transcribing…</span>
+            <StatusLabel words={TRANSCRIBING_WORDS} />
           </div>
         )}
 
@@ -416,32 +601,49 @@ export default function App() {
           <textarea
             ref={inputRef}
             className="msg-input"
-            placeholder={attachments.length ? "Add a message… (or just Enter)" : "Message Jarvis…"}
+            placeholder={
+            autoMode
+              ? "Describe a multi-step task for Jarvis to plan and execute…"
+              : attachments.length ? "Add a message… (or just Enter)" : "Message Jarvis…"
+          }
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKey}
             disabled={thinking}
           />
-          <button
-            className={`voice-btn ${recording ? "recording" : ""}`}
-            onClick={handleVoiceBtn}
-            disabled={thinking || transcribing}
-            title={recording ? "Stop recording" : "Voice input"}
-          >
-            {recording ? (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="3" y="3" width="10" height="10" rx="2" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="5" y="1" width="6" height="9" rx="3" />
-                <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                <line x1="8" y1="13.5" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
+          <div className="mic-stack">
+            <button
+              className={`auto-toggle ${autoMode ? "auto-toggle--on" : ""}`}
+              onClick={() => { setAutoMode((p) => !p); setCurrentPlan(null); }}
+              title={autoMode ? "Autonomous mode ON — click to disable" : "Click to enable autonomous mode"}
+            >
+              {autoMode ? "AUTO" : "AUTO"}
+            </button>
+            <button
+              className={`voice-btn ${recording ? "recording" : ""}`}
+              onClick={handleVoiceBtn}
+              disabled={thinking || transcribing}
+              title={recording ? "Stop recording" : "Voice input"}
+            >
+              {recording ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <rect x="3" y="3" width="10" height="10" rx="2" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <rect x="5" y="1" width="6" height="9" rx="3" />
+                  <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                  <line x1="8" y1="13.5" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
-        <p className="hint">Shift+Enter for newline · Drop image or PDF to attach</p>
+        <p className="hint">
+          {autoMode
+            ? "Ctrl+L to exit autonomous mode · Enter to run plan"
+            : "Shift+Enter for newline · Ctrl+L for autonomous mode · Drop image, PDF, or TXT to attach"}
+        </p>
       </footer>
     </div>
   );

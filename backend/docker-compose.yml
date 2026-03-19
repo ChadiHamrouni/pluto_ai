@@ -36,16 +36,11 @@ services:
     depends_on:
       - ollama
     restart: unless-stopped
-    develop:
-      watch:
-        - action: sync+restart
-          path: .
-          target: /app
-          ignore:
-            - data/
-            - __pycache__/
-            - "**/__pycache__"
-            - "*.pyc"
+    # develop.watch is intentionally disabled — `sync+restart` restarts uvicorn
+    # on every file change, which interrupts the ~2 min ColQwen2.5 CPU load and
+    # causes an infinite crash loop. Use `docker compose exec app <cmd>` or
+    # rebuild + restart manually when you need code changes picked up.
+    # To re-enable hot-reload: `docker compose --profile dev up --watch`
     deploy:
       resources:
         limits:

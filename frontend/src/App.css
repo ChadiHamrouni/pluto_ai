@@ -74,6 +74,18 @@
   -webkit-app-region: drag;
 }
 
+.header-auto-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--neon);
+  background: var(--neon-dim);
+  border: 1px solid var(--neon-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  -webkit-app-region: drag;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -374,6 +386,49 @@
   margin-bottom: 4px;
 }
 
+/* ── Mic stack (AUTO toggle + mic button) ── */
+.mic-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.auto-toggle {
+  -webkit-app-region: no-drag;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  width: 42px;
+  padding: 3px 0;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  background: transparent;
+  border: 1px solid var(--neon-border);
+  color: var(--text-dim);
+}
+
+.auto-toggle:hover {
+  border-color: var(--neon);
+  color: var(--neon);
+  background: var(--neon-dim);
+}
+
+.auto-toggle--on {
+  background: var(--neon-dim);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 8px rgba(0, 200, 255, 0.25);
+  animation: pulse-neon 2s ease-in-out infinite;
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 6px rgba(0, 200, 255, 0.2); }
+  50%       { box-shadow: 0 0 12px rgba(0, 200, 255, 0.5); }
+}
+
 /* ── Voice button ── */
 .voice-btn {
   -webkit-app-region: no-drag;
@@ -433,14 +488,57 @@
 .transcribing-row {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 4px 2px;
 }
 
-.transcribing-label {
+/* ── Status label (thinking / transcribing) ── */
+.status-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-stars {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.status-star {
+  position: absolute;
+  animation: star-burst 0.8s ease-out forwards;
+  filter: drop-shadow(0 0 6px var(--neon));
+}
+
+@keyframes star-burst {
+  0%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  40%  { opacity: 1; transform: scale(1.2) rotate(20deg); }
+  100% { opacity: 0; transform: scale(0.6) rotate(45deg); }
+}
+
+.status-word {
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   color: var(--neon);
-  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px rgba(0, 200, 255, 0.5);
+}
+
+.status-in   { animation: status-slide-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.status-hold { opacity: 1; transform: translateY(0); }
+.status-out  { animation: status-slide-out 0.5s cubic-bezier(0.55, 0, 0.45, 1) forwards; }
+
+@keyframes status-slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes status-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-6px); }
 }
 
 button, textarea, input, a, [role="button"] {

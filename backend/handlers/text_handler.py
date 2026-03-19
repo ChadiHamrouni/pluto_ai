@@ -8,12 +8,13 @@ from my_agents.orchestrator import get_orchestrator
 from my_agents.notes_agent import get_notes_agent
 from my_agents.slides_agent import get_slides_agent
 from helpers.agents.command_parser import parse_command
+from helpers.agents.compactor import compact_history
+from helpers.agents.ollama_client import get_openai_client
 from helpers.agents.runner import run_agent
 from helpers.agents.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
-from helpers.tools.memory import get_db_path, load_all_memories
-from models.chat import ChatMessage
+from helpers.tools.memory import get_db_path, search_memories
 
 logger = get_logger(__name__)
 
@@ -25,7 +26,7 @@ _COMMAND_AGENTS = {
 
 async def text_handler(
     message: str,
-    history: list[ChatMessage],
+    history: list[dict],
     image_path: Path | None = None,
 ) -> tuple[str, float]:
     t0 = time.perf_counter()
@@ -40,11 +41,12 @@ async def text_handler(
         agent = get_orchestrator()
         content = message
 
-    # Load memory facts and inject into system prompt
+    # Load relevant memory facts via hybrid search (FTS5 + keyword scoring)
+    top_k = load_config().get("memory", {}).get("search_top_k", 10)
     try:
-        memory_entries = load_all_memories(get_db_path())
+        memory_entries = search_memories(get_db_path(), query=content or message, top_k=top_k)
     except Exception as exc:
-        logger.warning("Memory load skipped: %s", exc)
+        logger.warning("Memory search skipped: %s", exc)
         memory_entries = []
 
     # Rolling window — keep last N turns (pairs), configurable
@@ -63,6 +65,14 @@ async def text_handler(
     })
 
     messages.extend(format_chat_history(windowed_history))
+
+    # Progressive compaction — summarise old messages if approaching context limit
+    try:
+        cfg = load_config()
+        compact_model = cfg.get("orchestrator", {}).get("model", "qwen3.5:2b")
+        messages = await compact_history(messages, get_openai_client(), compact_model)
+    except Exception as exc:
+        logger.warning("Compaction skipped: %s", exc)
 
     if image_path and image_path.exists():
         mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"

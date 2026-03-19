@@ -10,6 +10,12 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class Attachment(BaseModel):
+    filename: str
+    mime_type: str
+    size_bytes: int
+
+
 class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = Field(default_factory=list)
@@ -18,4 +24,4 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
-    has_image: bool = False
+    attachments: List[Attachment] = Field(default_factory=list)

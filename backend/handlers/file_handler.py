@@ -9,12 +9,12 @@ import fitz  # pymupdf
 from my_agents.orchestrator import get_orchestrator
 from helpers.agents.runner import run_agent
 from helpers.core.logger import get_logger
-from models.chat import ChatMessage
 
 logger = get_logger(__name__)
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 _PDF_EXTS   = {".pdf"}
+_TEXT_EXTS  = {".txt"}
 
 
 def _extract_pdf_text(path: Path) -> str:
@@ -42,16 +42,27 @@ def _mime(ext: str) -> str:
 
 async def file_handler(
     message: str,
-    history: list[ChatMessage],
+    history: list[dict],
     file_path: Path,
 ) -> tuple[str, float]:
     t0 = time.perf_counter()
 
     ext = file_path.suffix.lower()
-    if ext not in _IMAGE_EXTS | _PDF_EXTS:
+    if ext not in _IMAGE_EXTS | _PDF_EXTS | _TEXT_EXTS:
         raise ValueError(f"Unsupported file type: {ext}")
 
     logger.info("File handler: %s (%d bytes)", file_path.name, file_path.stat().st_size)
+
+    if ext in _TEXT_EXTS:
+        text_content = file_path.read_text(encoding="utf-8", errors="replace")
+        user_content = (
+            f"{message}\n\n---\n\n{text_content}"
+            if message
+            else f"Here is the content of the text file:\n\n---\n\n{text_content}"
+        )
+        messages = [{"role": "user", "content": user_content}]
+        response = await run_agent(get_orchestrator(), messages)
+        return response, time.perf_counter() - t0
 
     if ext in _PDF_EXTS:
         pdf_text = _extract_pdf_text(file_path)

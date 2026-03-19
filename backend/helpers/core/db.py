@@ -32,6 +32,13 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 """
 
+CREATE_MEMORIES_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    content,
+    memory_id UNINDEXED
+);
+"""
+
 CREATE_MEMORIES_IDX = """
 CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
 """
@@ -60,6 +67,7 @@ async def init_db(db_path: str) -> None:
 
         await db.execute(CREATE_MEMORIES_TABLE)
         await db.execute(CREATE_NOTES_TABLE)
+        await db.execute(CREATE_MEMORIES_FTS)
         await db.execute(CREATE_MEMORIES_IDX)
         await db.execute(CREATE_NOTES_IDX)
         await db.execute(CREATE_NOTES_TITLE_IDX)

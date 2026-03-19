@@ -3,25 +3,43 @@
 from __future__ import annotations
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from helpers.routes.auth import validate_access_token
 
-_bearer_scheme = HTTPBearer()
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    creds: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    token: str | None = Query(default=None),
 ) -> dict:
-    """
-    Validate the Bearer token from the Authorization header.
+    """Validate a JWT access token from either source:
 
-    Returns the decoded JWT payload (contains 'sub', 'exp', etc.).
-    Raises 401 if the token is missing, expired, or invalid.
+    - ``Authorization: Bearer <token>`` header  (standard REST / fetch calls)
+    - ``?token=<token>`` query parameter         (SSE via EventSource, which
+      cannot set custom headers in browsers)
+
+    Raises 401 if no token is provided or the token is invalid/expired.
+    This is the single auth dependency used by every protected endpoint.
     """
+    raw_token: str | None = None
+
+    if creds and creds.credentials:
+        raw_token = creds.credentials
+    elif token:
+        raw_token = token
+
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated — provide a Bearer token or ?token= query param",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
-        return validate_access_token(creds.credentials)
+        return validate_access_token(raw_token)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
