@@ -3,12 +3,12 @@
     "model": "qwen3.5:2b",
     "temperature": 0.5,
     "max_tokens": 1024,
-    "base_url": "http://ollama:11434/v1",
+    "base_url": "http://localhost:11434/v1",
     "api_key": "ollama",
     "history_window": 20
   },
   "ollama": {
-    "base_url": "http://ollama:11434",
+    "base_url": "http://localhost:11434",
     "service_token": "",
     "verify_ssl": true,
     "request_timeout_seconds": 30

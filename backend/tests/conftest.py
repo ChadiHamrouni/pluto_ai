@@ -80,9 +80,10 @@ def mock_ollama_client():
         return_value=_make_chat_response("Hello! How can I help you?")
     )
 
+    # runner.py lazily imports get_openai_client inside run_agent().
+    # Patch the source so the lazy import picks up the mock.
     with patch("helpers.agents.ollama_client.get_openai_client", return_value=mock_client):
-        with patch("helpers.agents.runner.get_openai_client", return_value=mock_client):
-            yield mock_client
+        yield mock_client
 
 
 @pytest.fixture
@@ -92,5 +93,5 @@ def tmp_db(tmp_path):
     with patch("helpers.tools.memory.get_db_path", return_value=str(db_file)):
         from helpers.core.db import init_db
         import asyncio
-        asyncio.get_event_loop().run_until_complete(init_db(str(db_file)))
+        asyncio.run(init_db(str(db_file)))
         yield str(db_file)
