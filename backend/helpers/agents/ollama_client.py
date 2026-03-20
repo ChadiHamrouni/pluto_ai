@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import httpx
 from agents import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
@@ -15,6 +17,10 @@ def _ollama_cfg() -> dict:
 
 
 def get_ollama_base_url() -> str:
+    # OLLAMA_BASE_URL env var takes priority (set by docker-compose for containerised runs)
+    env_url = os.environ.get("OLLAMA_BASE_URL", "").strip()
+    if env_url:
+        return env_url.rstrip("/")
     cfg = _ollama_cfg()
     return cfg.get("base_url", "http://localhost:11434").rstrip("/")
 

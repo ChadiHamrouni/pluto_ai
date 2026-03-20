@@ -90,6 +90,41 @@ export async function sendMessage(message, files = []) {
   return d.response;
 }
 
+export async function getModels() {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/settings/models`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return getModels(); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return (await r.json()).models;
+}
+
+export async function getAgentSettings() {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/settings/agents`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return getAgentSettings(); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+export async function saveAgentSettings(settings) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/settings/agents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  });
+  if (r.status === 401) { await refresh(); return saveAgentSettings(settings); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
 export async function startAutonomous(task) {
   if (!accessToken) await login();
   const formData = new FormData();

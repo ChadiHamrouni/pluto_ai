@@ -7,6 +7,7 @@ import Header from "./components/Header";
 import ChatFooter from "./components/ChatFooter";
 import StatusLabel from "./components/StatusLabel";
 import PlanTracker from "./PlanTracker";
+import SettingsPanel from "./components/SettingsPanel";
 import "./App.css";
 
 const THINKING_WORDS = [
@@ -24,6 +25,7 @@ export default function App() {
   const [dragging, setDragging]       = useState(false);
   const [autoMode, setAutoMode]       = useState(false);
   const [currentPlan, setCurrentPlan] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const bottomRef    = useRef(null);
   const inputRef     = useRef(null);
@@ -170,7 +172,8 @@ export default function App() {
         </div>
       )}
 
-      <Header autoMode={autoMode} />
+      <Header autoMode={autoMode} onSettings={() => setShowSettings(true)} />
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
 
       <main className="chat">
         {messages.length === 0 && !thinking && (

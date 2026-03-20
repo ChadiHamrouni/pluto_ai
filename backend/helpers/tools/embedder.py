@@ -75,7 +75,9 @@ def embed_text(text: str) -> List[float]:
     global _ready
     config = load_config()
     model = config["knowledge_base"]["embedding_model"]
-    base_url = config["ollama"]["base_url"]
+    # Respect OLLAMA_BASE_URL env var so Docker runs reach the host's Ollama
+    import os
+    base_url = os.environ.get("OLLAMA_BASE_URL", "").strip() or config["ollama"]["base_url"]
 
     vec = _call_ollama(base_url, model, text)
     _ready = True  # mark ready on first successful call
