@@ -207,3 +207,49 @@ export function streamAutonomous(taskId, onUpdate, onDone) {
   es.onerror = () => { es.close(); onDone(null); };
   return es;
 }
+
+/**
+ * Legacy: stream the full response as a single WAV.
+ * Returns the raw Response so the caller can read body as a stream.
+ */
+export async function ttsStream(text, signal) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/tts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+    signal,
+  });
+  if (r.status === 401) {
+    await refresh();
+    return ttsStream(text, signal);
+  }
+  return r;
+}
+
+/**
+ * Sentence-level TTS stream.
+ * The backend sends one length-prefixed WAV blob per sentence:
+ *   [4 bytes uint32 LE: blob length] [N bytes: complete WAV]
+ * Returns the raw Response — caller reads with ttsReadSentences().
+ */
+export async function ttsStreamSentences(text, signal) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/tts/sentences`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+    signal,
+  });
+  if (r.status === 401) {
+    await refresh();
+    return ttsStreamSentences(text, signal);
+  }
+  return r;
+}

@@ -16,7 +16,7 @@ import {
   streamAutonomous,
 } from "../api";
 
-export function useChat({ activeId, messages, appendMessage, updateSession }) {
+export function useChat({ activeId, messages, appendMessage, updateSession, onReply }) {
   const [thinking, setThinking]     = useState(false);
   const [error, setError]           = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
@@ -116,6 +116,7 @@ export function useChat({ activeId, messages, appendMessage, updateSession }) {
           agents_trace,
           file_url,
         });
+        onReply?.(reply);
         setThinking(false);
         inputRef.current?.focus();
       } catch (e) {
@@ -142,3 +143,4 @@ export function useChat({ activeId, messages, appendMessage, updateSession }) {
     handleAutoCancel,
   };
 }
+

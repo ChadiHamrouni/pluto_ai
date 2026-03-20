@@ -1,17 +1,11 @@
 import { useState, useEffect } from "react";
-import StatusLabel from "./StatusLabel";
 import SlashMenu, { COMMANDS } from "./SlashMenu";
-
-const TRANSCRIBING_WORDS = [
-  "Transcribing", "Listening", "Parsing", "Decoding",
-  "Converting", "Reading", "Interpreting",
-];
 
 export default function ChatFooter({
   input, onInputChange, onKeyDown, thinking,
   attachments, onRemoveAttachment,
-  recording, transcribing, onVoiceToggle, canvasRef,
   autoMode, onAutoToggle,
+  voiceMode, onVoiceModeToggle, speaking,
   inputRef,
 }) {
   const [slashIndex, setSlashIndex] = useState(0);
@@ -79,10 +73,15 @@ export default function ChatFooter({
         <div className="attachment-bar">
           {attachments.map((a, i) => (
             <div key={i} className="attachment-item">
-              {a.isPdf
-                ? <span className="attachment-pdf-icon">{a.fileExt?.toUpperCase() || "FILE"}</span>
-                : <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
-              }
+              {a.isPdf ? (
+                <span className="attachment-pdf-icon">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5 1v4h4L9 1zM5.5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+                  </svg>
+                </span>
+              ) : (
+                <img src={a.preview} alt="attachment preview" className="attachment-thumb" />
+              )}
               <span className="attachment-name">{a.file.name}</span>
               <button className="attachment-remove" onClick={() => onRemoveAttachment(i)}>✕</button>
             </div>
@@ -90,17 +89,6 @@ export default function ChatFooter({
         </div>
       )}
 
-      {recording && (
-        <div className="wave-container">
-          <canvas ref={canvasRef} className="wave-canvas" width={340} height={48} />
-        </div>
-      )}
-
-      {transcribing && (
-        <div className="transcribing-row">
-          <StatusLabel words={TRANSCRIBING_WORDS} />
-        </div>
-      )}
 
       <div className="input-wrap">
         {slashQuery && (
@@ -121,40 +109,43 @@ export default function ChatFooter({
             disabled={thinking}
           />
           <div className="mic-stack">
+            {/* AUTO pill */}
             <button
-              className={`auto-toggle ${autoMode ? "auto-toggle--on" : ""}`}
+              className={`mode-btn ${autoMode ? "mode-btn--on" : ""}`}
               onClick={onAutoToggle}
-              title={autoMode ? "Autonomous mode ON — click to disable" : "Click to enable autonomous mode"}
+              title={autoMode ? "Autonomous mode ON — click to disable" : "Enable autonomous mode"}
             >
-              AUTO
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1l1.8 5.4H15l-4.4 3.2 1.7 5.2L8 12l-4.3 2.8 1.7-5.2L1 6.4h5.2z"/>
+              </svg>
+              Auto
             </button>
+
+            {/* VOICE pill */}
             <button
-              className={`voice-btn ${recording ? "recording" : ""}`}
-              onClick={onVoiceToggle}
-              disabled={thinking || transcribing}
-              title={recording ? "Stop recording" : "Voice input"}
+              className={`mode-btn ${voiceMode ? "mode-btn--on" : ""}`}
+              onClick={onVoiceModeToggle}
+              title={voiceMode ? "Voice mode ON — click to disable" : "Enable voice mode"}
             >
-              {recording ? (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="3" y="3" width="10" height="10" rx="2" />
+              {speaking ? (
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                  <rect x="1" y="4" width="3" height="8" rx="1.5" />
+                  <rect x="6" y="1" width="3" height="14" rx="1.5" />
+                  <rect x="11" y="4" width="3" height="8" rx="1.5" />
                 </svg>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
                   <rect x="5" y="1" width="6" height="9" rx="3" />
-                  <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                  <line x1="8" y1="13.5" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
                 </svg>
               )}
+              Voice
             </button>
+
           </div>
         </div>
       </div>
 
-      <p className="hint">
-        {autoMode
-          ? "Ctrl+L to exit autonomous mode · Enter to run plan"
-          : "Shift+Enter for newline · Ctrl+H for history · Ctrl+L for autonomous mode · Drop to attach"}
-      </p>
     </footer>
   );
 }

@@ -1,22 +1,38 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { sendMessage, startAutonomous, cancelAutonomous, streamAutonomous, fetchFile, createSession, setActiveSession, getSessions, getSessionMessages, deleteSession } from "./api";
+/**
+ * App — root layout shell.
+ *
+ * Owns only:
+ *  - Top-level shared state (sidebar, settings, attachments, input, autoMode)
+ *  - Session management via useSessions
+ *  - Chat send logic via useChat
+ *  - Voice, file-drop, and keyboard shortcut hooks
+ *  - Layout composition: Header + Sidebar + ChatArea + ChatFooter
+ *
+ * All feature logic lives in hooks/; all UI pieces live in components/.
+ */
+
+import { useState, useRef, useEffect } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { fetchFile } from "./api";
+
+import { useSessions } from "./hooks/useSessions";
+import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
+import { VADListener } from "./hooks/useVAD";
 import { useFileDrop } from "./hooks/useFileDrop";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useTTS } from "./hooks/useTTS";
+
 import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
+import ChatArea from "./components/ChatArea";
 import ChatFooter from "./components/ChatFooter";
-import StatusLabel from "./components/StatusLabel";
-import PlanTracker from "./PlanTracker";
 import SettingsPanel from "./components/SettingsPanel";
+
 import "./App.css";
 
-const THINKING_WORDS = [
-  "Echkher ya talyena...", "Onfokh el zokra...",
-  "Chil aayounak aani", "يا قمر الليل", "ليلة و المزود خدام",
-  "ام الشعور السود", "نمدح الأقطاب ", "يامه الأسمر دوني",
-];
+// ── File download (Tauri native save dialog) ─────────────────────────────────
 
 async function downloadFile(fileUrl) {
   try {
@@ -34,123 +50,115 @@ async function downloadFile(fileUrl) {
   }
 }
 
-let _sessionCounter = 0;
-
-function makeSession(id, title = null) {
-  _sessionCounter += 1;
-  return { id, title: title || `Chat ${_sessionCounter}`, messages: [] };
-}
+// ── Root component ────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [sessions, setSessions]         = useState([]);
-  const [activeId, setActiveId]         = useState(null);
-  const [sidebarOpen, setSidebarOpen]   = useState(true);
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [input, setInput]               = useState("");
-  const [thinking, setThinking]         = useState(false);
-  const [error, setError]               = useState(null);
   const [attachments, setAttachments]   = useState([]);
   const [dragging, setDragging]         = useState(false);
   const [autoMode, setAutoMode]         = useState(false);
-  const [currentPlan, setCurrentPlan]   = useState(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [voiceMode, setVoiceMode]       = useState(false);
+  // Keep ref in sync so async TTS onDone always sees the latest value
+  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
 
-  const bottomRef     = useRef(null);
-  const inputRef      = useRef(null);
-  const canvasRef     = useRef(null);
-  const autoTaskIdRef = useRef(null);
-  const autoEsRef     = useRef(null);
+  const bottomRef      = useRef(null);
+  const inputRef       = useRef(null);
+  const voiceModeRef   = useRef(false);   // always-current voiceMode for async callbacks
+  const toggleVoiceRef = useRef(null);    // set after useVoice, used by TTS onDone
 
-  const activeSession = sessions.find(s => s.id === activeId) ?? null;
-  const messages = activeSession?.messages ?? [];
+  // ── Sessions ──────────────────────────────────────────────────────────────
+
+  const {
+    sessions,
+    activeId,
+    updateSession,
+    appendMessage,
+    selectSession,
+    newChat,
+    loadSessions,
+  } = useSessions();
+
+  const activeSession   = sessions.find(s => s.id === activeId) ?? null;
+  const messages        = activeSession?.messages ?? [];
   const messagesLoading = activeSession?.messages === null;
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function updateSession(id, updater) {
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, ...updater(s) } : s));
-  }
+  // ── Chat logic ────────────────────────────────────────────────────────────
 
-  function appendMessage(sessionId, msg) {
-    updateSession(sessionId, s => ({ messages: [...(s.messages ?? []), msg] }));
-  }
-
-  // ── New chat ───────────────────────────────────────────────────────────────
-  const handleNewChat = useCallback(async () => {
-    try {
-      const id = await createSession();
-      const session = makeSession(id);
-      setSessions(prev => [session, ...prev]);
-      setActiveId(id);
-      setActiveSession(id);
-      setInput("");
-      setError(null);
-      setCurrentPlan(null);
-      setAutoMode(false);
-    } catch (e) {
-      console.error("Failed to create session:", e);
-    }
-  }, []);
-
-  // ── Switch session ─────────────────────────────────────────────────────────
-  async function handleSelectSession(id) {
-    setActiveId(id);
-    setActiveSession(id);
-    setError(null);
-    setCurrentPlan(null);
-    // Load messages for sessions that were restored from the server (messages: null)
-    const session = sessions.find(s => s.id === id);
-    if (session && session.messages === null) {
-      try {
-        const msgs = await getSessionMessages(id);
-        setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: msgs } : s));
-      } catch {
-        setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: [] } : s));
+  const {
+    thinking,
+    error,
+    setError,
+    currentPlan,
+    setCurrentPlan,
+    handleSend,
+    handleAutoCancel,
+  } = useChat({
+    activeId,
+    messages,
+    appendMessage,
+    updateSession,
+    onReply: (text) => {
+      if (voiceModeRef.current) {
+        speak(text, {
+          onDone: () => {
+            // Auto-restart listening after TTS finishes — only if still in voice mode
+            if (voiceModeRef.current) toggleVoiceRef.current?.();
+          },
+        });
       }
-    }
-  }
-
-  // ── Load persisted sessions on mount; create one if none exist ────────────
-  useEffect(() => {
-    (async () => {
-      try {
-        const existing = await getSessions();
-        if (existing.length > 0) {
-          // Restore session list with empty messages — load on demand when selected
-          _sessionCounter = existing.length;
-          const restored = existing.map(s => ({ id: s.id, title: s.title, messages: null }));
-          setSessions(restored);
-          const first = restored[0];
-          setActiveId(first.id);
-          setActiveSession(first.id);
-          // Load messages for the most recent session
-          const msgs = await getSessionMessages(first.id);
-          setSessions(prev => prev.map(s => s.id === first.id ? { ...s, messages: msgs } : s));
-        } else {
-          await handleNewChat();
-        }
-      } catch {
-        await handleNewChat();
-      }
-    })();
-  }, []);
-
-  // ── Auto-scroll ────────────────────────────────────────────────────────────
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
-  useEffect(() => { inputRef.current?.focus(); }, [activeId]);
-
-  // ── Hooks ──────────────────────────────────────────────────────────────────
-  const { recording, transcribing, toggle: toggleVoice } = useVoice({
-    canvasRef,
-    onTranscript: (text) => {
-      setInput(prev => prev ? prev + " " + text : text);
-      inputRef.current?.focus();
     },
   });
 
+  // ── TTS ───────────────────────────────────────────────────────────────────
+
+  const { speaking, speak, stop: stopTTS } = useTTS();
+
+  // ── Mount: load persisted sessions (or create a fresh one) ────────────────
+
+  useEffect(() => {
+    (async () => {
+      const firstId = await loadSessions();
+      if (!firstId) await newChat();
+    })();
+  }, []);
+
+  // ── Auto-scroll and input focus ───────────────────────────────────────────
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thinking]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [activeId]);
+
+  // ── Voice ─────────────────────────────────────────────────────────────────
+
+  const { recording, transcribing, startRecording, stopRecording } = useVoice({
+    onSend: (text) => {
+      stopTTS();
+      handleSend({ text, attachments: [], autoMode: false, inputRef, setInput, setAttachments });
+    },
+  });
+  // toggleVoiceRef used by TTS onDone to restart listening in voice mode
+  toggleVoiceRef.current = recording ? stopRecording : startRecording;
+
+  // ── VAD (barge-in) — rendered conditionally so ONNX never loads at startup
+
+  // ── File drop ─────────────────────────────────────────────────────────────
+
   useFileDrop({
     onDragging: setDragging,
-    onFile:     (att) => { setAttachments(prev => [...prev, att]); inputRef.current?.focus(); },
-    onError:    setError,
+    onFile: (att) => {
+      setAttachments(prev => [...prev, att]);
+      inputRef.current?.focus();
+    },
+    onError: setError,
   });
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
   useKeyboardShortcuts([
     {
@@ -163,102 +171,9 @@ export default function App() {
       handler: () => setSidebarOpen(p => !p),
       deps: [],
     },
-    {
-      combo: ["ctrlKey", "v"],
-      handler: toggleVoice,
-      condition: !thinking && !transcribing,
-      deps: [recording, thinking, transcribing],
-    },
   ]);
 
-  // ── Autonomous cancel ──────────────────────────────────────────────────────
-  async function handleAutoCancel() {
-    if (autoTaskIdRef.current) {
-      await cancelAutonomous(autoTaskIdRef.current);
-      autoTaskIdRef.current = null;
-    }
-    autoEsRef.current?.close();
-    autoEsRef.current = null;
-    setThinking(false);
-  }
-
-  // ── Send ───────────────────────────────────────────────────────────────────
-  async function handleSend() {
-    const text = input.trim();
-    if ((!text && !attachments.length) || thinking || !activeId || messagesLoading) return;
-
-    setInput("");
-    if (inputRef.current) inputRef.current.style.height = "auto";
-    setError(null);
-
-    // Auto-title session from first message
-    if (messages.length === 0 && text) {
-      const title = text.length > 40 ? text.slice(0, 40) + "…" : text;
-      updateSession(activeId, () => ({ title }));
-    }
-
-    if (autoMode && text) {
-      setAttachments([]);
-      appendMessage(activeId, { role: "user", content: `[AUTO] ${text}` });
-      setThinking(true);
-      setCurrentPlan(null);
-
-      try {
-        const { task_id } = await startAutonomous(text);
-        autoTaskIdRef.current = task_id;
-        const es = streamAutonomous(
-          task_id,
-          (event) => { if (event.plan) setCurrentPlan(event.plan); },
-          (event) => {
-            if (event?.plan) setCurrentPlan(event.plan);
-            autoTaskIdRef.current = null;
-            autoEsRef.current = null;
-            setThinking(false);
-            const failed  = event?.plan?.steps?.filter(s => s.status === "failed") ?? [];
-            const summary = event?.plan?.status === "completed"
-              ? `Autonomous task completed${failed.length ? ` (${failed.length} step(s) failed)` : ""}.`
-              : "Autonomous task stopped.";
-            appendMessage(activeId, { role: "assistant", content: summary });
-            inputRef.current?.focus();
-          }
-        );
-        autoEsRef.current = es;
-      } catch (e) {
-        setError(e.message);
-        setThinking(false);
-      }
-      return;
-    }
-
-    const sentAttachments = attachments;
-    setAttachments([]);
-    appendMessage(activeId, {
-      role: "user",
-      content: text || "(image)",
-      previews: sentAttachments.map(a => a.preview),
-    });
-    setThinking(true);
-
-    const currentSessionId = activeId;
-    const tryFetch = async () => {
-      try {
-        const { response: reply, tools_used, agents_trace, file_url } =
-          await sendMessage(text || "(describe this image)", sentAttachments.map(a => a.file));
-        appendMessage(currentSessionId, { role: "assistant", content: reply, tools_used, agents_trace, file_url });
-        setThinking(false);
-        inputRef.current?.focus();
-      } catch (e) {
-        if (e.message === "Failed to fetch") {
-          setTimeout(tryFetch, 3000);
-        } else {
-          setError(e.message);
-          setThinking(false);
-          inputRef.current?.focus();
-        }
-      }
-    };
-    tryFetch();
-  }
+  // ── Handlers passed down to children ─────────────────────────────────────
 
   function handleInputChange(e) {
     setInput(e.target.value);
@@ -272,9 +187,44 @@ export default function App() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  function handleSelectSession(id) {
+    setError(null);
+    setCurrentPlan(null);
+    selectSession(id, sessions);
+  }
+
+  async function handleNewChat() {
+    setError(null);
+    setCurrentPlan(null);
+    setAutoMode(false);
+    setInput("");
+    await newChat();
+  }
+
+  function sendCurrentMessage() {
+    if (messagesLoading) return;
+    handleSend({
+      text: input.trim(),
+      attachments,
+      autoMode,
+      inputRef,
+      setInput,
+      setAttachments,
+    });
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className={`layout ${dragging ? "drag-over" : ""}`}>
+      {voiceMode && (
+        <VADListener
+          speaking={speaking}
+          stopTTS={stopTTS}
+          startRec={startRecording}
+          stopRec={stopRecording}
+        />
+      )}
       {dragging && (
         <div className="drag-overlay">
           <div className="drag-overlay-inner">
@@ -288,125 +238,49 @@ export default function App() {
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
 
       <div className="app-body">
-        {/* ── Sidebar toggle tab (floating, always visible) ── */}
-        <button
-          className={`sidebar-toggle-tab${sidebarOpen ? " sidebar-toggle-tab--open" : ""}`}
-          onClick={() => setSidebarOpen(p => !p)}
-          title="Toggle sidebar (Ctrl+H)"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            {sidebarOpen
-              ? <polyline points="7,1 3,5 7,9" />
-              : <polyline points="3,1 7,5 3,9" />}
-          </svg>
-        </button>
+        <Sidebar
+          sessions={sessions}
+          activeId={activeId}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(p => !p)}
+          onNewChat={handleNewChat}
+          onSelectSession={handleSelectSession}
+        />
 
-        {/* ── Sidebar ── */}
-        <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"}`}>
-          <div className="sidebar-top">
-            <button className="new-chat-btn" onClick={handleNewChat} title="New chat">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <line x1="6" y1="1" x2="6" y2="11" />
-                <line x1="1" y1="6" x2="11" y2="6" />
-              </svg>
-              New chat
-            </button>
-          </div>
-
-          <nav className="session-list">
-            {sessions.map(s => (
-              <button
-                key={s.id}
-                className={`session-item ${s.id === activeId ? "session-item--active" : ""}`}
-                onClick={() => handleSelectSession(s.id)}
-                title={s.title}
-              >
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 9.5V2a1 1 0 011-1h7a1 1 0 011 1v5.5a1 1 0 01-1 1H3L1 9.5z" />
-                </svg>
-                <span className="session-title">{s.title}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* ── Chat area ── */}
         <div className="chat-wrap">
-          <main className="chat">
-            {messagesLoading && (
-              <div className="empty">
-                <div className="empty-glow" />
-                <p className="empty-text">Loading…</p>
-              </div>
-            )}
-            {!messagesLoading && messages.length === 0 && !thinking && (
-              <div className="empty">
-                <div className="empty-glow" />
-                <p className="empty-text">At your service. How can I help?</p>
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div key={i} className={`bubble-row ${m.role}`}>
-                <div className="bubble">
-                  {m.role === "assistant" && <span className="bubble-label">Jarvis</span>}
-                  {m.previews?.map((p, j) => (
-                    <img key={j} src={p} alt="attachment" className="bubble-img" />
-                  ))}
-                  {m.content !== "(image)" && <p className="bubble-text">{m.content}</p>}
-                  {m.role === "assistant" && m.file_url && (
-                    <button className="file-download" onClick={() => downloadFile(m.file_url)}>
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6.5 1v7M3.5 5.5l3 3 3-3" /><path d="M1 10h11" />
-                      </svg>
-                      Download PDF
-                    </button>
-                  )}
-                  {m.role === "assistant" && (m.agents_trace?.length > 0 || m.tools_used?.length > 0) && (
-                    <div className="agent-flow">
-                      {m.agents_trace?.map((name, idx) => (
-                        <span key={idx} className="agent-flow-item">
-                          {idx > 0 && <span className="agent-flow-arrow">→</span>}
-                          <span className="agent-flow-name">{name}</span>
-                        </span>
-                      ))}
-                      {m.tools_used?.filter(t => !t.startsWith("transfer_to_")).map(t => (
-                        <span key={t} className="tool-badge">{t}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {currentPlan && <PlanTracker plan={currentPlan} onCancel={handleAutoCancel} />}
-
-            {thinking && (
-              <div className="bubble-row assistant">
-                <div className="bubble">
-                  <span className="bubble-label">Jarvis</span>
-                  <StatusLabel words={currentPlan ? ["Executing plan…", "Running step…", "Working on it…"] : THINKING_WORDS} />
-                </div>
-              </div>
-            )}
-
-            {error && <div className="error-row"><span>{error}</span></div>}
-            <div ref={bottomRef} />
-          </main>
+          <ChatArea
+            messages={messages}
+            messagesLoading={messagesLoading}
+            thinking={thinking}
+            error={error}
+            currentPlan={currentPlan}
+            onAutoCancel={handleAutoCancel}
+            onDownload={downloadFile}
+            bottomRef={bottomRef}
+            voiceMode={voiceMode}
+            recording={recording}
+            transcribing={transcribing}
+            speaking={speaking}
+            onExitVoice={() => { setVoiceMode(false); stopTTS(); }}
+          />
 
           <ChatFooter
             input={input}
             onInputChange={handleInputChange}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendCurrentMessage();
+              }
+            }}
             thinking={thinking}
             attachments={attachments}
             onRemoveAttachment={removeAttachment}
-            recording={recording}
-            transcribing={transcribing}
-            onVoiceToggle={toggleVoice}
-            canvasRef={canvasRef}
             autoMode={autoMode}
             onAutoToggle={() => { setAutoMode(p => !p); setCurrentPlan(null); }}
+            voiceMode={voiceMode}
+            onVoiceModeToggle={() => { setVoiceMode(p => !p); if (speaking) stopTTS(); }}
+            speaking={speaking}
             inputRef={inputRef}
           />
         </div>

@@ -16,6 +16,7 @@ from routes.autonomous import router as autonomous_router
 from routes.chat import router as chat_router
 from routes.files import router as files_router
 from routes.settings import router as settings_router
+from routes.voice import router as voice_router
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,17 @@ async def lifespan(app: FastAPI):
 
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
+
+    # Load embedding model into memory before accepting traffic
+    from helpers.tools.embedder import load_model as load_embedder
+    load_embedder()
+
+    # Load TTS model
+    from helpers.tools.tts import load_model as load_tts
+    try:
+        load_tts()
+    except RuntimeError as e:
+        logger.warning("TTS model failed to load (voice mode disabled): %s", e)
 
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 
@@ -76,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(autonomous_router)
     app.include_router(settings_router)
     app.include_router(files_router)
+    app.include_router(voice_router)
 
     @app.get("/", tags=["health"])
     async def root():
