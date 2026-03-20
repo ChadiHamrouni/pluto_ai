@@ -8,10 +8,8 @@ from my_agents.orchestrator import get_orchestrator
 from my_agents.notes_agent import get_notes_agent
 from my_agents.slides_agent import get_slides_agent
 from helpers.agents.command_parser import parse_command
-from helpers.agents.compactor import compact_history
-from helpers.agents.ollama_client import get_openai_client
 from helpers.agents.runner import run_agent
-from helpers.agents.prompt_utils import build_system_prompt, format_chat_history, format_memory_context
+from helpers.agents.prompt_utils import format_chat_history, format_memory_context
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.memory import get_db_path, search_memories
@@ -28,7 +26,7 @@ async def text_handler(
     message: str,
     history: list[dict],
     image_path: Path | None = None,
-) -> tuple[str, float]:
+) -> tuple[str, float, list[str]]:
     t0 = time.perf_counter()
 
     parsed = parse_command(message)
@@ -56,23 +54,9 @@ async def text_handler(
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
     memory_context = format_memory_context(memory_entries)
-    messages: list[dict] = []
 
-    # System prompt — always includes memories regardless of window size
-    messages.append({
-        "role": "system",
-        "content": build_system_prompt("You are a helpful personal AI assistant.", memory_context),
-    })
-
-    messages.extend(format_chat_history(windowed_history))
-
-    # Progressive compaction — summarise old messages if approaching context limit
-    try:
-        cfg = load_config()
-        compact_model = cfg.get("orchestrator", {}).get("model", "qwen3.5:2b")
-        messages = await compact_history(messages, get_openai_client(), compact_model)
-    except Exception as exc:
-        logger.warning("Compaction skipped: %s", exc)
+    # History turns for the SDK (user + assistant only — system prompt comes from agent.instructions)
+    messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
         mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
@@ -87,5 +71,5 @@ async def text_handler(
 
     messages.append({"role": "user", "content": user_content})
 
-    response = await run_agent(agent, messages)
-    return response, time.perf_counter() - t0
+    response, tools_used, agents_trace = await run_agent(agent, messages, memory_context=memory_context)
+    return response, time.perf_counter() - t0, tools_used, agents_trace

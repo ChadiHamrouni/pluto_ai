@@ -25,3 +25,6 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     attachments: List[Attachment] = Field(default_factory=list)
+    tools_used: List[str] = Field(default_factory=list)
+    agents_trace: List[str] = Field(default_factory=list)  # ordered agent names, e.g. ["Orchestrator", "SlidesAgent"]
+    file_url: Optional[str] = None  # download URL when a file was generated (e.g. slides PDF)

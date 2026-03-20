@@ -1,60 +1,139 @@
-"""Server-side conversation session store.
+"""Server-side conversation session store — SQLite-backed.
 
-Keeps the rolling history on the backend so the frontend only sends the
-current message — not the full history on every request. This eliminates
-repeated JSON serialisation and HTTP payload growth over long conversations.
+Sessions and their conversation history are persisted to the same SQLite
+database used by memories and notes, so they survive backend restarts.
 
-Sessions are in-memory (process lifetime). They survive API calls but are
-lost on server restart — same as the frontend's React state.
+All public functions are async and use aiosqlite via get_db_connection().
 """
 
 from __future__ import annotations
 
 import uuid
-from collections import deque
-from typing import Deque
 
+from helpers.core.config_loader import load_config
+from helpers.core.db import get_db_connection
 from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# session_id → deque of {"role": str, "content": str}
-_sessions: dict[str, Deque[dict]] = {}
+
+def _db_path() -> str:
+    return load_config()["memory"]["db_path"]
 
 
-def new_session() -> str:
-    """Create a new session, return its ID."""
+async def new_session() -> str:
+    """Create a new session in the DB and return its ID."""
     sid = str(uuid.uuid4())
-    _sessions[sid] = deque()
-    logger.debug("New session: %s", sid)
+    async with get_db_connection(_db_path()) as db:
+        await db.execute(
+            "INSERT INTO sessions (id, title) VALUES (?, ?)",
+            (sid, "New Chat"),
+        )
+        await db.commit()
+    logger.debug("New session created: %s", sid)
     return sid
 
 
-def get_history(session_id: str, max_turns: int) -> list[dict]:
-    """Return the last max_turns×2 messages for the session.
+async def session_exists(session_id: str) -> bool:
+    """Return True if the session ID exists in the DB."""
+    async with get_db_connection(_db_path()) as db:
+        cur = await db.execute(
+            "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
+        )
+        row = await cur.fetchone()
+    return row is not None
 
-    Returns an empty list for unknown session IDs (graceful degradation).
-    """
-    dq = _sessions.get(session_id)
-    if dq is None:
-        return []
+
+async def get_history(session_id: str, max_turns: int) -> list[dict]:
+    """Return the last max_turns×2 messages for the session (oldest first)."""
     limit = max_turns * 2
-    return list(dq)[-limit:]
+    async with get_db_connection(_db_path()) as db:
+        cur = await db.execute(
+            """
+            SELECT role, content FROM (
+                SELECT id, role, content
+                FROM conversations
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+            ) ORDER BY id ASC
+            """,
+            (session_id, limit),
+        )
+        rows = await cur.fetchall()
+    return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 
-def append_turn(session_id: str, user_content: str, assistant_content: str) -> None:
-    """Append a completed user/assistant exchange to the session."""
-    dq = _sessions.get(session_id)
-    if dq is None:
-        dq = deque()
-        _sessions[session_id] = dq
-    dq.append({"role": "user",      "content": user_content})
-    dq.append({"role": "assistant", "content": assistant_content})
+async def append_turn(
+    session_id: str, user_content: str, assistant_content: str
+) -> None:
+    """Persist a completed user/assistant exchange."""
+    async with get_db_connection(_db_path()) as db:
+        # Auto-create session row if it somehow doesn't exist
+        await db.execute(
+            "INSERT OR IGNORE INTO sessions (id, title) VALUES (?, ?)",
+            (session_id, "New Chat"),
+        )
+        await db.execute(
+            "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+            (session_id, "user", user_content),
+        )
+        await db.execute(
+            "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+            (session_id, "assistant", assistant_content),
+        )
+        await db.commit()
 
 
-def session_exists(session_id: str) -> bool:
-    return session_id in _sessions
+async def update_session_title(session_id: str, title: str) -> None:
+    """Update the display title for a session."""
+    async with get_db_connection(_db_path()) as db:
+        await db.execute(
+            "UPDATE sessions SET title = ? WHERE id = ?",
+            (title, session_id),
+        )
+        await db.commit()
 
 
-def clear_session(session_id: str) -> None:
-    _sessions.pop(session_id, None)
+async def list_sessions() -> list[dict]:
+    """Return all sessions ordered newest first.
+
+    Each entry: {id, title, created_at}
+    """
+    async with get_db_connection(_db_path()) as db:
+        cur = await db.execute(
+            "SELECT id, title, created_at FROM sessions ORDER BY created_at DESC"
+        )
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_session_messages(session_id: str) -> list[dict]:
+    """Return the full conversation for a session, oldest first.
+
+    Each entry: {role, content}
+    """
+    async with get_db_connection(_db_path()) as db:
+        cur = await db.execute(
+            "SELECT role, content FROM conversations WHERE session_id = ? ORDER BY id ASC",
+            (session_id,),
+        )
+        rows = await cur.fetchall()
+    return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+
+async def delete_session(session_id: str) -> None:
+    """Delete a session and all its messages (CASCADE handles conversations)."""
+    async with get_db_connection(_db_path()) as db:
+        await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        await db.commit()
+    logger.debug("Session deleted: %s", session_id)
+
+
+async def clear_session(session_id: str) -> None:
+    """Delete all messages for a session without removing the session itself."""
+    async with get_db_connection(_db_path()) as db:
+        await db.execute(
+            "DELETE FROM conversations WHERE session_id = ?", (session_id,)
+        )
+        await db.commit()

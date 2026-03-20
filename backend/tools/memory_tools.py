@@ -17,17 +17,27 @@ def store_memory(content: str, category: str, tags: str) -> str:
     """
     Save a fact about the user to persistent memory.
 
-    Call this silently after any turn where the user shares something worth
-    remembering: a preference, goal, personal detail, or recurring context.
-    Keep content concise and factual — one idea per entry.
+    Use this tool after any turn where the user shares something worth
+    remembering long-term: a personal preference, a recurring context, a goal,
+    a role, a constraint, or any detail that would help you serve them better
+    in future conversations. Do NOT use this to save task progress or
+    temporary state — only durable facts. Call silently without announcing it.
+
+    One call per distinct fact. Keep content concise and self-contained so it
+    reads clearly when injected into a future prompt with no extra context.
 
     Args:
-        content:  Short factual statement to remember (e.g. "User is a TA").
-        category: One of teaching, research, career, personal, ideas.
-        tags:     Comma-separated tags (e.g. "schedule,teaching").
+        content:  Short factual statement to remember. Write in third person,
+                  present tense (e.g. "User is a teaching assistant for CS101",
+                  "User prefers bullet-point summaries over prose").
+        category: Classification bucket. Must be one of:
+                  teaching, research, career, personal, ideas.
+        tags:     Comma-separated keywords for filtering
+                  (e.g. "schedule,teaching,fall-semester").
 
     Returns:
-        Confirmation with the new memory id.
+        Confirmation string containing the assigned memory id on success,
+        or an error message if the category is invalid or the write fails.
     """
     valid_categories = load_config()["memory"]["categories"]
     if category not in valid_categories:
@@ -49,16 +59,21 @@ def store_memory(content: str, category: str, tags: str) -> str:
 @function_tool
 def forget_memory(memory_id: int) -> str:
     """
-    Delete a specific memory entry by its id.
+    Permanently delete a specific memory entry by its id.
 
-    Use this when the user explicitly asks to forget something or when a
-    stored fact is no longer accurate (e.g. user corrects a previous statement).
+    Use this tool when the user explicitly asks you to forget or remove
+    something, or when they correct a previously stored fact and the old
+    entry is now wrong. Do NOT call this proactively — only on explicit
+    user instruction. Obtain the memory id from a prior store_memory
+    confirmation or from context the user provides.
 
     Args:
-        memory_id: The integer id of the memory to delete.
+        memory_id: The integer id of the memory entry to delete. This is
+                   returned by store_memory when the memory was first saved.
 
     Returns:
-        Confirmation or error message.
+        Confirmation that the entry was deleted, a "not found" message if
+        no entry with that id exists, or an error message on failure.
     """
     try:
         deleted = delete_memory_by_id(get_db_path(), memory_id)
@@ -74,15 +89,21 @@ def forget_memory(memory_id: int) -> str:
 @function_tool
 def prune_memory(days: int = 0) -> str:
     """
-    Delete all memory entries older than *days* days.
+    Bulk-delete all memory entries older than a given number of days.
 
-    Call this only when the user explicitly asks to clean up old memories.
+    Use this tool only when the user explicitly asks to clean up, clear out,
+    or prune their old memories. Do NOT call this automatically. If the user
+    says "clean up my old memories" without specifying a threshold, use the
+    default (0 triggers the config default, currently 90 days).
 
     Args:
-        days: Age threshold in days (default 90).
+        days: Age threshold in days. Entries created more than this many days
+              ago will be deleted. Pass 0 to use the configured default
+              (90 days). Must be a non-negative integer.
 
     Returns:
-        A summary of how many entries were deleted.
+        A summary string stating how many entries were deleted, or a message
+        saying nothing was old enough to prune, or an error on failure.
     """
     if days == 0:
         days = load_config()["memory"].get("default_prune_threshold_days", 90)

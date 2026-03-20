@@ -15,10 +15,23 @@ logger = get_logger(__name__)
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
     """
-    Split *text* into overlapping chunks of ~*chunk_size* characters with
-    *overlap* characters of overlap between consecutive chunks.
+    Split text into overlapping character-bounded chunks on word boundaries.
 
-    Splitting is done on whitespace boundaries to avoid cutting words.
+    Used during knowledge base ingestion to break large documents into
+    embeddable segments. Splitting respects word boundaries — no words are
+    cut mid-token. Consecutive chunks share *overlap* characters of context
+    so semantic continuity is preserved across chunk boundaries.
+
+    Args:
+        text:       The raw text to split. Returns an empty list if blank.
+        chunk_size: Target maximum character length per chunk. Actual chunk
+                    length may be slightly less due to word-boundary rounding.
+        overlap:    Number of characters to re-include from the end of the
+                    previous chunk at the start of the next chunk.
+
+    Returns:
+        List of non-empty chunk strings. Returns [] if text is empty or
+        contains only whitespace.
     """
     if not text:
         return []

@@ -21,16 +21,31 @@ logger = get_logger(__name__)
 @function_tool
 def create_note(title: str, content: str, category: str, tags: str) -> str:
     """
-    Create a new markdown note, save it to disk, and record it in the database.
+    Create a new persistent markdown note, write it to disk, and index it in
+    the database.
+
+    Use this tool when the user asks to save, write down, take, or create a
+    note — whether it's a reminder, a summary, research notes, a to-do list,
+    or any free-form content they want to keep. Notes are richer and longer
+    than memories; use store_memory for short facts, create_note for
+    structured or multi-line content.
+
+    The title is used to generate the filename slug, so it should be
+    descriptive and unique. Duplicate titles will cause an error.
 
     Args:
-        title:    Human-readable note title (must be unique).
-        content:  Markdown body of the note.
-        category: One of teaching, research, career, personal, ideas.
-        tags:     Comma-separated list of tags.
+        title:    Human-readable title for the note. Used as the filename base.
+                  Must be unique across all notes (e.g. "Meeting notes 2026-03-20").
+        content:  Full markdown body of the note. May include headings, bullet
+                  points, code blocks, etc.
+        category: Classification bucket. Must be one of:
+                  teaching, research, career, personal, ideas.
+        tags:     Comma-separated keywords for later filtering or retrieval
+                  (e.g. "meeting,project-x,action-items").
 
     Returns:
-        Confirmation string with the note ID and file path.
+        Confirmation string with the assigned note id and the file path on
+        disk, or an error message if the category is invalid or the write fails.
     """
     valid_categories = load_config()["memory"]["categories"]
     if category not in valid_categories:
@@ -52,13 +67,21 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
 @function_tool
 def list_notes(category: str = "") -> str:
     """
-    List all notes, optionally filtered by category.
+    List all saved notes, optionally filtered by category.
+
+    Use this tool when the user asks to see, show, or list their notes —
+    e.g. "what notes do I have?", "show my research notes". Returns summaries
+    only (no full content). Use get_note to fetch the body of a specific note.
 
     Args:
-        category: Optional category filter (leave empty for all notes).
+        category: Optional category to filter by. Must be one of:
+                  teaching, research, career, personal, ideas.
+                  Leave empty (or pass "") to list all notes across all categories.
 
     Returns:
-        JSON-encoded list of note summaries (id, title, category, tags, created_at).
+        JSON-encoded array of note summary objects, each containing:
+        id, title, category, tags, created_at. Returns an empty array if no
+        notes exist. Returns an error string on failure.
     """
     try:
         rows = query_notes(get_db_path(), category)
@@ -73,11 +96,20 @@ def get_note(title: str) -> str:
     """
     Retrieve the full content of a note by its title.
 
+    Use this tool when the user asks to read, open, or see the contents of a
+    specific note — e.g. "show me my meeting notes", "open the AI guardrails
+    note". Call list_notes first if you need to discover available titles.
+    Matching is partial, so a substring of the title is sufficient.
+
     Args:
-        title: Exact (or partial) title of the note to retrieve.
+        title: Full or partial title of the note to retrieve. Case-insensitive
+               substring match is used (e.g. "guardrails" will match
+               "AI Guardrails Research").
 
     Returns:
-        JSON-encoded note data, or an error message if not found.
+        JSON-encoded note object containing: id, title, content, category,
+        tags, file_path, created_at. Returns a "not found" message if no
+        match exists, or an error string on failure.
     """
     try:
         row = fetch_note_by_title(get_db_path(), title)

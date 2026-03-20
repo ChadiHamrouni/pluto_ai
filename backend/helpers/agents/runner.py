@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-
-from agents import Agent
+from agents import Agent, Runner, RunConfig
+from agents.items import ToolCallItem, ToolCallOutputItem
 
 from helpers.core.logger import get_logger
 
@@ -11,106 +10,96 @@ logger = get_logger(__name__)
 _AGENT_TIMEOUT = 120  # seconds
 
 
-async def run_agent(agent: Agent, messages: list[dict]) -> str:
+async def run_agent(
+    agent: Agent,
+    messages: list[dict],
+    memory_context: str = "",
+) -> tuple[str, list[str], list[str]]:
     """
-    Run an agent turn by calling Ollama directly via the OpenAI-compat client.
+    Run an agent turn using the OpenAI Agents SDK Runner.
 
-    The OpenAI Agents SDK Runner crashes on Ollama responses that don't
-    perfectly match OpenAI's API (tool call IDs, finish reasons, etc.).
-    We bypass Runner entirely and call chat.completions.create directly —
-    same approach used by the compactor which works reliably.
+    Handoffs, tool calls, and multi-agent routing are all handled by the SDK.
 
-    Tool calls (store_memory, etc.) are handled by injecting the tool
-    definitions and parsing the response manually when the model requests them.
+    Args:
+        agent:          The starting agent (Orchestrator or a sub-agent).
+        messages:       Conversation history as role/content dicts. The last
+                        entry must be the user turn. System messages are
+                        ignored — agent.instructions is used instead.
+        memory_context: Optional memory block to append to the orchestrator's
+                        instructions for this turn only.
+
+    Returns:
+        response_text — final text reply to show the user
+        tools_used    — names of every tool called across all agents
+        agents_trace  — ordered list of agent names that ran
     """
-    from helpers.agents.ollama_client import get_openai_client
-    from helpers.core.config_loader import load_config
-    cfg = load_config()
-    # Pick the model for this agent based on its name
-    _model_map = {
-        "Notes":      cfg.get("notes_agent", {}).get("model", cfg["orchestrator"]["model"]),
-        "Slides":     cfg.get("slides_agent", {}).get("model", cfg["orchestrator"]["model"]),
-        "Planner":    cfg.get("autonomous", {}).get("model", cfg["orchestrator"]["model"]),
-        "Executor":   cfg.get("autonomous", {}).get("model", cfg["orchestrator"]["model"]),
-    }
-    model_name = _model_map.get(agent.name, cfg["orchestrator"]["model"])
-    client = get_openai_client()
+    run_config = RunConfig(tracing_disabled=True)
 
-    # Build tool schemas from the agent's tool list
-    tools_payload = []
-    tool_map = {}
-    for t in (agent.tools or []):
-        schema = getattr(t, "params_json_schema", None)
-        name = getattr(t, "name", None)
-        desc = getattr(t, "description", "")
-        if name and schema:
-            tools_payload.append({
-                "type": "function",
-                "function": {"name": name, "description": desc, "parameters": schema},
-            })
-            tool_map[name] = t
+    # Build conversation input (user + assistant turns only — SDK handles system via instructions)
+    input_items: list = [
+        {"role": msg["role"], "content": msg["content"]}
+        for msg in messages
+        if msg.get("role") in ("user", "assistant") and msg.get("content")
+    ]
+    if not input_items:
+        input_items = [{"role": "user", "content": ""}]
 
-    kwargs: dict = {
-        "model": model_name,
-        "messages": messages,
-        "max_tokens": 1024,
-        "temperature": 0.5,
-    }
-    if tools_payload:
-        kwargs["tools"] = tools_payload
+    # Inject memory context into orchestrator instructions for this turn only
+    # by cloning the agent with updated instructions (does not mutate the singleton)
+    run_agent_instance = agent
+    if memory_context and agent.name == "Orchestrator":
+        run_agent_instance = agent.clone(
+            instructions=agent.instructions + "\n\n" + memory_context
+        )
 
     try:
-        resp = await asyncio.wait_for(
-            client.chat.completions.create(**kwargs),
-            timeout=_AGENT_TIMEOUT,
+        result = await Runner.run(
+            starting_agent=run_agent_instance,
+            input=input_items,
+            run_config=run_config,
         )
-    except asyncio.TimeoutError:
-        logger.error("Agent '%s' timed out after %ds", agent.name, _AGENT_TIMEOUT)
-        raise RuntimeError(f"Agent timed out after {_AGENT_TIMEOUT}s")
     except Exception as exc:
-        logger.exception("Agent '%s' LLM call failed: %s", agent.name, exc)
-        raise RuntimeError(f"Agent LLM call failed: {exc}") from exc
+        logger.exception("Runner.run failed for agent '%s': %s", agent.name, exc)
+        raise RuntimeError(f"Agent run failed: {exc}") from exc
 
-    choice = resp.choices[0]
+    # Extract tools used and agents trace from RunResult.new_items
+    tools_used: list[str] = []
+    agents_seen: list[str] = []
 
-    # If model requested tool calls, execute them and do a follow-up turn
-    if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
-        import json
-        tool_results_msgs = [{"role": "assistant", "content": choice.message.content or "", "tool_calls": [
-            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in choice.message.tool_calls
-        ]}]
-        for tc in choice.message.tool_calls:
-            fn_name = tc.function.name
-            fn_args = json.loads(tc.function.arguments or "{}")
-            tool_fn = tool_map.get(fn_name)
-            if tool_fn:
-                try:
-                    result = tool_fn(**fn_args)
-                    if asyncio.iscoroutine(result):
-                        result = await result
-                    tool_result = str(result)
-                except Exception as exc:
-                    tool_result = f"Error: {exc}"
-            else:
-                tool_result = f"Unknown tool: {fn_name}"
-            tool_results_msgs.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": tool_result,
-            })
-
-        follow_up_messages = messages + tool_results_msgs
-        follow_kwargs = {**kwargs, "messages": follow_up_messages}
-        follow_kwargs.pop("tools", None)  # no more tools on follow-up
-        try:
-            follow_resp = await asyncio.wait_for(
-                client.chat.completions.create(**follow_kwargs),
-                timeout=_AGENT_TIMEOUT,
+    for item in (result.new_items or []):
+        agent_name = getattr(getattr(item, "agent", None), "name", None)
+        if agent_name and agent_name not in agents_seen:
+            agents_seen.append(agent_name)
+        if isinstance(item, ToolCallItem):
+            # raw_item is the underlying API response object
+            raw = getattr(item, "raw_item", None)
+            name = (
+                getattr(getattr(raw, "function", None), "name", None)
+                or getattr(raw, "name", None)
+                or getattr(item, "name", None)
             )
-            return follow_resp.choices[0].message.content or ""
-        except Exception as exc:
-            logger.exception("Agent '%s' follow-up call failed: %s", agent.name, exc)
-            raise RuntimeError(f"Agent follow-up failed: {exc}") from exc
+            if name and name not in tools_used:
+                tools_used.append(name)
 
-    return choice.message.content or ""
+    logger.debug("new_items types: %s", [type(i).__name__ for i in (result.new_items or [])])
+
+    if not agents_seen:
+        agents_seen = [agent.name]
+
+    response = result.final_output or ""
+
+    # If the final agent called a tool and returned no text, fall back to the
+    # last tool output as the response (e.g. generate_slides returns a file path).
+    if not response:
+        for item in reversed(result.new_items or []):
+            if isinstance(item, ToolCallOutputItem):
+                raw_output = getattr(item, "output", None) or getattr(getattr(item, "raw_item", None), "output", None)
+                if raw_output:
+                    response = str(raw_output)
+                    break
+
+    logger.info(
+        "Run complete — agents=%s tools=%s response_len=%d",
+        agents_seen, tools_used, len(response),
+    )
+    return response, tools_used, agents_seen

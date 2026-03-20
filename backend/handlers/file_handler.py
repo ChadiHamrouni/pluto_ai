@@ -44,7 +44,7 @@ async def file_handler(
     message: str,
     history: list[dict],
     file_path: Path,
-) -> tuple[str, float]:
+) -> tuple[str, float, list[str]]:
     t0 = time.perf_counter()
 
     ext = file_path.suffix.lower()
@@ -61,8 +61,8 @@ async def file_handler(
             else f"Here is the content of the text file:\n\n---\n\n{text_content}"
         )
         messages = [{"role": "user", "content": user_content}]
-        response = await run_agent(get_orchestrator(), messages)
-        return response, time.perf_counter() - t0
+        response, tools_used, agents_trace = await run_agent(get_orchestrator(), messages)
+        return response, time.perf_counter() - t0, tools_used, agents_trace
 
     if ext in _PDF_EXTS:
         pdf_text = _extract_pdf_text(file_path)
@@ -82,5 +82,5 @@ async def file_handler(
             {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
         ]}]
 
-    response = await run_agent(get_orchestrator(), messages)
-    return response, time.perf_counter() - t0
+    response, tools_used = await run_agent(get_orchestrator(), messages)
+    return response, time.perf_counter() - t0, tools_used

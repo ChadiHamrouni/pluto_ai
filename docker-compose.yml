@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/data:/app/data
-      - ./backend/config.json:/app/config.json:ro
+      - ./backend/config.json:/app/config.json
     env_file:
       - ./backend/.env
     environment:

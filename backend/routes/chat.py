@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 from typing import List
@@ -10,9 +11,13 @@ from handlers.file_handler import file_handler
 from handlers.text_handler import text_handler
 from helpers.agents.session_store import (
     append_turn,
+    delete_session,
     get_history,
+    get_session_messages,
+    list_sessions,
     new_session,
     session_exists,
+    update_session_title,
 )
 from helpers.core.logger import get_logger
 from helpers.routes.dependencies import get_current_user
@@ -35,15 +40,35 @@ _MIME_MAP = {
 
 @router.post("/session", tags=["chat"])
 async def create_session(_user: dict = Depends(get_current_user)):
-    """Create a new server-side conversation session.
-
-    Returns a session_id the client should include on every subsequent /chat
-    request. The server keeps the rolling history — the client never needs to
-    re-send past messages.
-    """
-    sid = new_session()
+    """Create a new server-side conversation session."""
+    sid = await new_session()
     logger.info("New session created: %s", sid)
     return {"session_id": sid}
+
+
+@router.get("/sessions", tags=["chat"])
+async def get_sessions(_user: dict = Depends(get_current_user)):
+    """Return all sessions with their titles, newest first."""
+    sessions = await list_sessions()
+    return {"sessions": sessions}
+
+
+@router.get("/session/{session_id}/messages", tags=["chat"])
+async def get_messages(session_id: str, _user: dict = Depends(get_current_user)):
+    """Return full message history for a session."""
+    if not await session_exists(session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    messages = await get_session_messages(session_id)
+    return {"messages": messages}
+
+
+@router.delete("/session/{session_id}", tags=["chat"])
+async def remove_session(session_id: str, _user: dict = Depends(get_current_user)):
+    """Delete a session and all its messages."""
+    if not await session_exists(session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    await delete_session(session_id)
+    return {"ok": True}
 
 
 @router.post("", response_model=ChatResponse)
@@ -56,8 +81,7 @@ async def chat(
     """Send a message and get a response.
 
     Pass ``session_id`` (from POST /chat/session) to use server-side history.
-    If omitted or unknown, the request is treated as a fresh stateless turn
-    (no history context).
+    If omitted or unknown, the request is treated as a fresh stateless turn.
 
     Supported attachment types: images (jpg/png/webp/gif/bmp), PDF, .txt.
     """
@@ -68,12 +92,12 @@ async def chat(
         len(attachments),
     )
 
-    # Resolve history from server-side session — no history in request body
     from helpers.core.config_loader import load_config
     window = load_config().get("orchestrator", {}).get("history_window", 20)
 
-    if session_id and session_exists(session_id):
-        history = get_history(session_id, max_turns=window)
+    exists = session_id and await session_exists(session_id)
+    if exists:
+        history = await get_history(session_id, max_turns=window)
     else:
         history = []
         if session_id:
@@ -106,26 +130,44 @@ async def chat(
 
         primary = temp_paths[0] if temp_paths else None
 
+        tools_used: list[str] = []
+        agents_trace: list[str] = []
         if primary:
             extra_context = ""
             if len(temp_paths) > 1:
                 names = ", ".join(a.filename for a in attachment_meta[1:])
                 extra_context = f"\n\n[Additional attached files: {names}]"
             full_message = message + extra_context
-            response_text = await file_handler(full_message, history, primary)
+            response_text, _, tools_used, agents_trace = await file_handler(full_message, history, primary)
         else:
-            response_text = await text_handler(message, history)
-
-        if isinstance(response_text, tuple):
-            response_text = response_text[0]
+            response_text, _, tools_used, agents_trace = await text_handler(message, history)
 
         logger.info("Response ready (%d chars) for session '%s'", len(response_text), session_id or "(none)")
 
-        # Persist this exchange into the session
-        if session_id and session_exists(session_id):
-            append_turn(session_id, message, response_text)
+        # If the response contains a generated file path, expose it as a download URL.
+        file_url: str | None = None
+        history_response = response_text
+        m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md)", response_text)
+        if m:
+            file_url = f"/files/{Path(m.group(0)).name}"
+            response_text = "Your presentation is ready."
+            history_response = "Presentation generated successfully."
 
-        return ChatResponse(response=response_text, attachments=attachment_meta)
+        # Persist this exchange and update the session title from the first message
+        if session_id and exists:
+            await append_turn(session_id, message, history_response)
+            # Set title from the first user message if the history was empty before this turn
+            if not history and message:
+                title = message[:50] + ("…" if len(message) > 50 else "")
+                await update_session_title(session_id, title)
+
+        return ChatResponse(
+            response=response_text,
+            attachments=attachment_meta,
+            tools_used=tools_used,
+            agents_trace=agents_trace,
+            file_url=file_url,
+        )
 
     except HTTPException:
         raise

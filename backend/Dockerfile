@@ -1,14 +1,16 @@
 FROM python:3.11-slim
 
-# Install Node.js (for marp-cli)
+# Install Node.js (for marp-cli) + Chromium (required by marp for PDF export)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends curl chromium && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     npm install -g @marp-team/marp-cli && \
     apt-get purge -y curl && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
+
+ENV CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 

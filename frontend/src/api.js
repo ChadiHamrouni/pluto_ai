@@ -3,6 +3,23 @@ let accessToken = null;
 let refreshToken = null;
 let sessionId = null;
 
+/** Switch the active session used by sendMessage. */
+export function setActiveSession(id) {
+  sessionId = id;
+}
+
+/** Create a new backend session and return its id. */
+export async function createSession() {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/chat/session`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!r.ok) throw new Error("Failed to create session");
+  const d = await r.json();
+  return d.session_id;
+}
+
 async function login() {
   console.log("[api] logging in…");
   const r = await fetch(`${BASE}/auth/login`, {
@@ -32,22 +49,6 @@ async function refresh() {
   refreshToken = d.refresh_token;
 }
 
-async function ensureSession() {
-  if (sessionId) return;
-  console.log("[api] creating session…");
-  const r = await fetch(`${BASE}/chat/session`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!r.ok) {
-    console.error("[api] session creation failed:", r.status, await r.text());
-    throw new Error("Failed to create session");
-  }
-  const d = await r.json();
-  sessionId = d.session_id;
-  console.log("[api] session created:", sessionId);
-}
-
 async function _doChat(formData) {
   return fetch(`${BASE}/chat`, {
     method: "POST",
@@ -58,7 +59,6 @@ async function _doChat(formData) {
 
 export async function sendMessage(message, files = []) {
   if (!accessToken) await login();
-  await ensureSession();
 
   const formData = new FormData();
   formData.append("message", message);
@@ -75,8 +75,6 @@ export async function sendMessage(message, files = []) {
   if (r.status === 401) {
     console.warn("[api] 401 — refreshing token and retrying");
     await refresh();
-    await ensureSession();
-    formData.set("session_id", sessionId);
     r = await _doChat(formData);
   }
 
@@ -87,7 +85,7 @@ export async function sendMessage(message, files = []) {
   }
   const d = await r.json();
   console.log("[api] /chat response received, length:", d.response?.length ?? 0);
-  return d.response;
+  return { response: d.response, tools_used: d.tools_used ?? [], agents_trace: d.agents_trace ?? [], file_url: d.file_url ?? null };
 }
 
 export async function getModels() {
@@ -123,6 +121,46 @@ export async function saveAgentSettings(settings) {
   if (r.status === 401) { await refresh(); return saveAgentSettings(settings); }
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.json();
+}
+
+export async function getSessions() {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/chat/sessions`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return getSessions(); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return (await r.json()).sessions; // [{id, title, created_at}]
+}
+
+export async function getSessionMessages(sessionId) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/chat/session/${sessionId}/messages`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return getSessionMessages(sessionId); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return (await r.json()).messages; // [{role, content}]
+}
+
+export async function deleteSession(sessionId) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}/chat/session/${sessionId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return deleteSession(sessionId); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+}
+
+export async function fetchFile(fileUrl) {
+  if (!accessToken) await login();
+  const r = await fetch(`${BASE}${fileUrl}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (r.status === 401) { await refresh(); return fetchFile(fileUrl); }
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return r.blob();
 }
 
 export async function startAutonomous(task) {

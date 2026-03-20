@@ -1,7 +1,7 @@
 {
   "orchestrator": {
-    "model": "qwen3.5:2b",
-    "temperature": 0.5,
+    "model": "qwen2.5:3b",
+    "temperature": 0.0,
     "max_tokens": 1024,
     "base_url": "http://localhost:11434/v1",
     "api_key": "ollama",
@@ -22,14 +22,14 @@
     "refresh_token_expires_days": 7
   },
   "notes_agent": {
-    "model": "qwen3.5:2b",
+    "model": "qwen2.5:3b",
     "temperature": 0.5,
     "max_tokens": 1024
   },
   "slides_agent": {
-    "model": "qwen3.5:2b",
-    "temperature": 0.6,
-    "max_tokens": 1024
+    "model": "qwen2.5:3b",
+    "temperature": 0.0,
+    "max_tokens": 2048
   },
   "rag": {
     "chunk_size": 512,
@@ -39,13 +39,19 @@
   },
   "memory": {
     "db_path": "data/memory.db",
-    "categories": ["teaching", "research", "career", "personal", "ideas"],
+    "categories": [
+      "teaching",
+      "research",
+      "career",
+      "personal",
+      "ideas"
+    ],
     "default_prune_threshold_days": 90,
     "memory_dir": "data/memory",
     "search_top_k": 10
   },
   "autonomous": {
-    "model": "qwen3.5:2b",
+    "model": "qwen2.5:3b",
     "max_iterations": 50,
     "max_duration_seconds": 300,
     "max_retries_per_step": 2

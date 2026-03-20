@@ -73,8 +73,9 @@ async def test_run_agent_simple_response(mock_ollama_client):
     mock_ollama_client.chat.completions.create = AsyncMock(
         return_value=_make_response("Hello there!")
     )
-    result = await run_agent(_agent(), MESSAGES)
+    result, tools = await run_agent(_agent(), MESSAGES)
     assert result == "Hello there!"
+    assert tools == []
 
 
 @pytest.mark.asyncio
@@ -83,8 +84,9 @@ async def test_run_agent_empty_response(mock_ollama_client):
     mock_ollama_client.chat.completions.create = AsyncMock(
         return_value=_make_response(None)
     )
-    result = await run_agent(_agent(), MESSAGES)
+    result, tools = await run_agent(_agent(), MESSAGES)
     assert result == ""
+    assert tools == []
 
 
 @pytest.mark.asyncio
@@ -112,9 +114,10 @@ async def test_run_agent_tool_call_executed(mock_ollama_client):
         side_effect=[tool_resp, final_resp]
     )
 
-    result = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
+    result, tools = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
 
     assert result == "Got it, I'll remember that."
+    assert tools == ["store_memory"]
     fake_tool.assert_called_once_with(content="I like Python")
     assert mock_ollama_client.chat.completions.create.call_count == 2
 
@@ -134,8 +137,9 @@ async def test_run_agent_async_tool(mock_ollama_client):
         side_effect=[tool_resp, final_resp]
     )
 
-    result = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
+    result, tools = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
     assert result == "Done async."
+    assert tools == ["async_tool"]
 
 
 @pytest.mark.asyncio
@@ -149,8 +153,9 @@ async def test_run_agent_unknown_tool_graceful(mock_ollama_client):
     )
 
     # Agent has no tools registered
-    result = await run_agent(_agent(tools=[]), MESSAGES)
+    result, tools = await run_agent(_agent(tools=[]), MESSAGES)
     assert result == "I tried but that tool doesn't exist."
+    assert tools == ["nonexistent_tool"]
 
 
 @pytest.mark.asyncio

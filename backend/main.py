@@ -14,6 +14,7 @@ from helpers.core.logger import get_logger
 from routes.auth import router as auth_router
 from routes.autonomous import router as autonomous_router
 from routes.chat import router as chat_router
+from routes.files import router as files_router
 from routes.settings import router as settings_router
 
 logger = get_logger(__name__)
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(autonomous_router)
     app.include_router(settings_router)
+    app.include_router(files_router)
 
     @app.get("/", tags=["health"])
     async def root():

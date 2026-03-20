@@ -58,7 +58,7 @@ def run_marp(md_path: str, pdf_path: str) -> tuple[bool, str]:
     timeout = load_config()["slides"].get("marp_timeout_seconds", 120)
     try:
         result = subprocess.run(
-            ["marp", md_path, "--pdf", "--output", pdf_path, "--allow-local-files"],
+            ["marp", md_path, "--pdf", "--output", pdf_path, "--allow-local-files", "--no-sandbox"],
             capture_output=True,
             text=True,
             timeout=timeout,

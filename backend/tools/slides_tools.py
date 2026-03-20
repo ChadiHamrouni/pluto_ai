@@ -20,18 +20,44 @@ logger = get_logger(__name__)
 @function_tool
 def generate_slides(title: str, markdown_content: str, theme: str = "default") -> str:
     """
-    Generate a Marp presentation PDF from the supplied markdown content.
+    Generate a Marp presentation PDF from Marp-compatible markdown content.
 
-    Writes a ``.md`` source file with a Marp front-matter header, then
-    invokes the ``marp`` CLI to convert it to PDF.
+    Use this tool immediately when the user asks for a presentation, slides,
+    or a slide deck — regardless of topic or length. Do NOT output the
+    markdown as text first. Draft the Marp markdown internally, then call
+    this tool right away. Your entire reply to the user should be the file
+    path returned by this tool, nothing else.
+
+    Marp markdown format rules:
+    - Start with a title slide using a top-level heading (# Title).
+    - Separate each slide with ``---`` on its own line.
+    - Use bullet points for content; max 5-6 bullets per slide.
+    - End with a summary or conclusion slide.
+    - Do NOT include the Marp front-matter header — this tool adds it automatically.
 
     Args:
-        title:            Presentation title (used as filename base).
-        markdown_content: Marp-compatible markdown. Separate slides with ``---``.
-        theme:            Marp theme: default | gaia | uncover.
+        title:            Presentation title. Also used as the output filename
+                          base (e.g. "AI Guardrails" → ai-guardrails.pdf).
+                          Should be concise and descriptive.
+        markdown_content: Full Marp-compatible slide markdown. Must use ``---``
+                          as slide separators. Do not include front-matter.
+                          Example:
+                            # AI Guardrails
+                            ## What they are and why they matter
+                            ---
+                            # Key Concepts
+                            - Content safety filters
+                            - Policy enforcement
+        theme:            Visual theme for the presentation. Must be one of:
+                          default, gaia, uncover. Defaults to "default" if
+                          omitted or invalid.
 
     Returns:
-        The absolute path to the generated PDF, or an error description.
+        On success: the absolute file path to the generated PDF
+        (e.g. /app/data/slides/ai-guardrails.pdf).
+        On marp CLI missing: a message with the markdown source path and
+        install instructions.
+        On failure: an error description string.
     """
     if theme not in MARP_THEMES:
         theme = "default"

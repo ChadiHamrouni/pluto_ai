@@ -51,6 +51,28 @@ CREATE_NOTES_TITLE_IDX = """
 CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_title ON notes(title);
 """
 
+CREATE_SESSIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS sessions (
+    id         TEXT    PRIMARY KEY,
+    title      TEXT    NOT NULL DEFAULT 'New Chat',
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_CONVERSATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS conversations (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    role        TEXT    NOT NULL,
+    content     TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_CONVERSATIONS_IDX = """
+CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id, id);
+"""
+
 
 async def init_db(db_path: str) -> None:
     """
@@ -71,6 +93,9 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_MEMORIES_IDX)
         await db.execute(CREATE_NOTES_IDX)
         await db.execute(CREATE_NOTES_TITLE_IDX)
+        await db.execute(CREATE_SESSIONS_TABLE)
+        await db.execute(CREATE_CONVERSATIONS_TABLE)
+        await db.execute(CREATE_CONVERSATIONS_IDX)
 
         await db.commit()
 

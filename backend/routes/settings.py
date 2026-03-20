@@ -91,5 +91,14 @@ async def set_agent_models(
         json.dump(raw, f, indent=2)
 
     reload_config()
+
+    # Bust agent singletons so the next request picks up the new models
+    from my_agents.orchestrator import reset_orchestrator
+    from my_agents.notes_agent import reset_notes_agent
+    from my_agents.slides_agent import reset_slides_agent
+    reset_orchestrator()
+    reset_notes_agent()
+    reset_slides_agent()
+
     logger.info("Agent models updated: %s", updates)
     return {"status": "ok", "updated": updates}

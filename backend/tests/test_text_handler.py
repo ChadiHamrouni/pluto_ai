@@ -43,11 +43,12 @@ def patched_handler(mock_ollama_client, tmp_db):
 async def test_text_handler_returns_string(patched_handler):
     from handlers.text_handler import text_handler
 
-    response, elapsed = await text_handler("hello", history=[])
+    response, elapsed, tools = await text_handler("hello", history=[])
 
     assert isinstance(response, str)
     assert len(response) > 0
     assert isinstance(elapsed, float)
+    assert isinstance(tools, list)
 
 
 @pytest.mark.asyncio
@@ -60,7 +61,7 @@ async def test_text_handler_passes_history(patched_handler):
         {"role": "assistant", "content": "4"},
     ]
 
-    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value="ok")) as mock_run:
+    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value=("ok", []))) as mock_run:
         await text_handler("follow up question", history=history)
 
         call_args = mock_run.call_args
@@ -78,7 +79,7 @@ async def test_text_handler_slash_note_routes_to_notes_agent(patched_handler):
     from handlers.text_handler import text_handler
 
     # The notes agent is a cached singleton — capture which agent run_agent receives
-    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value="note created")) as mock_run:
+    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value=("note created", []))) as mock_run:
         await text_handler("/note Write a note about Python", history=[])
 
         mock_run.assert_called_once()
@@ -91,5 +92,6 @@ async def test_text_handler_empty_message(patched_handler):
     """Empty message should still complete without raising."""
     from handlers.text_handler import text_handler
 
-    response, _ = await text_handler("", history=[])
+    response, _, tools = await text_handler("", history=[])
     assert isinstance(response, str)
+    assert isinstance(tools, list)
