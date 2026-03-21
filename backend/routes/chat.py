@@ -130,17 +130,19 @@ async def chat(
 
         primary = temp_paths[0] if temp_paths else None
 
-        tools_used: list[str] = []
-        agents_trace: list[str] = []
         if primary:
             extra_context = ""
             if len(temp_paths) > 1:
                 names = ", ".join(a.filename for a in attachment_meta[1:])
                 extra_context = f"\n\n[Additional attached files: {names}]"
             full_message = message + extra_context
-            response_text, _, tools_used, agents_trace = await file_handler(full_message, history, primary)
+            handler_result = await file_handler(full_message, history, primary)
         else:
-            response_text, _, tools_used, agents_trace = await text_handler(message, history)
+            handler_result = await text_handler(message, history)
+
+        response_text = handler_result.response
+        tools_used = handler_result.tools_used
+        agents_trace = handler_result.agents_trace
 
         logger.info("Response ready (%d chars) for session '%s'", len(response_text), session_id or "(none)")
 

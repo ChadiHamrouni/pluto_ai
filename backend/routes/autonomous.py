@@ -50,7 +50,9 @@ async def start_autonomous(
     q: asyncio.Queue = asyncio.Queue(maxsize=200)
     callback = _make_event_callback("")  # placeholder — rebound below
 
-    task_id, loop = create_loop(task, lambda d: None)  # create to get id first
+    created = create_loop(task, lambda d: None)  # create to get id first
+    task_id = created.task_id
+    loop = created.loop
     _sse_queues[task_id] = q
 
     # Now bind the real callback

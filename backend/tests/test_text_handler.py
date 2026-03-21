@@ -1,97 +1,133 @@
 """
-Tests for handlers/text_handler.py
+Unit tests for handlers/text_handler.py
 
 Mocks:
-- Ollama client (no real HTTP)
-- SQLite memory DB (tmp in-memory)
-- compactor (no-op)
+- Runner.run (OpenAI Agents SDK) — no real HTTP
+- SQLite memory DB (tmp_db fixture from conftest)
+- search_memories — returns empty list by default
 
-Verifies the full handler pipeline: memory search → message building → agent call → response.
+Verifies routing, history windowing, and HandlerResult structure.
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
-def _make_response(content: str) -> MagicMock:
-    msg = MagicMock()
-    msg.content = content
-    msg.tool_calls = None
-    choice = MagicMock()
-    choice.message = msg
-    choice.finish_reason = "stop"
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+from models.results import AgentRunResult, HandlerResult
 
 
-@pytest.fixture
-def patched_handler(mock_ollama_client, tmp_db):
-    """Patch all external deps so text_handler runs fully in-process."""
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        return_value=_make_response("I am Jarvis, your assistant.")
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _sdk_result(text: str = "I am Jarvis.", tools: list[str] | None = None) -> MagicMock:
+    r = MagicMock()
+    r.final_output = text
+    r.new_items = []
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_text_handler_returns_handler_result(tmp_db):
+    sdk_result = _sdk_result("Hello!")
+    with (
+        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("handlers.text_handler.search_memories", return_value=[]),
+        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
+    ):
+        from handlers.text_handler import text_handler
+        result = await text_handler("hello", history=[])
+
+    assert isinstance(result, HandlerResult)
+    assert result.response == "Hello!"
+    assert isinstance(result.elapsed, float)
+    assert isinstance(result.tools_used, list)
+    assert isinstance(result.agents_trace, list)
+
+
+@pytest.mark.asyncio
+async def test_text_handler_slash_note_routes_to_notes_agent(tmp_db):
+    """/note command should route to NotesAgent, not Orchestrator."""
+    sdk_result = _sdk_result("Note created.")
+
+    with (
+        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("handlers.text_handler.search_memories", return_value=[]),
+        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
+    ):
+        from handlers.text_handler import text_handler
+        await text_handler("/note Save my idea about AI agents", history=[])
+
+    call_kwargs = mock_run.call_args.kwargs
+    agent_used = call_kwargs.get(
+        "starting_agent",
+        mock_run.call_args.args[0] if mock_run.call_args.args else None,
     )
-
-    with patch("helpers.tools.memory.get_db_path", return_value=tmp_db):
-        with patch("handlers.text_handler.get_db_path", return_value=tmp_db):
-            with patch("handlers.text_handler.compact_history", new=AsyncMock(side_effect=lambda msgs, *a, **kw: msgs)):
-                yield mock_ollama_client
+    assert agent_used is not None
+    assert "note" in agent_used.name.lower()
 
 
 @pytest.mark.asyncio
-async def test_text_handler_returns_string(patched_handler):
-    from handlers.text_handler import text_handler
+async def test_text_handler_slash_slides_routes_to_slides_agent(tmp_db):
+    sdk_result = _sdk_result("Slides generated.")
 
-    response, elapsed, tools = await text_handler("hello", history=[])
+    with (
+        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("handlers.text_handler.search_memories", return_value=[]),
+        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
+    ):
+        from handlers.text_handler import text_handler
+        await text_handler("/slides Make a deck about Python", history=[])
 
-    assert isinstance(response, str)
-    assert len(response) > 0
-    assert isinstance(elapsed, float)
-    assert isinstance(tools, list)
+    call_kwargs = mock_run.call_args.kwargs
+    agent_used = call_kwargs.get(
+        "starting_agent",
+        mock_run.call_args.args[0] if mock_run.call_args.args else None,
+    )
+    assert agent_used is not None
+    assert "slide" in agent_used.name.lower()
 
 
 @pytest.mark.asyncio
-async def test_text_handler_passes_history(patched_handler):
-    """History messages should appear in the LLM call messages."""
-    from handlers.text_handler import text_handler
+async def test_text_handler_passes_history(tmp_db):
+    sdk_result = _sdk_result("Follow-up answer.")
 
     history = [
         {"role": "user", "content": "what is 2+2?"},
         {"role": "assistant", "content": "4"},
     ]
 
-    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value=("ok", []))) as mock_run:
-        await text_handler("follow up question", history=history)
+    with (
+        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("handlers.text_handler.search_memories", return_value=[]),
+        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
+    ):
+        from handlers.text_handler import text_handler
+        await text_handler("follow up", history=history)
 
-        call_args = mock_run.call_args
-        messages = call_args.args[1] if call_args.args else call_args.kwargs.get("messages", [])
-        all_content = " ".join(
-            m.get("content", "") if isinstance(m.get("content"), str) else ""
-            for m in messages
-        )
-        assert "2+2" in all_content or "follow up" in all_content
-
-
-@pytest.mark.asyncio
-async def test_text_handler_slash_note_routes_to_notes_agent(patched_handler):
-    """'/note ...' should route to notes agent, not orchestrator."""
-    from handlers.text_handler import text_handler
-
-    # The notes agent is a cached singleton — capture which agent run_agent receives
-    with patch("handlers.text_handler.run_agent", new=AsyncMock(return_value=("note created", []))) as mock_run:
-        await text_handler("/note Write a note about Python", history=[])
-
-        mock_run.assert_called_once()
-        agent_used = mock_run.call_args.args[0]
-        assert agent_used.name in ("Notes", "NotesAgent")
+    # Runner.run receives input containing prior history
+    call_kwargs = mock_run.call_args.kwargs
+    input_msgs = call_kwargs.get("input", mock_run.call_args.args[1] if len(mock_run.call_args.args) > 1 else [])
+    all_content = " ".join(
+        m.get("content", "") for m in input_msgs if isinstance(m.get("content"), str)
+    )
+    assert "2+2" in all_content or "follow up" in all_content
 
 
 @pytest.mark.asyncio
-async def test_text_handler_empty_message(patched_handler):
-    """Empty message should still complete without raising."""
-    from handlers.text_handler import text_handler
+async def test_text_handler_empty_message(tmp_db):
+    sdk_result = _sdk_result("")
+    with (
+        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("handlers.text_handler.search_memories", return_value=[]),
+        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
+    ):
+        from handlers.text_handler import text_handler
+        result = await text_handler("", history=[])
 
-    response, _, tools = await text_handler("", history=[])
-    assert isinstance(response, str)
-    assert isinstance(tools, list)
+    assert isinstance(result, HandlerResult)

@@ -25,6 +25,7 @@ from agents import Runner
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.plan import ExecutionPlan, PlanStep
+from models.results import LoopCreated
 from my_agents.executor_agent import get_executor_agent, get_last_step_result, reset_step_result
 from my_agents.planner_agent import get_planner_agent
 
@@ -192,12 +193,12 @@ class AutonomousLoop:
 _active_loops: dict[str, AutonomousLoop] = {}
 
 
-def create_loop(task: str, on_event: Callable[[dict], None]) -> tuple[str, AutonomousLoop]:
-    """Create a new autonomous loop and register it. Returns (task_id, loop)."""
+def create_loop(task: str, on_event: Callable[[dict], None]) -> LoopCreated:
+    """Create a new autonomous loop and register it."""
     task_id = str(uuid.uuid4())
     loop = AutonomousLoop(task_id, task, on_event)
     _active_loops[task_id] = loop
-    return task_id, loop
+    return LoopCreated(task_id=task_id, loop=loop)
 
 
 def get_loop(task_id: str) -> AutonomousLoop | None:

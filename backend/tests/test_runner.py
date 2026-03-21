@@ -1,65 +1,57 @@
 """
-Tests for helpers/agents/runner.py
+Unit tests for helpers/agents/runner.py
 
-Verifies that run_agent():
-- Returns the model's text response
-- Executes tool calls and sends a follow-up turn
-- Raises RuntimeError on timeout
-- Raises RuntimeError on LLM error
+Mocks Runner.run (OpenAI Agents SDK) — no real Ollama or network calls.
 """
 from __future__ import annotations
 
-import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from types import SimpleNamespace
 
-from helpers.agents.runner import run_agent
+import pytest
+
+from models.results import AgentRunResult
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _agent(tools: list | None = None) -> MagicMock:
-    """Minimal fake Agent object."""
+def _make_run_result(
+    final_output: str = "Hello!",
+    tool_names: list[str] | None = None,
+    agent_name: str = "Orchestrator",
+) -> MagicMock:
+    """Build a minimal fake RunResult as returned by Runner.run."""
+    from agents.items import ToolCallItem, ToolCallOutputItem
+
+    new_items: list = []
+
+    for tool in (tool_names or []):
+        item = MagicMock(spec=ToolCallItem)
+        item.agent = MagicMock()
+        item.agent.name = agent_name
+        raw = MagicMock()
+        raw.function = MagicMock()
+        raw.function.name = tool
+        item.raw_item = raw
+        new_items.append(item)
+
+    result = MagicMock()
+    result.final_output = final_output
+    result.new_items = new_items
+    return result
+
+
+def _agent(name: str = "Orchestrator") -> MagicMock:
     a = MagicMock()
-    a.name = "Orchestrator"
-    a.tools = tools or []
+    a.name = name
+    a.instructions = "You are helpful."
+    a.clone = MagicMock(return_value=a)
     return a
 
 
-def _make_response(content: str, finish_reason: str = "stop") -> MagicMock:
-    msg = MagicMock()
-    msg.content = content
-    msg.tool_calls = None
-    choice = MagicMock()
-    choice.message = msg
-    choice.finish_reason = finish_reason
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
-
-
-def _make_tool_response(tool_name: str, args: str) -> MagicMock:
-    tc = MagicMock()
-    tc.id = "call_abc"
-    tc.function.name = tool_name
-    tc.function.arguments = args
-    msg = MagicMock()
-    msg.content = ""
-    msg.tool_calls = [tc]
-    choice = MagicMock()
-    choice.message = msg
-    choice.finish_reason = "tool_calls"
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
-
-
 MESSAGES = [
-    {"role": "system", "content": "You are helpful."},
-    {"role": "user", "content": "hi"},
+    {"role": "user", "content": "hello"},
 ]
 
 
@@ -68,114 +60,73 @@ MESSAGES = [
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_run_agent_simple_response(mock_ollama_client):
-    """run_agent returns the model's text when no tool calls."""
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        return_value=_make_response("Hello there!")
-    )
-    result, tools = await run_agent(_agent(), MESSAGES)
-    assert result == "Hello there!"
-    assert tools == []
+async def test_run_agent_returns_response():
+    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=_make_run_result("Hi there!"))):
+        from helpers.agents.runner import run_agent
+        result = await run_agent(_agent(), MESSAGES)
+
+    assert isinstance(result, AgentRunResult)
+    assert result.response == "Hi there!"
+    assert result.tools_used == []
+    assert "Orchestrator" in result.agents_trace
 
 
 @pytest.mark.asyncio
-async def test_run_agent_empty_response(mock_ollama_client):
-    """run_agent returns empty string when model returns None content."""
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        return_value=_make_response(None)
-    )
-    result, tools = await run_agent(_agent(), MESSAGES)
-    assert result == ""
-    assert tools == []
+async def test_run_agent_records_tools_used():
+    run_result = _make_run_result("Done.", tool_names=["store_memory"])
+    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)):
+        from helpers.agents.runner import run_agent
+        result = await run_agent(_agent(), MESSAGES)
+
+    assert "store_memory" in result.tools_used
 
 
 @pytest.mark.asyncio
-async def test_run_agent_tool_call_executed(mock_ollama_client):
-    """
-    When model returns finish_reason=tool_calls:
-    - tool function is called with parsed args
-    - follow-up LLM call is made
-    - final text is returned
-    """
-    fake_tool = MagicMock()
-    fake_tool.name = "store_memory"
-    fake_tool.description = "Store a memory"
-    fake_tool.params_json_schema = {
-        "type": "object",
-        "properties": {"content": {"type": "string"}},
-        "required": ["content"],
-    }
-    fake_tool.return_value = "Memory stored."
+async def test_run_agent_empty_final_output_falls_back_to_tool_output():
+    """When final_output is empty, runner should fall back to last tool output."""
+    from agents.items import ToolCallOutputItem
 
-    tool_resp = _make_tool_response("store_memory", json.dumps({"content": "I like Python"}))
-    final_resp = _make_response("Got it, I'll remember that.")
+    tool_out_item = MagicMock(spec=ToolCallOutputItem)
+    tool_out_item.agent = MagicMock()
+    tool_out_item.agent.name = "SlidesAgent"
+    tool_out_item.output = "/data/slides/deck.pdf"
+    tool_out_item.raw_item = None
 
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        side_effect=[tool_resp, final_resp]
-    )
+    run_result = MagicMock()
+    run_result.final_output = ""
+    run_result.new_items = [tool_out_item]
 
-    result, tools = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
+    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)):
+        from helpers.agents.runner import run_agent
+        result = await run_agent(_agent(), MESSAGES)
 
-    assert result == "Got it, I'll remember that."
-    assert tools == ["store_memory"]
-    fake_tool.assert_called_once_with(content="I like Python")
-    assert mock_ollama_client.chat.completions.create.call_count == 2
+    assert "/data/slides/deck.pdf" in result.response
 
 
 @pytest.mark.asyncio
-async def test_run_agent_async_tool(mock_ollama_client):
-    """Async tool functions are awaited correctly."""
-    fake_tool = AsyncMock(return_value="async result")
-    fake_tool.name = "async_tool"
-    fake_tool.description = "An async tool"
-    fake_tool.params_json_schema = {"type": "object", "properties": {}, "required": []}
-
-    tool_resp = _make_tool_response("async_tool", "{}")
-    final_resp = _make_response("Done async.")
-
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        side_effect=[tool_resp, final_resp]
-    )
-
-    result, tools = await run_agent(_agent(tools=[fake_tool]), MESSAGES)
-    assert result == "Done async."
-    assert tools == ["async_tool"]
+async def test_run_agent_raises_on_sdk_error():
+    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(side_effect=Exception("connection refused"))):
+        from helpers.agents.runner import run_agent
+        with pytest.raises(RuntimeError, match="Agent run failed"):
+            await run_agent(_agent(), MESSAGES)
 
 
 @pytest.mark.asyncio
-async def test_run_agent_unknown_tool_graceful(mock_ollama_client):
-    """When model calls a tool not in tool_map, error is sent back gracefully."""
-    tool_resp = _make_tool_response("nonexistent_tool", "{}")
-    final_resp = _make_response("I tried but that tool doesn't exist.")
+async def test_run_agent_injects_memory_context_via_clone():
+    """When memory_context is given, the orchestrator is cloned with updated instructions."""
+    agent = _agent("Orchestrator")
+    cloned = MagicMock()
+    cloned.name = "Orchestrator"
+    cloned.instructions = "You are helpful.\n\nUser remembers: X"
+    agent.clone = MagicMock(return_value=cloned)
 
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        side_effect=[tool_resp, final_resp]
-    )
+    run_result = _make_run_result("Got it.")
+    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)) as mock_run:
+        from helpers.agents.runner import run_agent
+        await run_agent(agent, MESSAGES, memory_context="User remembers: X")
 
-    # Agent has no tools registered
-    result, tools = await run_agent(_agent(tools=[]), MESSAGES)
-    assert result == "I tried but that tool doesn't exist."
-    assert tools == ["nonexistent_tool"]
-
-
-@pytest.mark.asyncio
-async def test_run_agent_timeout_raises(mock_ollama_client):
-    """TimeoutError is wrapped as RuntimeError."""
-    import asyncio
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        side_effect=asyncio.TimeoutError()
-    )
-
-    with pytest.raises(RuntimeError, match="timed out"):
-        await run_agent(_agent(), MESSAGES)
-
-
-@pytest.mark.asyncio
-async def test_run_agent_llm_error_raises(mock_ollama_client):
-    """Generic LLM exception is wrapped as RuntimeError."""
-    mock_ollama_client.chat.completions.create = AsyncMock(
-        side_effect=Exception("connection refused")
-    )
-
-    with pytest.raises(RuntimeError, match="LLM call failed"):
-        await run_agent(_agent(), MESSAGES)
+    agent.clone.assert_called_once()
+    # The cloned agent (not original) is what gets passed to Runner.run
+    call_kwargs = mock_run.call_args.kwargs
+    used_agent = call_kwargs.get("starting_agent", mock_run.call_args.args[0] if mock_run.call_args.args else None)
+    assert used_agent is cloned

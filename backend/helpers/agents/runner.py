@@ -4,6 +4,7 @@ from agents import Agent, Runner, RunConfig
 from agents.items import ToolCallItem, ToolCallOutputItem
 
 from helpers.core.logger import get_logger
+from models.results import AgentRunResult
 
 logger = get_logger(__name__)
 
@@ -14,7 +15,7 @@ async def run_agent(
     agent: Agent,
     messages: list[dict],
     memory_context: str = "",
-) -> tuple[str, list[str], list[str]]:
+) -> AgentRunResult:
     """
     Run an agent turn using the OpenAI Agents SDK Runner.
 
@@ -43,6 +44,22 @@ async def run_agent(
     ]
     if not input_items:
         input_items = [{"role": "user", "content": ""}]
+
+    # Log full conversation context being passed to the agent
+    logger.info("─── Agent '%s' — %d messages ───", agent.name, len(input_items))
+    for i, msg in enumerate(input_items):
+        role = msg["role"]
+        content = msg["content"]
+        if isinstance(content, list):
+            # Multimodal content (images etc.)
+            text_parts = [p.get("text", "[image]") for p in content if isinstance(p, dict)]
+            preview = " ".join(text_parts)[:200]
+        else:
+            preview = str(content)[:200]
+        logger.info("  [%d] %s: %s", i, role.upper(), preview)
+    if memory_context:
+        logger.info("  + memory context: %d chars", len(memory_context))
+    logger.info("─── end context ───")
 
     # Inject memory context into orchestrator instructions for this turn only
     # by cloning the agent with updated instructions (does not mutate the singleton)
@@ -102,4 +119,4 @@ async def run_agent(
         "Run complete — agents=%s tools=%s response_len=%d",
         agents_seen, tools_used, len(response),
     )
-    return response, tools_used, agents_seen
+    return AgentRunResult(response=response, tools_used=tools_used, agents_trace=agents_seen)

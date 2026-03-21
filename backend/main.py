@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
@@ -47,12 +46,12 @@ async def lifespan(app: FastAPI):
     from helpers.tools.embedder import load_model as load_embedder
     load_embedder()
 
-    # Load TTS model
-    from helpers.tools.tts import load_model as load_tts
-    try:
-        load_tts()
-    except RuntimeError as e:
-        logger.warning("TTS model failed to load (voice mode disabled): %s", e)
+    # TTS model loading disabled for now — will handle later
+    # from helpers.tools.tts import load_model as load_tts
+    # try:
+    #     load_tts()
+    # except RuntimeError as e:
+    #     logger.warning("TTS model failed to load (voice mode disabled): %s", e)
 
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 

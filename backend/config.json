@@ -75,8 +75,13 @@
     "host": "0.0.0.0",
     "port": 8000
   },
+  "pdf": {
+    "ocr_model": "glm-ocr",
+    "image_coverage_threshold": 0.20
+  },
   "tts": {
-    "model": "FunAudioLLM/CosyVoice2-0.5B",
-    "speaker": "English (US) Female"
+    "model": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+    "speaker": "Ryan",
+    "instruct": ""
   }
 }

@@ -8,6 +8,7 @@ from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
 from tools.memory_tools import forget_memory, prune_memory, store_memory
+from backend.tools.web_search import web_search
 
 _orchestrator: Agent | None = None
 
@@ -25,7 +26,7 @@ def get_orchestrator() -> Agent:
             name="Orchestrator",
             model=get_model(cfg["model"]),
             instructions=load_instructions("orchestrator"),
-            tools=[store_memory, forget_memory, prune_memory],
+            tools=[store_memory, forget_memory, prune_memory, web_search],
             handoffs=[
                 handoff(
                     get_notes_agent(),

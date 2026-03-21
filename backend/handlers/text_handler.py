@@ -13,6 +13,7 @@ from helpers.agents.prompt_utils import format_chat_history, format_memory_conte
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.memory import get_db_path, search_memories
+from models.results import HandlerResult
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,7 @@ async def text_handler(
     message: str,
     history: list[dict],
     image_path: Path | None = None,
-) -> tuple[str, float, list[str]]:
+) -> HandlerResult:
     t0 = time.perf_counter()
 
     parsed = parse_command(message)
@@ -39,7 +40,6 @@ async def text_handler(
         agent = get_orchestrator()
         content = message
 
-    # Load relevant memory facts via hybrid search (FTS5 + keyword scoring)
     top_k = load_config().get("memory", {}).get("search_top_k", 10)
     try:
         memory_entries = search_memories(get_db_path(), query=content or message, top_k=top_k)
@@ -47,15 +47,12 @@ async def text_handler(
         logger.warning("Memory search skipped: %s", exc)
         memory_entries = []
 
-    # Rolling window — keep last N turns (pairs), configurable
     window = load_config().get("orchestrator", {}).get("history_window", 20)
-    windowed_history = history[-(window * 2):]  # 2 messages per turn (user + assistant)
+    windowed_history = history[-(window * 2):]
     if len(history) > len(windowed_history):
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
     memory_context = format_memory_context(memory_entries)
-
-    # History turns for the SDK (user + assistant only — system prompt comes from agent.instructions)
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
@@ -71,5 +68,10 @@ async def text_handler(
 
     messages.append({"role": "user", "content": user_content})
 
-    response, tools_used, agents_trace = await run_agent(agent, messages, memory_context=memory_context)
-    return response, time.perf_counter() - t0, tools_used, agents_trace
+    result = await run_agent(agent, messages, memory_context=memory_context)
+    return HandlerResult(
+        response=result.response,
+        elapsed=time.perf_counter() - t0,
+        tools_used=result.tools_used,
+        agents_trace=result.agents_trace,
+    )

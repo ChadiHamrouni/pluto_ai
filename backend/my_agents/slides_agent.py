@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from agents import Agent, ModelSettings
+from agents import Agent
 
 from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
-from tools.slides_tools import generate_slides
+from tools.slides_tools import draft_slides, render_slides
+from tools.web_search import web_search
 
 _slides_agent: Agent | None = None
 
@@ -18,8 +19,8 @@ def get_slides_agent() -> Agent:
     """
     Return the slides agent singleton, creating it on first call.
 
-    The slides agent converts the user's ideas or structured content into
-    Marp-compatible markdown and generates a PDF presentation.
+    The slides agent researches topics, drafts validated outlines,
+    and renders them into Marp PDF presentations.
     """
     global _slides_agent
     if _slides_agent is not None:
@@ -31,8 +32,7 @@ def get_slides_agent() -> Agent:
         name="SlidesAgent",
         model=get_model(slides_cfg["model"]),
         instructions=load_instructions("slides_agent"),
-        tools=[generate_slides],
-        model_settings=ModelSettings(tool_choice="required"),
+        tools=[web_search, draft_slides, render_slides],
     )
 
     return _slides_agent
