@@ -1,0 +1,98 @@
+[
+  {
+    "id": "mem-store-1",
+    "description": "Single tool: store a memory fact",
+    "input": "Remember that I prefer dark mode in all my tools.",
+    "expected_tools": ["store_memory"],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_single_tool"
+  },
+  {
+    "id": "mem-forget-1",
+    "description": "Single tool: forget a memory by id",
+    "input": "Forget memory id 999.",
+    "expected_tools": ["forget_memory"],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_single_tool"
+  },
+  {
+    "id": "mem-prune-1",
+    "description": "Single tool: prune old memories",
+    "input": "Clean up my old memories.",
+    "expected_tools": ["prune_memory"],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_single_tool"
+  },
+  {
+    "id": "web-search-1",
+    "description": "Single tool: web search for current information",
+    "input": "What is the latest version of Python?",
+    "expected_tools": ["web_search"],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_single_tool"
+  },
+  {
+    "id": "no-tool-1",
+    "description": "Orchestrator answers directly, no tool needed",
+    "input": "What is 12 multiplied by 8?",
+    "expected_tools": [],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_direct"
+  },
+  {
+    "id": "no-tool-2",
+    "description": "Orchestrator answers general knowledge, no tool needed",
+    "input": "Explain what a neural network is in one sentence.",
+    "expected_tools": [],
+    "expected_agents": ["Orchestrator"],
+    "flow": "orchestrator_direct"
+  },
+  {
+    "id": "notes-create-1",
+    "description": "Handoff + single tool: create a note",
+    "input": "Take a note: Meeting with team on Monday at 9am to discuss the Q2 roadmap.",
+    "expected_tools": ["create_note"],
+    "expected_agents": ["Orchestrator", "NotesAgent"],
+    "flow": "handoff_single_tool"
+  },
+  {
+    "id": "notes-list-1",
+    "description": "Handoff + single tool: list notes",
+    "input": "Show me all my notes.",
+    "expected_tools": ["list_notes"],
+    "expected_agents": ["Orchestrator", "NotesAgent"],
+    "flow": "handoff_single_tool"
+  },
+  {
+    "id": "notes-get-1",
+    "description": "Handoff + sequential tools: list then get a note",
+    "input": "What does my latest research note say?",
+    "expected_tools": ["list_notes", "get_note"],
+    "expected_agents": ["Orchestrator", "NotesAgent"],
+    "flow": "handoff_sequential_tools"
+  },
+  {
+    "id": "slides-full-1",
+    "description": "Handoff + sequential tools: full slides pipeline (web_search -> draft -> render)",
+    "input": "Create a presentation about the history of the Internet.",
+    "expected_tools": ["web_search", "draft_slides", "render_slides"],
+    "expected_agents": ["Orchestrator", "SlidesAgent"],
+    "flow": "handoff_sequential_tools"
+  },
+  {
+    "id": "slides-draft-only-1",
+    "description": "Handoff + sequential tools: draft then render slides without search",
+    "input": "Make me a 5-slide presentation about the water cycle.",
+    "expected_tools": ["draft_slides", "render_slides"],
+    "expected_agents": ["Orchestrator", "SlidesAgent"],
+    "flow": "handoff_sequential_tools"
+  },
+  {
+    "id": "multi-agent-1",
+    "description": "Orchestrator stores memory AND notes agent creates note",
+    "input": "Remember that I am a software engineer, and also take a note with the title 'Career note 2026' containing: I work as a backend engineer specializing in Python.",
+    "expected_tools": ["store_memory", "create_note"],
+    "expected_agents": ["Orchestrator", "NotesAgent"],
+    "flow": "multi_tool_multi_agent"
+  }
+]
