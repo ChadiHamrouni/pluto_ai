@@ -79,12 +79,14 @@ except ImportError:
             if plot_path.exists() and plot_path.stat().st_size > 0:
                 # Copy plot to a persistent location
                 from helpers.core.config_loader import load_config
+
                 config = load_config()
                 slides_dir = config.get("storage", {}).get("slides_dir", "data/slides")
                 os.makedirs(slides_dir, exist_ok=True)
 
                 import shutil
                 import time
+
                 dest_name = f"plot_{int(time.time())}.png"
                 dest_path = Path(slides_dir) / dest_name
                 shutil.copy2(plot_path, dest_path)

@@ -39,11 +39,13 @@ Discard: greetings, filler, resolved questions, repeated content.
 
 Keep the summary under 200 words. Reply with ONLY the summary paragraph, no preamble."""
 
-_EXTRACT_FACTS_PROMPT = """You are extracting durable facts from a conversation before it is discarded.
+_EXTRACT_FACTS_PROMPT = """
+You are extracting durable facts from a conversation before it is discarded.
 
 Given these messages, extract any facts about the user worth remembering long-term.
 Only extract genuinely useful facts (preferences, goals, personal details, recurring context).
-Return a JSON array of objects with keys: content (string), category (one of: teaching, research, career, personal, ideas), tags (array of strings).
+Return a JSON array of objects with keys: content (string), category
+(one of: teaching, research, career, personal, ideas), tags (array of strings).
 If nothing is worth saving, return an empty array [].
 
 Reply with ONLY the JSON array, no other text."""
@@ -75,7 +77,9 @@ def _messages_to_text(messages: list[dict]) -> str:
         content = msg.get("content", "")
         if isinstance(content, list):
             content = " ".join(
-                b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+                b.get("text", "")
+                for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
             )
         lines.append(f"[{role.upper()}]: {content}")
     return "\n".join(lines)

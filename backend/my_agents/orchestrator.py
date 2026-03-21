@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from agents import Agent, handoff
 
+from helpers.agents.instructions_loader import load_instructions
+from helpers.agents.ollama_client import get_model
+from helpers.core.config_loader import load_config
 from my_agents.calendar_agent import get_calendar_agent
 from my_agents.notes_agent import get_notes_agent
 from my_agents.research_agent import get_research_agent
 from my_agents.slides_agent import get_slides_agent
-from helpers.core.config_loader import load_config
-from helpers.agents.instructions_loader import load_instructions
-from helpers.agents.ollama_client import get_model
 from tools.memory_tools import forget_memory, prune_memory, store_memory
 from tools.web_search import web_search
 

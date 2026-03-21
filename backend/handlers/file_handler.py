@@ -6,17 +6,17 @@ from pathlib import Path
 
 import fitz  # PyMuPDF — already in requirements
 
-from my_agents.orchestrator import get_orchestrator
 from helpers.agents.runner import run_agent
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.results import HandlerResult
+from my_agents.orchestrator import get_orchestrator
 
 logger = get_logger(__name__)
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
-_PDF_EXTS   = {".pdf"}
-_TEXT_EXTS  = {".txt", ".md"}
+_PDF_EXTS = {".pdf"}
+_TEXT_EXTS = {".txt", ".md"}
 
 # Docling converter is expensive to initialise — create it once and reuse.
 _docling_converter = None
@@ -26,6 +26,7 @@ def _get_docling_converter():
     global _docling_converter
     if _docling_converter is None:
         from docling.document_converter import DocumentConverter
+
         _docling_converter = DocumentConverter()
     return _docling_converter
 
@@ -51,15 +52,13 @@ def _pdf_needs_vision(path: Path) -> bool:
             page_area = page.rect.width * page.rect.height
             if page_area == 0:
                 continue
-            image_area = sum(
-                (img["width"] * img["height"])
-                for img in page.get_image_info()
-            )
+            image_area = sum((img["width"] * img["height"]) for img in page.get_image_info())
             coverage = image_area / page_area
             if coverage > 0.20:
                 logger.info(
                     "PDF page %d has %.0f%% image coverage → routing to GLM-OCR",
-                    page.number + 1, coverage * 100,
+                    page.number + 1,
+                    coverage * 100,
                 )
                 return True
     finally:
@@ -98,7 +97,9 @@ def _extract_pdf_glm_ocr(path: Path) -> str:
             png_bytes = pix.tobytes("png")
             b64_image = base64.b64encode(png_bytes).decode()
 
-            prompt = "Convert the document to markdown. Preserve all tables, headings, and structure."
+            prompt = (
+                "Convert the document to markdown. Preserve all tables, headings, and structure."
+            )
 
             payload = {
                 "model": ocr_model,
@@ -117,7 +118,9 @@ def _extract_pdf_glm_ocr(path: Path) -> str:
                 page_text = resp.json().get("response", "").strip()
                 if page_text:
                     pages_text.append(f"<!-- Page {page.number + 1} -->\n{page_text}")
-                    logger.info("GLM-OCR extracted %d chars from page %d", len(page_text), page.number + 1)
+                    logger.info(
+                        "GLM-OCR extracted %d chars from page %d", len(page_text), page.number + 1
+                    )
             except Exception as exc:
                 logger.warning("GLM-OCR failed on page %d: %s", page.number + 1, exc)
                 # Fall back to raw PyMuPDF text for this page
@@ -132,9 +135,12 @@ def _extract_pdf_glm_ocr(path: Path) -> str:
 
 def _mime(ext: str) -> str:
     return {
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png",  ".webp": "image/webp",
-        ".gif": "image/gif",  ".bmp": "image/bmp",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
     }.get(ext, "image/png")
 
 
@@ -160,7 +166,12 @@ async def file_handler(
         )
         messages = [{"role": "user", "content": user_content}]
         result = await run_agent(get_orchestrator(), messages)
-        return HandlerResult(response=result.response, elapsed=time.perf_counter() - t0, tools_used=result.tools_used, agents_trace=result.agents_trace)
+        return HandlerResult(
+            response=result.response,
+            elapsed=time.perf_counter() - t0,
+            tools_used=result.tools_used,
+            agents_trace=result.agents_trace,
+        )
 
     if ext in _PDF_EXTS:
         use_vision = _pdf_needs_vision(file_path)
@@ -193,10 +204,15 @@ async def file_handler(
         mime = _mime(ext)
         b64 = base64.b64encode(file_path.read_bytes()).decode()
         user_text = message.strip() if message and message.strip() else "Describe this image."
-        messages = [{"role": "user", "content": [
-            {"type": "text", "text": user_text},
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-        ]}]
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_text},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                ],
+            }
+        ]
 
     result = await run_agent(get_orchestrator(), messages)
     return HandlerResult(

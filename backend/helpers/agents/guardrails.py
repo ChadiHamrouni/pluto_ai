@@ -18,9 +18,9 @@ from agents import (
     Agent,
     GuardrailFunctionOutput,
     OutputGuardrail,
+    RunConfig,
     RunContextWrapper,
     Runner,
-    RunConfig,
 )
 
 from helpers.agents.ollama_client import get_model
@@ -34,6 +34,7 @@ logger = get_logger(__name__)
 # Guardrail output schema
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class GuardrailResult:
     triggered: bool
@@ -43,6 +44,7 @@ class GuardrailResult:
 # ---------------------------------------------------------------------------
 # Shared: build the evaluator model
 # ---------------------------------------------------------------------------
+
 
 def _get_guardrail_model() -> str:
     """Use the orchestrator model for guardrail evaluation by default."""
@@ -73,8 +75,10 @@ def _get_repetition_agent() -> Agent[GuardrailResult]:
                 "Respond with a JSON object:\n"
                 '{"triggered": true/false, "reason": "one short sentence explaining why"}\n\n'
                 "Examples:\n"
-                '- Repetitive looping text → {"triggered": true, "reason": "Phrase X repeats 5 times."}\n'
-                '- Normal varied response → {"triggered": false, "reason": "No repetition detected."}'
+                '- Repetitive looping text → {"triggered": true,'
+                ' "reason": "Phrase X repeats 5 times."}\n'
+                '- Normal varied response → {"triggered": false,'
+                ' "reason": "No repetition detected."}'
             ),
             output_type=GuardrailResult,
         )

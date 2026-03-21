@@ -48,26 +48,34 @@ def validate_outline(slides: list[dict]) -> list[str]:
         return ["slides_json must be a JSON array of slide objects."]
 
     if len(slides) < 3:
-        errors.append(f"Too few slides ({len(slides)}). Create at least 3 slides for a meaningful presentation.")
+        errors.append(
+            f"Too few slides ({len(slides)}). Create at least 3 slides"
+            " for a meaningful presentation."
+        )
 
     for i, slide in enumerate(slides):
         if not isinstance(slide, dict):
-            errors.append(f"Slide {i+1}: must be an object with 'heading' and 'bullets'.")
+            errors.append(f"Slide {i + 1}: must be an object with 'heading' and 'bullets'.")
             continue
 
         heading = slide.get("heading", "")
         if not heading or not heading.strip():
-            errors.append(f"Slide {i+1}: missing 'heading'.")
+            errors.append(f"Slide {i + 1}: missing 'heading'.")
 
         bullets = slide.get("bullets", [])
         if not isinstance(bullets, list):
-            errors.append(f"Slide {i+1}: 'bullets' must be an array of strings.")
+            errors.append(f"Slide {i + 1}: 'bullets' must be an array of strings.")
         elif len(bullets) < 2:
-            errors.append(f"Slide {i+1} ('{heading}'): too few bullets ({len(bullets)}). Add at least 2.")
+            errors.append(
+                f"Slide {i + 1} ('{heading}'): too few bullets ({len(bullets)}). Add at least 2."
+            )
         else:
             for j, b in enumerate(bullets):
                 if not isinstance(b, str) or len(b.strip()) < 10:
-                    errors.append(f"Slide {i+1}, bullet {j+1}: too short or empty. Write substantive points (10+ chars).")
+                    errors.append(
+                        f"Slide {i + 1}, bullet {j + 1}: too short or empty."
+                        " Write substantive points (10+ chars)."
+                    )
 
     return errors
 
@@ -89,7 +97,10 @@ def build_marp_markdown(title: str, slides: list[dict], theme: str) -> str:
 def marp_available() -> bool:
     timeout = load_config()["slides"].get("marp_check_timeout_seconds", 10)
     try:
-        return subprocess.run(["marp", "--version"], capture_output=True, timeout=timeout).returncode == 0
+        return (
+            subprocess.run(["marp", "--version"], capture_output=True, timeout=timeout).returncode
+            == 0
+        )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
@@ -105,7 +116,10 @@ def run_marp(md_path: str, pdf_path: str) -> tuple[bool, str]:
             timeout=timeout,
         )
         if result.returncode != 0:
-            return False, f"marp failed (exit {result.returncode}). stderr: {result.stderr.strip()[:500]}"
+            return (
+                False,
+                f"marp failed (exit {result.returncode}). stderr: {result.stderr.strip()[:500]}",
+            )
         return True, pdf_path
     except subprocess.TimeoutExpired:
         return False, "marp timed out while generating the PDF."

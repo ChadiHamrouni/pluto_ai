@@ -166,7 +166,10 @@ class AutonomousLoop:
                 if attempt < self.max_retries:
                     logger.info(
                         "Step %d failed (attempt %d/%d): %s — retrying",
-                        step.id, attempt + 1, self.max_retries + 1, result["error"]
+                        step.id,
+                        attempt + 1,
+                        self.max_retries + 1,
+                        result["error"],
                     )
                     await asyncio.sleep(0.5)
 

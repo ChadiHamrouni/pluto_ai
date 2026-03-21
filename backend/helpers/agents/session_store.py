@@ -37,9 +37,7 @@ async def new_session() -> str:
 async def session_exists(session_id: str) -> bool:
     """Return True if the session ID exists in the DB."""
     async with get_db_connection(_db_path()) as db:
-        cur = await db.execute(
-            "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
-        )
+        cur = await db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
         row = await cur.fetchone()
     return row is not None
 
@@ -64,9 +62,7 @@ async def get_history(session_id: str, max_turns: int) -> list[dict]:
     return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 
-async def append_turn(
-    session_id: str, user_content: str, assistant_content: str
-) -> None:
+async def append_turn(session_id: str, user_content: str, assistant_content: str) -> None:
     """Persist a completed user/assistant exchange."""
     async with get_db_connection(_db_path()) as db:
         # Auto-create session row if it somehow doesn't exist
@@ -133,7 +129,5 @@ async def delete_session(session_id: str) -> None:
 async def clear_session(session_id: str) -> None:
     """Delete all messages for a session without removing the session itself."""
     async with get_db_connection(_db_path()) as db:
-        await db.execute(
-            "DELETE FROM conversations WHERE session_id = ?", (session_id,)
-        )
+        await db.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
         await db.commit()

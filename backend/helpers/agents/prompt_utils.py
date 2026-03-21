@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Dict, List
 
 
 def format_memory_context(memories: list) -> str:
@@ -14,7 +14,11 @@ def format_memory_context(memories: list) -> str:
 
     by_category: dict[str, list[str]] = {}
     for mem in memories:
-        category = mem.get("category", "general") if isinstance(mem, dict) else getattr(mem, "category", "general")
+        category = (
+            mem.get("category", "general")
+            if isinstance(mem, dict)
+            else getattr(mem, "category", "general")
+        )
         content = mem.get("content", "") if isinstance(mem, dict) else getattr(mem, "content", "")
         by_category.setdefault(category, []).append(content)
 
@@ -61,8 +65,4 @@ def build_system_prompt(base_instructions: str, memory_context: str = "") -> str
     if not memory_context:
         return base_instructions.strip()
 
-    return (
-        base_instructions.strip()
-        + "\n\n---\n\n"
-        + memory_context.strip()
-    )
+    return base_instructions.strip() + "\n\n---\n\n" + memory_context.strip()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -31,6 +30,7 @@ def _secret_key() -> str:
 # Password hashing
 # ---------------------------------------------------------------------------
 
+
 def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
@@ -42,6 +42,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 # Token creation
 # ---------------------------------------------------------------------------
+
 
 def create_access_token(subject: str, extra: dict | None = None) -> str:
     """Create a short-lived access token."""
@@ -85,6 +86,7 @@ def create_refresh_token(subject: str) -> str:
 # Token validation
 # ---------------------------------------------------------------------------
 
+
 def decode_token(token: str) -> dict:
     """
     Decode and validate a JWT token.
@@ -115,6 +117,7 @@ def validate_refresh_token(token: str) -> dict:
 # Refresh flow
 # ---------------------------------------------------------------------------
 
+
 def refresh_access_token(refresh_token: str) -> dict:
     """
     Given a valid refresh token, return a new access + refresh token pair.
@@ -134,6 +137,7 @@ def refresh_access_token(refresh_token: str) -> dict:
 # ---------------------------------------------------------------------------
 # User authentication (simple single-user for now)
 # ---------------------------------------------------------------------------
+
 
 def authenticate_user(username: str, password: str) -> dict | None:
     """

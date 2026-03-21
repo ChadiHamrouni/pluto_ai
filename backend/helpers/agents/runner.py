@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from agents import Agent, Runner, RunConfig
+from agents import Agent, RunConfig, Runner
 from agents.items import ToolCallItem, ToolCallOutputItem
 from agents.stream_events import (
     AgentUpdatedStreamEvent,
@@ -78,9 +77,7 @@ async def run_agent(
     # by cloning the agent with updated instructions (does not mutate the singleton)
     run_agent_instance = agent
     if memory_context and agent.name == "Orchestrator":
-        run_agent_instance = agent.clone(
-            instructions=agent.instructions + "\n\n" + memory_context
-        )
+        run_agent_instance = agent.clone(instructions=agent.instructions + "\n\n" + memory_context)
 
     try:
         result = await Runner.run(
@@ -96,7 +93,7 @@ async def run_agent(
     tools_used: list[str] = []
     agents_seen: list[str] = []
 
-    for item in (result.new_items or []):
+    for item in result.new_items or []:
         agent_name = getattr(getattr(item, "agent", None), "name", None)
         if agent_name and agent_name not in agents_seen:
             agents_seen.append(agent_name)
@@ -123,14 +120,18 @@ async def run_agent(
     if not response:
         for item in reversed(result.new_items or []):
             if isinstance(item, ToolCallOutputItem):
-                raw_output = getattr(item, "output", None) or getattr(getattr(item, "raw_item", None), "output", None)
+                raw_output = getattr(item, "output", None) or getattr(
+                    getattr(item, "raw_item", None), "output", None
+                )
                 if raw_output:
                     response = str(raw_output)
                     break
 
     logger.info(
         "Run complete — agents=%s tools=%s response_len=%d",
-        agents_seen, tools_used, len(response),
+        agents_seen,
+        tools_used,
+        len(response),
     )
     return AgentRunResult(response=response, tools_used=tools_used, agents_trace=agents_seen)
 
@@ -147,7 +148,8 @@ async def run_agent_streamed(
         {"event": "token",          "data": {"delta": "..."}}
         {"event": "tool_call",      "data": {"tool": "...", "arguments": "..."}}
         {"event": "agent_handoff",  "data": {"agent": "..."}}
-        {"event": "done",           "data": {"tools_used": [...], "agents_trace": [...], "response": "..."}}
+        {"event": "done", "data": {"tools_used": [...], "agents_trace": [...],
+         "response": "..."}}
         {"event": "error",          "data": {"message": "..."}}
     """
     run_config = RunConfig(
@@ -167,9 +169,7 @@ async def run_agent_streamed(
 
     run_agent_instance = agent
     if memory_context and agent.name == "Orchestrator":
-        run_agent_instance = agent.clone(
-            instructions=agent.instructions + "\n\n" + memory_context
-        )
+        run_agent_instance = agent.clone(instructions=agent.instructions + "\n\n" + memory_context)
 
     tools_used: list[str] = []
     agents_seen: list[str] = [agent.name]
@@ -204,11 +204,15 @@ async def run_agent_streamed(
                     arguments = getattr(getattr(raw, "function", None), "arguments", None) or ""
                     if name and name not in tools_used:
                         tools_used.append(name)
-                    yield {"event": "tool_call", "data": {"tool": name or "unknown", "arguments": arguments}}
+                    yield {
+                        "event": "tool_call",
+                        "data": {"tool": name or "unknown", "arguments": arguments},
+                    }
 
                 elif event.name in ("handoff_requested", "handoff_occured"):
                     new_agent_name = getattr(
-                        getattr(event.item, "target_agent", None), "name",
+                        getattr(event.item, "target_agent", None),
+                        "name",
                         getattr(getattr(event.item, "agent", None), "name", "unknown"),
                     )
                     if new_agent_name and new_agent_name not in agents_seen:
@@ -246,7 +250,9 @@ async def run_agent_streamed(
 
     logger.info(
         "Streamed run complete — agents=%s tools=%s response_len=%d",
-        agents_seen, tools_used, len(full_response),
+        agents_seen,
+        tools_used,
+        len(full_response),
     )
     yield {
         "event": "done",

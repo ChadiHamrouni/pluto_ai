@@ -6,22 +6,23 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from my_agents.orchestrator import get_orchestrator
-from my_agents.calendar_agent import get_calendar_agent
-from my_agents.notes_agent import get_notes_agent
-from my_agents.research_agent import get_research_agent
-from my_agents.slides_agent import get_slides_agent
 from helpers.agents.command_parser import parse_command
 from helpers.agents.compactor import compact_history
 from helpers.agents.ollama_client import get_openai_client
-from helpers.agents.runner import run_agent, run_agent_streamed
 from helpers.agents.prompt_utils import format_chat_history, format_memory_context
+from helpers.agents.runner import run_agent, run_agent_streamed
 from helpers.agents.token_counter import needs_compaction
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
-from helpers.tools.calendar import get_db_path as get_cal_db_path, upcoming_events
+from helpers.tools.calendar import get_db_path as get_cal_db_path
+from helpers.tools.calendar import upcoming_events
 from helpers.tools.memory import get_db_path, search_memories
 from models.results import HandlerResult
+from my_agents.calendar_agent import get_calendar_agent
+from my_agents.notes_agent import get_notes_agent
+from my_agents.orchestrator import get_orchestrator
+from my_agents.research_agent import get_research_agent
+from my_agents.slides_agent import get_slides_agent
 
 logger = get_logger(__name__)
 
@@ -43,8 +44,8 @@ def _calendar_context() -> str:
 
 
 _COMMAND_AGENTS = {
-    "note":     get_notes_agent,
-    "slides":   get_slides_agent,
+    "note": get_notes_agent,
+    "slides": get_slides_agent,
     "research": get_research_agent,
     "calendar": get_calendar_agent,
 }
@@ -75,7 +76,7 @@ async def text_handler(
         memory_entries = []
 
     window = load_config().get("orchestrator", {}).get("history_window", 20)
-    windowed_history = history[-(window * 2):]
+    windowed_history = history[-(window * 2) :]
     if len(history) > len(windowed_history):
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
@@ -139,7 +140,7 @@ async def text_handler_streamed(
         memory_entries = []
 
     window = load_config().get("orchestrator", {}).get("history_window", 20)
-    windowed_history = history[-(window * 2):]
+    windowed_history = history[-(window * 2) :]
 
     memory_context = format_memory_context(memory_entries)
     if parsed.intent is None:

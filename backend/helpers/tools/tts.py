@@ -39,7 +39,7 @@ _model = None
 _sample_rate: int = 12000  # Qwen3-TTS outputs 12 kHz
 _ready: bool = False
 
-_SENTENCE_RE = re.compile(r'(?<=[.!?])\s+|(?<=\n)\n+')
+_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|(?<=\n)\n+")
 
 
 def is_ready() -> bool:
@@ -69,6 +69,7 @@ def _load_model():
     logger.info("Loading TTS model '%s' ...", model_name)
 
     import torch
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
@@ -83,6 +84,7 @@ def _load_model():
 
 
 # ── WAV helpers ───────────────────────────────────────────────────────────────
+
 
 def _wav_complete(pcm_float: np.ndarray, sample_rate: int) -> bytes:
     """Build a complete WAV file from a float32 numpy array (range -1..1)."""
@@ -117,6 +119,7 @@ def _synthesize_to_wav(text: str) -> bytes:
 
 
 # ── Public synthesis functions ────────────────────────────────────────────────
+
 
 def synthesize_stream(text: str) -> Generator[bytes, None, None]:
     """

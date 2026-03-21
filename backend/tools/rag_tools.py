@@ -46,7 +46,10 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
 
         for i in range(start, len(words)):
             word = words[i]
-            if current_chars + len(word) + (1 if current_words else 0) > chunk_size and current_words:
+            if (
+                current_chars + len(word) + (1 if current_words else 0) > chunk_size
+                and current_words
+            ):
                 break
             current_words.append(word)
             current_chars += len(word) + (1 if len(current_words) > 1 else 0)

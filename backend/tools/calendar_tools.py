@@ -10,9 +10,17 @@ from agents import function_tool
 from helpers.core.logger import get_logger
 from helpers.tools.calendar import (
     create_event as _create_event,
+)
+from helpers.tools.calendar import (
     delete_event as _delete_event,
+)
+from helpers.tools.calendar import (
     get_db_path,
+)
+from helpers.tools.calendar import (
     list_events as _list_events,
+)
+from helpers.tools.calendar import (
     upcoming_events as _upcoming_events,
 )
 
@@ -51,7 +59,7 @@ def schedule_event(
     try:
         event = _create_event(db_path, title, start_time, end, description, location)
         end_str = f" → {end_time}" if end_time else ""
-        return f"Event created (id={event['id']}): \"{title}\" on {start_time}{end_str}"
+        return f'Event created (id={event["id"]}): "{title}" on {start_time}{end_str}'
     except Exception as exc:
         logger.error("schedule_event failed: %s", exc)
         return f"Failed to create event: {exc}"

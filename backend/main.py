@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
 
     # Load embedding model into memory before accepting traffic
     from helpers.tools.embedder import load_model as load_embedder
+
     load_embedder()
 
     # TTS model loading disabled for now — will handle later
@@ -76,8 +77,10 @@ _TAGS_METADATA = [
     {
         "name": "auth",
         "description": (
-            "JWT authentication. Login to receive an access token (15 min) and refresh token (7 days). "
-            "Pass the access token as `Authorization: Bearer <token>` on all protected endpoints."
+            "JWT authentication. Login to receive an access token (15 min)"
+            " and refresh token (7 days). "
+            "Pass the access token as `Authorization: Bearer <token>`"
+            " on all protected endpoints."
         ),
     },
     {
@@ -119,7 +122,8 @@ def create_app() -> FastAPI:
             "- **CalendarAgent** — natural language scheduling\n\n"
             "## Routing\n"
             "Slash commands (`/note`, `/slides`, `/research`, `/calendar`) deterministically "
-            "route to specialist agents. All other messages go through the Orchestrator's LLM routing.\n\n"
+            "route to specialist agents. All other messages go through"
+            " the Orchestrator's LLM routing.\n\n"
             "## Streaming\n"
             "Use `POST /chat/stream` to receive token-by-token SSE events including "
             "`tool_call` and `agent_handoff` visibility in real time."
@@ -132,12 +136,15 @@ def create_app() -> FastAPI:
     )
 
     # CORS: allow Tauri dev server + configurable origins
-    allowed_origins = config.get("api", {}).get("cors_origins", [
-        "http://localhost:1420",   # Tauri dev
-        "http://localhost:5173",   # Vite dev
-        "http://localhost:8000",   # FastAPI (same-origin)
-        "tauri://localhost",       # Tauri production
-    ])
+    allowed_origins = config.get("api", {}).get(
+        "cors_origins",
+        [
+            "http://localhost:1420",  # Tauri dev
+            "http://localhost:5173",  # Vite dev
+            "http://localhost:8000",  # FastAPI (same-origin)
+            "tauri://localhost",  # Tauri production
+        ],
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,

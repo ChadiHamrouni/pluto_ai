@@ -5,24 +5,26 @@ from typing import Optional
 
 # Maps slash command aliases to a canonical intent
 _COMMANDS: dict[str, str] = {
-    "/note":      "note",
-    "/notes":     "note",
-    "/slides":    "slides",
-    "/slide":     "slides",
-    "/remember":  "memory",
-    "/memory":    "memory",
-    "/forget":    "forget",
-    "/research":  "research",
-    "/calendar":  "calendar",
-    "/schedule":  "calendar",
-    "/event":     "calendar",
+    "/note": "note",
+    "/notes": "note",
+    "/slides": "slides",
+    "/slide": "slides",
+    "/remember": "memory",
+    "/memory": "memory",
+    "/forget": "forget",
+    "/research": "research",
+    "/calendar": "calendar",
+    "/schedule": "calendar",
+    "/event": "calendar",
 }
 
 
 @dataclass
 class ParsedCommand:
-    intent: Optional[str]  # "note" | "slides" | "memory" | "forget" | "research" | "calendar" | None
-    content: str           # message with the slash command token stripped
+    intent: Optional[
+        str
+    ]  # "note" | "slides" | "memory" | "forget" | "research" | "calendar" | None
+    content: str  # message with the slash command token stripped
 
 
 def parse_command(message: str) -> ParsedCommand:

@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 
 import httpx
-from ddgs import DDGS
 from agents import function_tool
+from ddgs import DDGS
 
 from helpers.core.logger import get_logger
 
@@ -44,15 +44,13 @@ async def web_search(query: str, max_results: int = 3) -> str:
         page_text = await _fetch_text(url)
         content = page_text if page_text else snippet
 
-        sections.append(
-            f"[Result {i}] {title}\n"
-            f"Source: {url}\n"
-            f"{content}"
-        )
+        sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
         source_lines.append(f"- [{title}]({url})")
 
     body = "\n\n---\n\n".join(sections)
-    sources_block = "\n\nSOURCES (include ALL of these verbatim in your response):\n" + "\n".join(source_lines)
+    sources_block = "\n\nSOURCES (include ALL of these verbatim in your response):\n" + "\n".join(
+        source_lines
+    )
     return body + sources_block
 
 

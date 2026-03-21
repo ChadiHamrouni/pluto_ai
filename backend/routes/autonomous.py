@@ -15,8 +15,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from helpers.agents.autonomous_loop import create_loop, get_loop, remove_loop
-from helpers.routes.dependencies import get_current_user
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
@@ -28,6 +28,7 @@ _sse_queues: dict[str, asyncio.Queue] = {}
 
 def _make_event_callback(task_id: str):
     """Return a callback that puts events into the SSE queue."""
+
     def on_event(data: dict) -> None:
         q = _sse_queues.get(task_id)
         if q:
@@ -35,6 +36,7 @@ def _make_event_callback(task_id: str):
                 q.put_nowait(data)
             except asyncio.QueueFull:
                 logger.warning("SSE queue full for task %s", task_id)
+
     return on_event
 
 
@@ -48,7 +50,7 @@ async def start_autonomous(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task cannot be empty")
 
     q: asyncio.Queue = asyncio.Queue(maxsize=200)
-    callback = _make_event_callback("")  # placeholder — rebound below
+    _make_event_callback("")  # placeholder — rebound below
 
     created = create_loop(task, lambda d: None)  # create to get id first
     task_id = created.task_id
@@ -105,7 +107,9 @@ async def stream_autonomous(
     """SSE stream of real-time autonomous task events."""
     q = _sse_queues.get(task_id)
     if not q:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or not started")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or not started"
+        )
 
     async def event_generator():
         try:

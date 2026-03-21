@@ -15,13 +15,17 @@ class ChatMessage(BaseModel):
 
 class Attachment(BaseModel):
     filename: str = Field(description="Original filename of the uploaded file.")
-    mime_type: str = Field(description="MIME type detected from the file extension.", examples=["image/png"])
+    mime_type: str = Field(
+        description="MIME type detected from the file extension.", examples=["image/png"]
+    )
     size_bytes: int = Field(description="File size in bytes.")
 
 
 class ChatRequest(BaseModel):
     message: str = Field(description="The user's message text.")
-    history: List[ChatMessage] = Field(default_factory=list, description="Prior conversation turns.")
+    history: List[ChatMessage] = Field(
+        default_factory=list, description="Prior conversation turns."
+    )
     context_category: Optional[str] = Field(None, description="Optional memory category filter.")
 
 
@@ -46,6 +50,7 @@ class ChatResponse(BaseModel):
     )
     file_url: Optional[str] = Field(
         None,
-        description="Download URL for a generated file (e.g. slides PDF). Null if no file was produced.",
+        description="Download URL for a generated file (e.g. slides PDF)."
+        " Null if no file was produced.",
         examples=["/files/presentation_ai_2025.pdf"],
     )

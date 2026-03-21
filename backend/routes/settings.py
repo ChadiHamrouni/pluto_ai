@@ -53,10 +53,7 @@ async def list_models(_user: dict = Depends(get_current_user)):
 async def get_agent_models(_user: dict = Depends(get_current_user)):
     """Return the currently configured model for each agent."""
     cfg = load_config()
-    return {
-        key: cfg.get(key, {}).get("model", "")
-        for key in _AGENT_KEYS
-    }
+    return {key: cfg.get(key, {}).get("model", "") for key in _AGENT_KEYS}
 
 
 @router.post("/agents")
@@ -79,9 +76,9 @@ async def set_agent_models(
 
     updates = {
         "orchestrator": body.orchestrator,
-        "notes_agent":  body.notes_agent,
+        "notes_agent": body.notes_agent,
         "slides_agent": body.slides_agent,
-        "autonomous":   body.autonomous,
+        "autonomous": body.autonomous,
     }
     for key, model in updates.items():
         if model:
@@ -93,9 +90,10 @@ async def set_agent_models(
     reload_config()
 
     # Bust agent singletons so the next request picks up the new models
-    from my_agents.orchestrator import reset_orchestrator
     from my_agents.notes_agent import reset_notes_agent
+    from my_agents.orchestrator import reset_orchestrator
     from my_agents.slides_agent import reset_slides_agent
+
     reset_orchestrator()
     reset_notes_agent()
     reset_slides_agent()

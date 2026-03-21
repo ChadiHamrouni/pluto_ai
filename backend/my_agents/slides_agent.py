@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from agents import Agent
 
-from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
+from helpers.core.config_loader import load_config
 from tools.slides_tools import draft_slides, render_slides
 from tools.web_search import web_search
 
 _slides_agent: Agent | None = None
+
 
 def reset_slides_agent() -> None:
     global _slides_agent

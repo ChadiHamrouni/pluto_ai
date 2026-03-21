@@ -35,8 +35,14 @@ def draft_slides(title: str, slides_json: str) -> str:
             - "bullets": array of bullet point strings (3-6 per slide)
             Example:
             [
-              {"heading": "What is Quantum Computing?", "bullets": ["Uses qubits instead of bits", "Leverages superposition and entanglement", "Can solve certain problems exponentially faster"]},
-              {"heading": "Key Applications", "bullets": ["Drug discovery and molecular simulation", "Cryptography and security", "Optimization problems in logistics"]}
+              {"heading": "What is Quantum Computing?", "bullets": [
+                "Uses qubits instead of bits",
+                "Leverages superposition and entanglement",
+                "Can solve certain problems exponentially faster"]},
+              {"heading": "Key Applications", "bullets": [
+                "Drug discovery and molecular simulation",
+                "Cryptography and security",
+                "Optimization problems in logistics"]}
             ]
 
     Returns:
@@ -50,12 +56,19 @@ def draft_slides(title: str, slides_json: str) -> str:
 
     errors = validate_outline(slides)
     if errors:
-        return "Outline has issues:\n" + "\n".join(f"- {e}" for e in errors) + "\n\nFix these and call draft_slides again."
+        return (
+            "Outline has issues:\n"
+            + "\n".join(f"- {e}" for e in errors)
+            + "\n\nFix these and call draft_slides again."
+        )
 
     slide_count = len(slides)
     total_bullets = sum(len(s.get("bullets", [])) for s in slides)
     logger.info("Outline validated: %d slides, %d bullets", slide_count, total_bullets)
-    return f"Outline validated: {slide_count} slides, {total_bullets} bullet points. Now call render_slides with the same title and slides_json."
+    return (
+        f"Outline validated: {slide_count} slides, {total_bullets} bullet points."
+        " Now call render_slides with the same title and slides_json."
+    )
 
 
 @function_tool

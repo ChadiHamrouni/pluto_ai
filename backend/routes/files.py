@@ -10,6 +10,7 @@ from helpers.routes.dependencies import get_current_user
 
 router = APIRouter(prefix="/files", tags=["files"])
 
+
 # Allowed base directories — only serve files from here
 def _allowed_dirs() -> list[Path]:
     cfg = load_config()

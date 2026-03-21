@@ -32,9 +32,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 _SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".pdf", ".txt"}
 
 _MIME_MAP = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".png": "image/png",  ".webp": "image/webp",
-    ".gif": "image/gif",  ".bmp": "image/bmp",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
     ".pdf": "application/pdf",
     ".txt": "text/plain",
 }
@@ -93,7 +96,10 @@ async def remove_session(session_id: str, _user: dict = Depends(get_current_user
             "content": {
                 "application/json": {
                     "example": {
-                        "response": "The James Webb Space Telescope was launched on 25 December 2021.",
+                        "response": (
+                            "The James Webb Space Telescope was"
+                            " launched on 25 December 2021."
+                        ),
                         "attachments": [],
                         "tools_used": ["web_search"],
                         "agents_trace": ["Orchestrator"],
@@ -108,9 +114,24 @@ async def remove_session(session_id: str, _user: dict = Depends(get_current_user
     },
 )
 async def chat(
-    message: str = Form(default="", description="The user's message. Supports slash commands: `/note`, `/slides`, `/research`, `/calendar`."),
-    session_id: str = Form(default="", description="Session ID from `POST /chat/session`. Omit for a stateless one-off request."),
-    attachments: List[UploadFile] = File(default=[], description="Optional files: images (jpg/png/webp/gif/bmp), PDF, or .txt. First file is the primary attachment."),
+    message: str = Form(
+        default="",
+        description=(
+            "The user's message. Supports slash commands:"
+            " `/note`, `/slides`, `/research`, `/calendar`."
+        ),
+    ),
+    session_id: str = Form(
+        default="",
+        description="Session ID from `POST /chat/session`. Omit for a stateless one-off request.",
+    ),
+    attachments: List[UploadFile] = File(
+        default=[],
+        description=(
+            "Optional files: images (jpg/png/webp/gif/bmp), PDF, or .txt."
+            " First file is the primary attachment."
+        ),
+    ),
     _user: dict = Depends(get_current_user),
 ):
     """Send a message and receive a full response.
@@ -132,6 +153,7 @@ async def chat(
     )
 
     from helpers.core.config_loader import load_config
+
     window = load_config().get("orchestrator", {}).get("history_window", 20)
 
     exists = session_id and await session_exists(session_id)
@@ -161,11 +183,13 @@ async def chat(
                 tmp.write(data)
                 tmp_path = Path(tmp.name)
             temp_paths.append(tmp_path)
-            attachment_meta.append(Attachment(
-                filename=upload.filename,
-                mime_type=_MIME_MAP.get(ext, "application/octet-stream"),
-                size_bytes=len(data),
-            ))
+            attachment_meta.append(
+                Attachment(
+                    filename=upload.filename,
+                    mime_type=_MIME_MAP.get(ext, "application/octet-stream"),
+                    size_bytes=len(data),
+                )
+            )
 
         primary = temp_paths[0] if temp_paths else None
 
@@ -183,7 +207,9 @@ async def chat(
         tools_used = handler_result.tools_used
         agents_trace = handler_result.agents_trace
 
-        logger.info("Response ready (%d chars) for session '%s'", len(response_text), session_id or "(none)")
+        logger.info(
+            "Response ready (%d chars) for session '%s'", len(response_text), session_id or "(none)"
+        )
 
         # If the response contains a generated file path, expose it as a download URL.
         file_url: str | None = None
@@ -233,11 +259,14 @@ async def chat(
             "content": {
                 "text/event-stream": {
                     "example": (
-                        "event: token\ndata: {\"delta\": \"The \"}\n\n"
-                        "event: token\ndata: {\"delta\": \"answer is 42.\"}\n\n"
-                        "event: tool_call\ndata: {\"tool\": \"web_search\", \"arguments\": \"{\\\"query\\\": \\\"...\\\"}\"}\\n\\n"
-                        "event: agent_handoff\ndata: {\"agent\": \"ResearchAgent\"}\n\n"
-                        "event: done\ndata: {\"response\": \"The answer is 42.\", \"tools_used\": [\"web_search\"], \"agents_trace\": [\"Orchestrator\", \"ResearchAgent\"]}\n\n"
+                        'event: token\ndata: {"delta": "The "}\n\n'
+                        'event: token\ndata: {"delta": "answer is 42."}\n\n'
+                        'event: tool_call\ndata: {"tool": "web_search",'
+                        ' "arguments": "{\\"query\\": \\".\\"}"}\\n\\n'
+                        'event: agent_handoff\ndata: {"agent": "ResearchAgent"}\n\n'
+                        'event: done\ndata: {"response": "The answer is 42.",'
+                        ' "tools_used": ["web_search"],'
+                        ' "agents_trace": ["Orchestrator", "ResearchAgent"]}\n\n'
                     )
                 }
             },
@@ -249,7 +278,9 @@ async def chat(
 async def chat_stream(
     message: str = Form(default="", description="The user's message."),
     session_id: str = Form(default="", description="Session ID from `POST /chat/session`."),
-    attachments: List[UploadFile] = File(default=[], description="Not supported — use POST /chat for file attachments."),
+    attachments: List[UploadFile] = File(
+        default=[], description="Not supported — use POST /chat for file attachments."
+    ),
     _user: dict = Depends(get_current_user),
 ):
     """Stream a response as Server-Sent Events.
@@ -273,6 +304,7 @@ async def chat_stream(
     )
 
     from helpers.core.config_loader import load_config
+
     window = load_config().get("orchestrator", {}).get("history_window", 20)
 
     exists = session_id and await session_exists(session_id)
@@ -296,8 +328,6 @@ async def chat_stream(
 
     async def event_generator():
         full_response = ""
-        tools_used = []
-        agents_trace = []
 
         try:
             async for event in text_handler_streamed(message, _history):
@@ -308,8 +338,8 @@ async def chat_stream(
                     full_response += data.get("delta", "")
                 elif event_type == "done":
                     full_response = data.get("response", full_response)
-                    tools_used = data.get("tools_used", [])
-                    agents_trace = data.get("agents_trace", [])
+                    data.get("tools_used", [])
+                    data.get("agents_trace", [])
 
                 yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 

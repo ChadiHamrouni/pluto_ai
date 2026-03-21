@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from agents import Agent
 
-from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
-from tools.web_search import web_search
+from helpers.core.config_loader import load_config
 from tools.research_tools import fetch_page, take_research_note
+from tools.web_search import web_search
 
 _research_agent: Agent | None = None
 

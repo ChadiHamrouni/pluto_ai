@@ -50,7 +50,8 @@ def load_all_memories(db_path: str, category: str = "") -> list[dict]:
     conn = sync_db_connection(db_path)
     if category:
         rows = conn.execute(
-            "SELECT id, content, category, tags, created_at FROM memories WHERE category = ? ORDER BY created_at ASC",
+            "SELECT id, content, category, tags, created_at FROM memories"
+            " WHERE category = ? ORDER BY created_at ASC",
             (category,),
         ).fetchall()
     else:
@@ -92,7 +93,8 @@ def search_memories(db_path: str, query: str, top_k: int = 10) -> list[dict]:
 
     placeholders = ",".join("?" * len(fts_ids))
     rows = conn.execute(
-        f"SELECT id, content, category, tags, created_at FROM memories WHERE id IN ({placeholders})",
+        f"SELECT id, content, category, tags, created_at FROM memories"
+        f" WHERE id IN ({placeholders})",
         fts_ids,
     ).fetchall()
     conn.close()
@@ -106,7 +108,8 @@ def _most_recent(db_path: str, top_k: int) -> list[dict]:
     """Return the most recently stored memories as a fallback."""
     conn = sync_db_connection(db_path)
     rows = conn.execute(
-        "SELECT id, content, category, tags, created_at FROM memories ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, content, category, tags, created_at FROM memories"
+        " ORDER BY created_at DESC LIMIT ?",
         (top_k,),
     ).fetchall()
     conn.close()
