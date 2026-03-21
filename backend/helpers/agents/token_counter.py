@@ -6,8 +6,16 @@ Accurate enough to trigger compaction thresholds without requiring a tokenizer.
 
 from __future__ import annotations
 
-# qwen3.5:2b context window
-MODEL_CONTEXT_WINDOW = 32_000
+from helpers.core.config_loader import load_config
+
+
+def _get_context_window() -> int:
+    """Read context window from config, default 32000 for qwen2.5:3b."""
+    return load_config().get("orchestrator", {}).get("context_window", 32_000)
+
+
+# Kept as a module-level property for backward compatibility
+MODEL_CONTEXT_WINDOW = _get_context_window()
 
 # Compact when messages exceed this fraction of the context window
 COMPACT_THRESHOLD = 0.75  # ~24,000 tokens

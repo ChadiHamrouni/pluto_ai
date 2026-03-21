@@ -1,6 +1,231 @@
-# Personal AI Assistant
+# Jarvis — Local-First Personal AI Assistant
 
-A local-first, multi-agent AI assistant built on [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) and [Ollama](https://ollama.com). No cloud, no API keys — everything runs on your machine.
+A production-grade personal AI assistant that runs **entirely on your machine** — no cloud, no API keys, no data leaving your device.
+
+Built with **OpenAI Agents SDK**, **Ollama**, **FastAPI**, and **Tauri + React**. Designed for privacy, low latency, and offline-first use.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Tauri Desktop App                        │
+│              React frontend · SSE streaming UI               │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP / SSE
+┌────────────────────────▼────────────────────────────────────┐
+│                   FastAPI Backend                            │
+│                                                              │
+│  POST /chat          POST /chat/stream    GET /health        │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                 text_handler                         │    │
+│  │  parse_command() → hard-route OR LLM routing        │    │
+│  │  Memory search (FTS5) → context injection           │    │
+│  │  Upcoming events (24h) → proactive context          │    │
+│  │  Context compaction when window fills               │    │
+│  └───────────────────┬─────────────────────────────────┘    │
+│                      │                                       │
+│  ┌───────────────────▼─────────────────────────────────┐    │
+│  │              Orchestrator Agent                      │    │
+│  │  (OpenAI Agents SDK · Ollama local model)            │    │
+│  │                                                      │    │
+│  │  handoffs ──► NotesAgent                            │    │
+│  │           ──► SlidesAgent                           │    │
+│  │           ──► ResearchAgent                         │    │
+│  │           ──► CalendarAgent                         │    │
+│  │                                                      │    │
+│  │  tools ──► store/forget/prune_memory                │    │
+│  │        ──► web_search                               │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  LLM Output Guardrails (SDK OutputGuardrail)                 │
+│    · RepetitionGuard — detects looping small-model output    │
+│    · RelevanceGuard  — flags incoherent / off-topic replies  │
+│                                                              │
+│  SQLite (memory · notes · sessions · events)                 │
+└─────────────────────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│                  Ollama (local LLM)                          │
+│           http://localhost:11434/v1  (OpenAI-compat)         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Features
+
+| Feature | Details |
+|---|---|
+| **Multi-agent orchestration** | Orchestrator routes to specialist agents via SDK handoffs |
+| **Streaming responses** | SSE token-by-token delivery with tool call + handoff visibility |
+| **Hybrid routing** | Deterministic slash commands + LLM routing for ambiguous requests |
+| **Persistent memory** | FTS5-indexed SQLite facts injected into every system prompt |
+| **Context compaction** | Parallel fact extraction + summarisation when history overflows |
+| **LLM guardrails** | SDK `OutputGuardrail` — repetition detection and coherence check |
+| **Research agent** | Multi-step web search → read full pages → synthesise with citations |
+| **Calendar agent** | Natural language scheduling, proactive 24h event context injection |
+| **Notes agent** | Structured markdown notes with YAML front matter, SQLite index |
+| **Slides agent** | Marp PDF presentations from natural language outlines |
+| **Voice mode** | VAD + local TTS for hands-free interaction |
+| **File attachments** | Images (multimodal), PDFs (OCR), and plain text |
+| **Secrets via env vars** | Auth credentials override via `AUTH_SECRET_KEY`, `AUTH_PASSWORD_HASH`, `AUTH_USERNAME` |
+| **100% local** | Zero cloud calls — Ollama + SQLite + local filesystem |
+
+---
+
+## Agent Map
+
+```
+/note, /notes  ──────────────────────────────► NotesAgent
+/slides, /slide ─────────────────────────────► SlidesAgent
+/research ───────────────────────────────────► ResearchAgent
+/calendar, /schedule, /event ────────────────► CalendarAgent
+
+(no slash command)
+    └─► Orchestrator ──► LLM decides:
+            ├── general Q&A       → answer directly + web_search
+            ├── note task         → handoff → NotesAgent
+            ├── slide task        → handoff → SlidesAgent
+            ├── research task     → handoff → ResearchAgent
+            └── calendar task     → handoff → CalendarAgent
+```
+
+---
+
+## Design Decisions
+
+### 1. Hybrid routing — fast AND flexible
+Slash commands deterministically bypass the LLM for known intents (`/note`, `/slides`, etc.). Unknown or ambiguous requests go through LLM routing via Orchestrator handoffs. This gives sub-100ms routing for common tasks while preserving flexibility.
+
+### 2. Context compaction with parallel fact extraction
+When the conversation history approaches the model's context window, the compactor runs two parallel LLM calls: one to summarise the old messages, one to extract durable facts into permanent memory. The conversation continues seamlessly without losing long-term information.
+
+### 3. Local-first architecture
+Every component — LLM inference (Ollama), vector storage (SQLite), file storage — runs on-device. Privacy is guaranteed by design, not policy. Latency is bounded by local hardware, not network conditions.
+
+### 4. LLM-based output guardrails
+Rather than heuristic regex checks, two `OutputGuardrail` agents (SDK-native) evaluate every response before it reaches the user. `RepetitionGuard` detects looping output common in sub-7B models. `RelevanceGuard` flags incoherent responses. Both fail open — if the evaluator call fails, the response passes through.
+
+### 5. Streaming SSE with agent visibility
+The `/chat/stream` endpoint emits structured SSE events: `token` (text delta), `tool_call` (tool name + args), `agent_handoff` (which agent took over), and `done` (metadata). The frontend renders all of this in real time.
+
+### 6. Memory as flat injection (not RAG)
+Personal facts are stored in SQLite and injected verbatim into every orchestrator system prompt. No embedding overhead for memory retrieval — the full fact store fits in context for a personal assistant. RAG is reserved for the knowledge base (`data/files/`).
+
+### 7. Proactive calendar context
+The orchestrator system prompt is augmented with any events starting in the next 24 hours before every turn. No tool call needed — the model knows about upcoming commitments automatically.
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+- [Ollama](https://ollama.com) installed and running
+- Python 3.11+
+- Node.js 18+ (for Marp CLI, optional)
+- [Rust + Tauri CLI](https://tauri.app) (for desktop app)
+
+### Backend
+
+```bash
+cd backend
+
+# Copy and configure
+cp config.example.json config.json
+# Edit config.json: set your auth credentials or use env vars below
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Pull the LLM model
+ollama pull qwen2.5:3b
+
+# (Optional) Install Marp for slide generation
+npm install -g @marp-team/marp-cli
+
+# Start
+python main.py
+```
+
+**Secrets via environment variables** (recommended over editing config.json):
+
+```bash
+export AUTH_SECRET_KEY="your-secret-key"
+export AUTH_USERNAME="your-username"
+export AUTH_PASSWORD_HASH="bcrypt-hash"
+```
+
+### Desktop App (Tauri)
+
+```bash
+cd frontend
+npm install
+npm run tauri dev      # dev mode
+npm run tauri build    # production build → installers in src-tauri/target/release/bundle/
+```
+
+### Docker (backend only)
+
+```bash
+cd backend
+docker compose build    # first run: builds image
+docker compose up -d
+docker compose exec ollama ollama pull qwen2.5:3b
+curl http://localhost:8000/health
+```
+
+---
+
+## API Reference
+
+### Auth
+
+```
+POST /auth/login    body: username + password (form)
+POST /auth/refresh  body: refresh_token (form)
+POST /auth/verify   body: token (form)
+```
+
+### Chat
+
+All chat endpoints require `Authorization: Bearer <access_token>`.
+
+```
+POST /chat
+  Form: message (str), session_id (str, optional), attachments (files, optional)
+  Response: { response, tools_used, agents_trace, file_url, attachments }
+
+POST /chat/stream
+  Form: message (str), session_id (str, optional)
+  Response: text/event-stream
+    event: token        data: {"delta": "..."}
+    event: tool_call    data: {"tool": "...", "arguments": "..."}
+    event: agent_handoff data: {"agent": "..."}
+    event: done         data: {"response": "...", "tools_used": [...], "agents_trace": [...]}
+    event: error        data: {"message": "..."}
+
+POST /chat/session        → create session, returns session_id
+GET  /chat/sessions       → list all sessions
+GET  /chat/session/{id}/messages → full history for session
+DELETE /chat/session/{id} → delete session
+```
+
+### Slash Commands
+
+| Command | Agent | Example |
+|---|---|---|
+| `/note`, `/notes` | NotesAgent | `/note prep for astrophysics seminar` |
+| `/slides`, `/slide` | SlidesAgent | `/slides dark matter detection methods` |
+| `/research` | ResearchAgent | `/research latest JWST exoplanet findings` |
+| `/calendar`, `/schedule`, `/event` | CalendarAgent | `/schedule paper deadline Friday 23:59` |
+| `/remember`, `/memory` | Orchestrator (store) | `/remember I prefer Python over R` |
+| `/forget` | Orchestrator (delete) | `/forget old email address` |
+
+Without a slash command, the Orchestrator's LLM decides routing automatically.
 
 ---
 
@@ -8,217 +233,73 @@ A local-first, multi-agent AI assistant built on [OpenAI Agents SDK](https://git
 
 ```
 personal_ai/
-├── backend/    # FastAPI backend — agents, tools, memory, auth
-└── frontend/   # DearPyGui desktop client
-```
-
----
-
-## Backend
-
-### Features
-
-- **Orchestrator + specialist agents** — routes tasks between NotesAgent and SlidesAgent
-- **Persistent memory** — ChatGPT-style flat fact injection via SQLite
-- **Knowledge base RAG** — multimodal embeddings (text, images, PDFs) via `nomic-embed-multimodal-3b`
-- **Notes** — structured markdown notes saved to disk with YAML front matter
-- **Slides** — PDF presentations generated from outlines via Marp CLI
-- **Slash commands** — `/note`, `/slides` for deterministic hard-routing
-- **JWT auth** — access (15 min) + refresh (7 day) tokens, single-user
-
-### Structure
-
-```
-backend/
-├── main.py               # FastAPI entry point — lifespan, health, CORS
-├── config.json           # All hyperparameters (models, memory, RAG, storage, auth)
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
+├── backend/
+│   ├── main.py                    # FastAPI app — lifespan, CORS, error handlers
+│   ├── config.json                # All hyperparameters
+│   ├── config.example.json        # Safe-to-commit template (no secrets)
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   │
+│   ├── my_agents/                 # Agent definitions (OpenAI Agents SDK)
+│   │   ├── orchestrator.py        # Central router with all handoffs
+│   │   ├── notes_agent.py
+│   │   ├── slides_agent.py
+│   │   ├── research_agent.py
+│   │   └── calendar_agent.py
+│   │
+│   ├── tools/                     # @function_tool wrappers only
+│   │   ├── memory_tools.py
+│   │   ├── notes_tools.py
+│   │   ├── slides_tools.py
+│   │   ├── calendar_tools.py
+│   │   ├── research_tools.py
+│   │   └── web_search.py
+│   │
+│   ├── helpers/
+│   │   ├── core/                  # config_loader, db, logger, exceptions
+│   │   ├── agents/                # runner, guardrails, compactor, command_parser
+│   │   └── tools/                 # memory, notes, slides, calendar helpers
+│   │
+│   ├── handlers/                  # text_handler (routing + memory injection)
+│   ├── instructions/              # Agent system prompts as markdown
+│   ├── routes/                    # FastAPI routers (auth, chat, files, voice)
+│   ├── models/                    # Pydantic schemas
+│   └── tests/                     # pytest unit + integration tests
 │
-├── agents/               # Agent definitions (OpenAI Agents SDK)
-│   ├── orchestrator.py   # Central router — memory injection, slash commands, handoffs
-│   ├── notes_agent.py    # Creates, lists, and retrieves markdown notes
-│   └── slides_agent.py   # Generates Marp PDF presentations
-│
-├── tools/                # ONLY @function_tool decorated functions
-│   ├── memory_tools.py   # store_memory, forget_memory, prune_memory
-│   ├── notes_tools.py    # create_note, list_notes, get_note
-│   ├── slides_tools.py   # generate_slides (Marp → PDF)
-│   └── rag_tools.py      # store_embedding, search_embeddings (knowledge base only)
-│
-├── helpers/              # Pure helper functions — no @function_tool here
-│   ├── core/             # Shared infrastructure
-│   │   ├── config_loader.py
-│   │   ├── db.py
-│   │   └── logger.py
-│   ├── agents/           # Agent-specific helpers
-│   │   ├── ollama_client.py     # get_model(), centralised Ollama client
-│   │   ├── command_parser.py    # Slash command parser
-│   │   ├── instructions_loader.py
-│   │   ├── prompt_utils.py
-│   │   └── tracer.py
-│   ├── tools/            # Helpers for tools/
-│   │   ├── embedder.py   # ColQwen2_5 singleton — load_model(), embed(), is_ready()
-│   │   ├── memory.py     # Flat memory CRUD
-│   │   ├── notes.py      # Note file + DB helpers
-│   │   └── slides.py     # Marp invocation helpers
-│   └── routes/           # Helpers for routes/
-│       ├── auth.py       # JWT creation/validation, password hashing
-│       └── dependencies.py
-│
-├── instructions/         # Agent system prompts as markdown files
-│   ├── orchestrator.md
-│   ├── notes_agent.md
-│   └── slides_agent.md
-│
-├── routes/               # FastAPI routers
-│   ├── auth.py           # POST /auth/login, /auth/refresh, /auth/verify
-│   └── chat.py           # POST /chat (JWT protected)
-│
-├── models/               # Pydantic request/response models
-│
-└── data/                 # Runtime data (gitignored)
-    ├── memory.db
-    ├── notes/
-    ├── slides/
-    ├── embeddings/
-    └── files/
+└── frontend/
+    └── src/
+        ├── hooks/useChat.js       # Streaming + non-streaming chat logic
+        ├── hooks/useSessions.js   # Session state management
+        └── api.js                 # streamMessage(), sendMessage()
 ```
-
-### Setup — Local (no Docker)
-
-**1. Install dependencies**
-
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-**2. Install and start Ollama, pull the LLM model**
-
-```bash
-ollama pull qwen3.5:2b
-```
-
-**3. Install Marp CLI (for slide generation)**
-
-```bash
-npm install -g @marp-team/marp-cli
-```
-
-**4. Start the server**
-
-```bash
-python main.py
-```
-
-API available at `http://localhost:8000`. Configure host/port in `config.json`.
-
-### Setup — Docker (production-equivalent)
-
-```bash
-cd backend
-docker compose build          # first run: bakes ~6GB embedding model into image
-docker compose up -d          # start stack in background
-docker compose exec ollama ollama pull qwen3.5:2b
-curl http://localhost:8000/health   # wait for 200
-```
-
-The stack runs two containers: `ollama` (port 11434) and `app` (port 8000). GPU passthrough is enabled — requires NVIDIA driver ≥525 on the host.
-
-### API
-
-**Auth**
-
-```
-POST /auth/login    {"username": "...", "password": "..."}
-POST /auth/refresh  {"refresh_token": "..."}
-POST /auth/verify   {"token": "..."}
-```
-
-**Chat** — requires `Authorization: Bearer <access_token>`
-
-```
-POST /chat
-{"message": "hi", "history": []}
-```
-
-**Health**
-
-```
-GET /health   → 503 while embedding model loading, 200 when ready
-```
-
-### Slash Commands
-
-| Command | Routes to | Example |
-|---|---|---|
-| `/note`, `/notes` | NotesAgent | `/note meeting with supervisor tomorrow` |
-| `/slides`, `/slide` | SlidesAgent | `/slides intro to neural networks` |
-
-Without a slash command, the Orchestrator's LLM decides routing.
-
-### Agent Architecture
-
-```
-User message
-    │
-    ├── /note or /slides? ──► hard-route to specialist (deterministic)
-    │
-    └── no command ──► Orchestrator
-                            ├── general Q&A ──► answer directly
-                            ├── note task   ──► handoff → NotesAgent
-                            └── slides task ──► handoff → SlidesAgent
-
-All paths: load all memories → inject into system prompt → agent runs
-```
-
-### Memory System
-
-- **Storage**: SQLite `memories` table — content, category, tags, created_at
-- **Retrieval**: all facts loaded on every turn and injected into the orchestrator system prompt (ChatGPT-style, no RAG on memory)
-- **RAG is reserved for the knowledge base** — `data/files/` is embedded with `nomic-embed-multimodal-3b` (text, images, PDFs in a unified vector space)
-- **Categories**: `teaching`, `research`, `career`, `personal`, `ideas`
-
----
-
-## Frontend
-
-A desktop client built with [DearPyGui](https://github.com/hoffstadt/DearPyGui).
-
-### Features
-
-- Black background with cyan neon aesthetic
-- Login screen with JWT auth
-- Scrollable chat history with labeled message bubbles
-- Enter to send, auto token refresh, thinking indicator
-
-### Structure
-
-```
-frontend/
-├── app.py         # Main DearPyGui application
-├── api.py         # HTTP client — login, refresh, send message
-├── config.py      # API_BASE_URL
-└── requirements.txt
-```
-
-### Setup
-
-```bash
-cd frontend
-pip install -r requirements.txt
-python app.py
-```
-
-Change `API_BASE_URL` in `config.py` if the backend runs on a different host or port.
 
 ---
 
 ## Inspecting the Database
 
 ```bash
+# Memories
 sqlite3 backend/data/memory.db "SELECT id, category, substr(content,1,80) FROM memories;"
+
+# Notes
 sqlite3 backend/data/memory.db "SELECT id, title, category, created_at FROM notes;"
+
+# Calendar events
+sqlite3 backend/data/memory.db "SELECT id, title, start_time, end_time FROM events ORDER BY start_time;"
+
+# Sessions
+sqlite3 backend/data/memory.db "SELECT id, title, created_at FROM sessions ORDER BY created_at DESC;"
 ```
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+pip install pytest pytest-asyncio
+pytest
+```
+
+Tests are fully offline — no Ollama, no network. All LLM calls are mocked at the SDK boundary.

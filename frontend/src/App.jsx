@@ -75,6 +75,8 @@ export default function App() {
     activeId,
     updateSession,
     appendMessage,
+    appendDelta,
+    finalizeLastMessage,
     selectSession,
     newChat,
     loadSessions,
@@ -98,6 +100,8 @@ export default function App() {
     activeId,
     messages,
     appendMessage,
+    appendDelta,
+    finalizeLastMessage,
     updateSession,
     onReply: (text) => {
       if (voiceModeRef.current) {

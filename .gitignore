@@ -78,3 +78,9 @@ requirements.md
 docker.md
 CLAUDE.md
 backend/CLAUDE.md
+
+# ── Claude Code internal files ────────────────────────────────────────────────
+.claude/
+
+# ── Docs folder ───────────────────────────────────────────────────────────────
+docs/

@@ -14,10 +14,10 @@
     "request_timeout_seconds": 30
   },
   "auth": {
-    "secret_key": "18d8525847d94f83da1dc791703be45dbc11947df83c29a83bc4ac22f24480da",
+    "secret_key": "CHANGE_ME_generate_with_openssl_rand_hex_32",
     "algorithm": "HS256",
     "username": "admin",
-    "password_hash": "$2b$12$D/aVEXpNMkAjD1gjpYjXyO8qgOQp2v2YGj87IVrlqEQHRQustn7iy",
+    "password_hash": "CHANGE_ME_generate_with_passlib_bcrypt",
     "access_token_expires_minutes": 15,
     "refresh_token_expires_days": 7
   },
@@ -83,9 +83,5 @@
     "model": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
     "speaker": "Ryan",
     "instruct": ""
-  },
-  "guardrails": {
-    "enabled": true,
-    "model": "qwen2.5:3b"
   }
 }

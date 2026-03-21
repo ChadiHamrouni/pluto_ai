@@ -88,6 +88,119 @@ export async function sendMessage(message, files = []) {
   return { response: d.response, tools_used: d.tools_used ?? [], agents_trace: d.agents_trace ?? [], file_url: d.file_url ?? null };
 }
 
+/**
+ * Stream a chat response via SSE (POST /chat/stream).
+ *
+ * @param {string} message
+ * @param {object} callbacks — { onToken, onToolCall, onHandoff, onDone, onError }
+ * @returns {AbortController} — call .abort() to cancel the stream
+ */
+export function streamMessage(message, callbacks = {}) {
+  const controller = new AbortController();
+
+  (async () => {
+    if (!accessToken) await login();
+
+    const formData = new FormData();
+    formData.append("message", message);
+    formData.append("session_id", sessionId);
+
+    const doFetch = async () => {
+      return fetch(`${BASE}/chat/stream`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: formData,
+        signal: controller.signal,
+      });
+    };
+
+    let r = await doFetch();
+    if (r.status === 401) {
+      await refresh();
+      r = await doFetch();
+    }
+    if (!r.ok) {
+      const body = await r.text();
+      callbacks.onError?.(body);
+      return;
+    }
+
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullResponse = "";
+    let toolsUsed = [];
+    let agentsTrace = [];
+    let fileUrl = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE events from buffer
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      let eventType = null;
+      let dataLines = [];
+
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          dataLines.push(line.slice(6));
+        } else if (line === "" && eventType) {
+          // End of event — dispatch
+          const raw = dataLines.join("\n");
+          try {
+            const data = JSON.parse(raw);
+            switch (eventType) {
+              case "token":
+                fullResponse += data.delta || "";
+                callbacks.onToken?.(data.delta || "");
+                break;
+              case "tool_call":
+                callbacks.onToolCall?.(data);
+                break;
+              case "agent_handoff":
+                callbacks.onHandoff?.(data);
+                break;
+              case "file_url":
+                fileUrl = data.file_url;
+                break;
+              case "done":
+                fullResponse = data.response || fullResponse;
+                toolsUsed = data.tools_used || [];
+                agentsTrace = data.agents_trace || [];
+                break;
+              case "error":
+                callbacks.onError?.(data.message);
+                break;
+            }
+          } catch {}
+          eventType = null;
+          dataLines = [];
+        }
+      }
+    }
+
+    callbacks.onDone?.({
+      response: fileUrl ? "Your presentation is ready." : fullResponse,
+      tools_used: toolsUsed,
+      agents_trace: agentsTrace,
+      file_url: fileUrl,
+    });
+  })().catch((err) => {
+    if (err.name !== "AbortError") {
+      callbacks.onError?.(err.message);
+    }
+  });
+
+  return controller;
+}
+
 export async function getModels() {
   if (!accessToken) await login();
   const r = await fetch(`${BASE}/settings/models`, {

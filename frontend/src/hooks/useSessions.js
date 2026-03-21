@@ -41,6 +41,30 @@ export function useSessions() {
     }));
   }
 
+  /** Append a delta to the last assistant message's content (for streaming). */
+  function appendDelta(sessionId, delta) {
+    updateSession(sessionId, s => {
+      const msgs = [...(s.messages ?? [])];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        msgs[msgs.length - 1] = { ...last, content: (last.content || "") + delta };
+      }
+      return { messages: msgs };
+    });
+  }
+
+  /** Replace the last assistant message with final metadata (for stream completion). */
+  function finalizeLastMessage(sessionId, updates) {
+    updateSession(sessionId, s => {
+      const msgs = [...(s.messages ?? [])];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        msgs[msgs.length - 1] = { ...last, ...updates, streaming: false };
+      }
+      return { messages: msgs };
+    });
+  }
+
   // ── Switch to a session, lazy-loading its messages if not yet fetched ────
 
   const selectSession = useCallback(async (id, currentSessions) => {
@@ -112,6 +136,8 @@ export function useSessions() {
     activeId,
     updateSession,
     appendMessage,
+    appendDelta,
+    finalizeLastMessage,
     selectSession,
     newChat,
     loadSessions,

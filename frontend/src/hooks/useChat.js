@@ -11,12 +11,13 @@
 import { useRef, useState } from "react";
 import {
   sendMessage,
+  streamMessage,
   startAutonomous,
   cancelAutonomous,
   streamAutonomous,
 } from "../api";
 
-export function useChat({ activeId, messages, appendMessage, updateSession, onReply }) {
+export function useChat({ activeId, messages, appendMessage, appendDelta, finalizeLastMessage, updateSession, onReply }) {
   const [thinking, setThinking]     = useState(false);
   const [error, setError]           = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
@@ -101,36 +102,70 @@ export function useChat({ activeId, messages, appendMessage, updateSession, onRe
     setThinking(true);
 
     const currentSessionId = activeId;
+    const hasFiles = sentAttachments.length > 0;
 
-    const tryFetch = async () => {
-      try {
-        const { response: reply, tools_used, agents_trace, file_url } =
-          await sendMessage(
-            text || "(describe this image)",
-            sentAttachments.map(a => a.file)
-          );
-        appendMessage(currentSessionId, {
-          role: "assistant",
-          content: reply,
-          tools_used,
-          agents_trace,
-          file_url,
-        });
-        onReply?.(reply);
-        setThinking(false);
-        inputRef.current?.focus();
-      } catch (e) {
-        if (e.message === "Failed to fetch") {
-          setTimeout(tryFetch, 3000);
-        } else {
-          setError(e.message);
+    // Use streaming for text-only messages, fall back to non-streaming for file attachments
+    if (!hasFiles) {
+      // Append a placeholder assistant message that we'll update as tokens stream in
+      appendMessage(currentSessionId, {
+        role: "assistant",
+        content: "",
+        streaming: true,
+      });
+
+      streamMessage(text, {
+        onToken: (delta) => {
+          appendDelta(currentSessionId, delta);
+        },
+        onDone: ({ response, tools_used, agents_trace, file_url }) => {
+          finalizeLastMessage(currentSessionId, {
+            content: response,
+            tools_used,
+            agents_trace,
+            file_url,
+          });
+          onReply?.(response);
           setThinking(false);
           inputRef.current?.focus();
+        },
+        onError: (msg) => {
+          setError(msg);
+          setThinking(false);
+          inputRef.current?.focus();
+        },
+      });
+    } else {
+      // Non-streaming path for file attachments
+      const tryFetch = async () => {
+        try {
+          const { response: reply, tools_used, agents_trace, file_url } =
+            await sendMessage(
+              text || "(describe this image)",
+              sentAttachments.map(a => a.file)
+            );
+          appendMessage(currentSessionId, {
+            role: "assistant",
+            content: reply,
+            tools_used,
+            agents_trace,
+            file_url,
+          });
+          onReply?.(reply);
+          setThinking(false);
+          inputRef.current?.focus();
+        } catch (e) {
+          if (e.message === "Failed to fetch") {
+            setTimeout(tryFetch, 3000);
+          } else {
+            setError(e.message);
+            setThinking(false);
+            inputRef.current?.focus();
+          }
         }
-      }
-    };
+      };
 
-    tryFetch();
+      tryFetch();
+    }
   }
 
   return {

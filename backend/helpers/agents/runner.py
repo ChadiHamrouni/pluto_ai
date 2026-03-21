@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
+from typing import Any
+
 from agents import Agent, Runner, RunConfig
 from agents.items import ToolCallItem, ToolCallOutputItem
+from agents.stream_events import (
+    AgentUpdatedStreamEvent,
+    RawResponsesStreamEvent,
+    RunItemStreamEvent,
+)
 
+from helpers.agents.guardrails import get_output_guardrails
 from helpers.core.logger import get_logger
 from models.results import AgentRunResult
 
@@ -34,7 +44,10 @@ async def run_agent(
         tools_used    — names of every tool called across all agents
         agents_trace  — ordered list of agent names that ran
     """
-    run_config = RunConfig(tracing_disabled=True)
+    run_config = RunConfig(
+        tracing_disabled=True,
+        output_guardrails=get_output_guardrails(),
+    )
 
     # Build conversation input (user + assistant turns only — SDK handles system via instructions)
     input_items: list = [
@@ -120,3 +133,126 @@ async def run_agent(
         agents_seen, tools_used, len(response),
     )
     return AgentRunResult(response=response, tools_used=tools_used, agents_trace=agents_seen)
+
+
+async def run_agent_streamed(
+    agent: Agent,
+    messages: list[dict],
+    memory_context: str = "",
+) -> AsyncIterator[dict[str, Any]]:
+    """
+    Run an agent turn in streaming mode, yielding SSE-compatible event dicts.
+
+    Events yielded:
+        {"event": "token",          "data": {"delta": "..."}}
+        {"event": "tool_call",      "data": {"tool": "...", "arguments": "..."}}
+        {"event": "agent_handoff",  "data": {"agent": "..."}}
+        {"event": "done",           "data": {"tools_used": [...], "agents_trace": [...], "response": "..."}}
+        {"event": "error",          "data": {"message": "..."}}
+    """
+    run_config = RunConfig(
+        tracing_disabled=True,
+        output_guardrails=get_output_guardrails(),
+    )
+
+    input_items: list = [
+        {"role": msg["role"], "content": msg["content"]}
+        for msg in messages
+        if msg.get("role") in ("user", "assistant") and msg.get("content")
+    ]
+    if not input_items:
+        input_items = [{"role": "user", "content": ""}]
+
+    logger.info("─── Agent '%s' STREAMED — %d messages ───", agent.name, len(input_items))
+
+    run_agent_instance = agent
+    if memory_context and agent.name == "Orchestrator":
+        run_agent_instance = agent.clone(
+            instructions=agent.instructions + "\n\n" + memory_context
+        )
+
+    tools_used: list[str] = []
+    agents_seen: list[str] = [agent.name]
+    full_response = ""
+
+    try:
+        result = Runner.run_streamed(
+            starting_agent=run_agent_instance,
+            input=input_items,
+            run_config=run_config,
+        )
+
+        async for event in result.stream_events():
+            # Text delta — the main content tokens
+            if isinstance(event, RawResponsesStreamEvent):
+                raw_type = getattr(event.data, "type", "")
+                if raw_type == "response.output_text.delta":
+                    delta = getattr(event.data, "delta", "")
+                    if delta:
+                        full_response += delta
+                        yield {"event": "token", "data": {"delta": delta}}
+
+            # Agent handoffs and tool calls
+            elif isinstance(event, RunItemStreamEvent):
+                if event.name == "tool_called":
+                    raw = getattr(event.item, "raw_item", None)
+                    name = (
+                        getattr(getattr(raw, "function", None), "name", None)
+                        or getattr(raw, "name", None)
+                        or getattr(event.item, "name", None)
+                    )
+                    arguments = getattr(getattr(raw, "function", None), "arguments", None) or ""
+                    if name and name not in tools_used:
+                        tools_used.append(name)
+                    yield {"event": "tool_call", "data": {"tool": name or "unknown", "arguments": arguments}}
+
+                elif event.name in ("handoff_requested", "handoff_occured"):
+                    new_agent_name = getattr(
+                        getattr(event.item, "target_agent", None), "name",
+                        getattr(getattr(event.item, "agent", None), "name", "unknown"),
+                    )
+                    if new_agent_name and new_agent_name not in agents_seen:
+                        agents_seen.append(new_agent_name)
+                    yield {"event": "agent_handoff", "data": {"agent": new_agent_name}}
+
+            elif isinstance(event, AgentUpdatedStreamEvent):
+                new_name = event.new_agent.name
+                if new_name and new_name not in agents_seen:
+                    agents_seen.append(new_name)
+
+        # If no text was streamed, check final output
+        if not full_response:
+            final = getattr(result, "final_output", None)
+            if final:
+                full_response = str(final)
+                yield {"event": "token", "data": {"delta": full_response}}
+
+            # Fallback: last tool output
+            if not full_response:
+                for item in reversed(getattr(result, "new_items", []) or []):
+                    if isinstance(item, ToolCallOutputItem):
+                        raw_output = getattr(item, "output", None) or getattr(
+                            getattr(item, "raw_item", None), "output", None
+                        )
+                        if raw_output:
+                            full_response = str(raw_output)
+                            yield {"event": "token", "data": {"delta": full_response}}
+                            break
+
+    except Exception as exc:
+        logger.exception("Streamed run failed for agent '%s': %s", agent.name, exc)
+        yield {"event": "error", "data": {"message": str(exc)}}
+        return
+
+    logger.info(
+        "Streamed run complete — agents=%s tools=%s response_len=%d",
+        agents_seen, tools_used, len(full_response),
+    )
+    yield {
+        "event": "done",
+        "data": {
+            "response": full_response,
+            "tools_used": tools_used,
+            "agents_trace": agents_seen,
+        },
+    }

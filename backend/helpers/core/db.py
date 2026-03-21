@@ -73,6 +73,22 @@ CREATE_CONVERSATIONS_IDX = """
 CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id, id);
 """
 
+CREATE_EVENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    start_time  TEXT    NOT NULL,
+    end_time    TEXT,
+    description TEXT    NOT NULL DEFAULT '',
+    location    TEXT    NOT NULL DEFAULT '',
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_EVENTS_IDX = """
+CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_time);
+"""
+
 
 async def init_db(db_path: str) -> None:
     """
@@ -96,6 +112,8 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_SESSIONS_TABLE)
         await db.execute(CREATE_CONVERSATIONS_TABLE)
         await db.execute(CREATE_CONVERSATIONS_IDX)
+        await db.execute(CREATE_EVENTS_TABLE)
+        await db.execute(CREATE_EVENTS_IDX)
 
         await db.commit()
 

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # Make sure `backend/` is on sys.path so imports work when running from repo root
-BACKEND_DIR = Path(__file__).parent.parent
+BACKEND_DIR = Path(__file__).parent.parent.parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 

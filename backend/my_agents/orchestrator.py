@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from agents import Agent, handoff
 
+from my_agents.calendar_agent import get_calendar_agent
 from my_agents.notes_agent import get_notes_agent
+from my_agents.research_agent import get_research_agent
 from my_agents.slides_agent import get_slides_agent
 from helpers.core.config_loader import load_config
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
 from tools.memory_tools import forget_memory, prune_memory, store_memory
-from backend.tools.web_search import web_search
+from tools.web_search import web_search
 
 _orchestrator: Agent | None = None
 
@@ -43,6 +45,26 @@ def get_orchestrator() -> Agent:
                         "slide deck, or slides generated as a PDF. Examples: 'make me a "
                         "presentation about ...', 'create slides on ...', 'generate a "
                         "2-page slide deck about ...'."
+                    ),
+                ),
+                handoff(
+                    get_research_agent(),
+                    tool_description_override=(
+                        "Transfer to ResearchAgent when the user wants in-depth research "
+                        "on a topic. The research agent searches multiple sources, reads "
+                        "full pages, and synthesises findings with citations. Examples: "
+                        "'research ...', 'find out about ...', 'what's the latest on ...', "
+                        "'investigate ...', 'compare X vs Y'."
+                    ),
+                ),
+                handoff(
+                    get_calendar_agent(),
+                    tool_description_override=(
+                        "Transfer to CalendarAgent when the user wants to schedule, create, "
+                        "list, view, or cancel calendar events or appointments. Examples: "
+                        "'schedule a meeting tomorrow at 3pm', 'what do I have this week', "
+                        "'add an event for Friday', 'cancel my dentist appointment', "
+                        "'remind me about the call on Monday'."
                     ),
                 ),
             ],

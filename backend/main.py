@@ -4,11 +4,13 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
+from helpers.core.exceptions import JarvisError
 from helpers.core.logger import get_logger
 from routes.auth import router as auth_router
 from routes.autonomous import router as autonomous_router
@@ -60,23 +62,85 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down.")
 
 
+_TAGS_METADATA = [
+    {
+        "name": "chat",
+        "description": (
+            "Send messages and receive responses from the multi-agent system. "
+            "Use `POST /chat` for standard JSON responses or `POST /chat/stream` for "
+            "real-time Server-Sent Events (SSE) token streaming. "
+            "Attach images, PDFs, or text files to any non-streaming request. "
+            "Pass a `session_id` (from `POST /chat/session`) to maintain conversation history."
+        ),
+    },
+    {
+        "name": "auth",
+        "description": (
+            "JWT authentication. Login to receive an access token (15 min) and refresh token (7 days). "
+            "Pass the access token as `Authorization: Bearer <token>` on all protected endpoints."
+        ),
+    },
+    {
+        "name": "health",
+        "description": "Liveness and readiness probes.",
+    },
+    {
+        "name": "files",
+        "description": "Download generated files (slides PDFs, plot images).",
+    },
+    {
+        "name": "settings",
+        "description": "Read and update runtime configuration (models, hyperparameters).",
+    },
+    {
+        "name": "voice",
+        "description": "Voice mode — VAD-triggered audio input and TTS audio output.",
+    },
+    {
+        "name": "autonomous",
+        "description": "Long-running autonomous task loops with plan-execute-reflect cycles.",
+    },
+]
+
+
 def create_app() -> FastAPI:
     config = load_config()
 
     app = FastAPI(
-        title="Personal AI Assistant",
+        title="Jarvis — Personal AI Assistant",
         description=(
-            "A local AI assistant powered by Ollama, OpenAI Agents SDK, "
-            "FastAPI, and SQLite. Supports note-taking, slide generation, "
-            "and persistent memory."
+            "A **local-first** multi-agent AI assistant. No cloud, no API keys — "
+            "everything runs on your machine via Ollama.\n\n"
+            "## Agents\n"
+            "- **Orchestrator** — central router with memory injection and web search\n"
+            "- **NotesAgent** — create and retrieve structured markdown notes\n"
+            "- **SlidesAgent** — generate Marp PDF presentations\n"
+            "- **ResearchAgent** — multi-step web research with citations\n"
+            "- **CalendarAgent** — natural language scheduling\n\n"
+            "## Routing\n"
+            "Slash commands (`/note`, `/slides`, `/research`, `/calendar`) deterministically "
+            "route to specialist agents. All other messages go through the Orchestrator's LLM routing.\n\n"
+            "## Streaming\n"
+            "Use `POST /chat/stream` to receive token-by-token SSE events including "
+            "`tool_call` and `agent_handoff` visibility in real time."
         ),
-        version="1.0.0",
+        version="2.0.0",
+        openapi_tags=_TAGS_METADATA,
         lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
 
+    # CORS: allow Tauri dev server + configurable origins
+    allowed_origins = config.get("api", {}).get("cors_origins", [
+        "http://localhost:1420",   # Tauri dev
+        "http://localhost:5173",   # Vite dev
+        "http://localhost:8000",   # FastAPI (same-origin)
+        "tauri://localhost",       # Tauri production
+    ])
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -89,12 +153,33 @@ def create_app() -> FastAPI:
     app.include_router(files_router)
     app.include_router(voice_router)
 
-    @app.get("/", tags=["health"])
+    @app.get("/", tags=["health"], summary="Root")
     async def root():
-        return {"status": "ok", "service": "personal-ai-assistant", "version": "1.0.0"}
+        """Liveness probe. Always returns 200 if the process is running."""
+        return {"status": "ok", "service": "jarvis", "version": "2.0.0"}
 
-    @app.get("/health", tags=["health"])
+    @app.get(
+        "/health",
+        tags=["health"],
+        summary="Readiness probe",
+        responses={
+            200: {
+                "description": "Service is healthy and ready.",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "status": "healthy",
+                            "orchestrator_model": "qwen2.5:3b",
+                            "ollama_base_url": "http://localhost:11434",
+                            "db_path": "data/memory.db",
+                        }
+                    }
+                },
+            }
+        },
+    )
     async def health():
+        """Readiness probe — returns current model and DB configuration."""
         cfg = load_config()
         return {
             "status": "healthy",
@@ -102,6 +187,21 @@ def create_app() -> FastAPI:
             "ollama_base_url": cfg["ollama"]["base_url"],
             "db_path": cfg["memory"]["db_path"],
         }
+
+    # ── Structured error handlers ───────────────────────────────────────────
+
+    @app.exception_handler(JarvisError)
+    async def jarvis_error_handler(_request: Request, exc: JarvisError):
+        status_map = {
+            "model_unavailable": 503,
+            "context_exceeded": 413,
+            "tool_error": 502,
+            "agent_error": 500,
+        }
+        return JSONResponse(
+            status_code=status_map.get(exc.error_code, 500),
+            content={"error": exc.error_code, "message": str(exc)},
+        )
 
     return app
 

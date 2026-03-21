@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 @function_tool
-def web_search(query: str, max_results: int = 3) -> str:
+async def web_search(query: str, max_results: int = 3) -> str:
     """Search the web for up-to-date information and return extracted page content.
 
     Searches DuckDuckGo for the query, fetches the top pages, and returns
@@ -41,7 +41,7 @@ def web_search(query: str, max_results: int = 3) -> str:
         url = r.get("href", "")
         snippet = r.get("body", "")
 
-        page_text = _fetch_text(url)
+        page_text = await _fetch_text(url)
         content = page_text if page_text else snippet
 
         sections.append(
@@ -56,14 +56,15 @@ def web_search(query: str, max_results: int = 3) -> str:
     return body + sources_block
 
 
-def _fetch_text(url: str) -> str:
-    """Fetch a URL and return the first 1000 characters of plain text."""
+async def _fetch_text(url: str) -> str:
+    """Fetch a URL asynchronously and return the first 1000 characters of plain text."""
     if not url:
         return ""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (research bot)"}
-        response = httpx.get(url, headers=headers, timeout=8, follow_redirects=True)
-        response.raise_for_status()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=8, follow_redirects=True)
+            response.raise_for_status()
         text = re.sub(r"<[^>]+>", " ", response.text)
         text = re.sub(r"\s+", " ", text).strip()
         return text[:1000]
