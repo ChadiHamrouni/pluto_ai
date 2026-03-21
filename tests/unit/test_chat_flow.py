@@ -136,7 +136,7 @@ def test_chat_session_create_and_use(client, tmp_db):
     """Create a session, send a message with it, verify session persists."""
     # Create session
     with (
-        patch("helpers.agents.session_store.get_db_path", return_value=tmp_db),
+        patch("helpers.agents.session_store._db_path", return_value=tmp_db),
     ):
         sess_resp = client.post("/chat/session")
     assert sess_resp.status_code == 200
@@ -149,7 +149,7 @@ def test_chat_session_create_and_use(client, tmp_db):
         patch("handlers.text_handler.search_memories", return_value=[]),
         patch("handlers.text_handler.get_db_path", return_value=tmp_db),
         patch("handlers.text_handler._calendar_context", return_value=""),
-        patch("helpers.agents.session_store.get_db_path", return_value=tmp_db),
+        patch("helpers.agents.session_store._db_path", return_value=tmp_db),
     ):
         chat_resp = client.post(
             "/chat",

@@ -18,7 +18,8 @@ def test_estimate_tokens_basic():
     assert estimate_tokens("hello") > 0
     assert estimate_tokens("") == 0
     # rough check: ~1 token per 4 chars
-    assert estimate_tokens("a" * 400) == pytest.approx(100, abs=10)
+    result = estimate_tokens("a" * 400)
+    assert 90 <= result <= 110, f"Expected ~100 tokens, got {result}"
 
 
 def test_needs_compaction_false_for_short_history():
