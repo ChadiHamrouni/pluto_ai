@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-DATASET = Path(__file__).parent / "golden_dataset.json"
+DATASET = Path(__file__).parent.parent / "data" / "golden_dataset.json"
 
 with DATASET.open(encoding="utf-8") as _f:
     _CASES: list[dict] = json.load(_f)
