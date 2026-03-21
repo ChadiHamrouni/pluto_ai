@@ -276,24 +276,6 @@ personal_ai/
 
 ---
 
-## Inspecting the Database
-
-```bash
-# Memories
-sqlite3 backend/data/memory.db "SELECT id, category, substr(content,1,80) FROM memories;"
-
-# Notes
-sqlite3 backend/data/memory.db "SELECT id, title, category, created_at FROM notes;"
-
-# Calendar events
-sqlite3 backend/data/memory.db "SELECT id, title, start_time, end_time FROM events ORDER BY start_time;"
-
-# Sessions
-sqlite3 backend/data/memory.db "SELECT id, title, created_at FROM sessions ORDER BY created_at DESC;"
-```
-
----
-
 ## Running Tests
 
 ```bash
