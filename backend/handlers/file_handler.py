@@ -152,11 +152,7 @@ async def file_handler(
         if not pdf_text:
             raise ValueError("PDF contains no extractable content.")
 
-        logger.info(
-            "PDF extracted via %s: %d chars",
-            "GLM-OCR" if use_vision else "Docling",
-            len(pdf_text),
-        )
+        logger.info("PDF extracted: %d chars", len(pdf_text))
 
         user_content = (
             f"{message}\n\n---\n\n{pdf_text}"

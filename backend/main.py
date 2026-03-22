@@ -44,17 +44,16 @@ async def lifespan(app: FastAPI):
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
 
-    # Load embedding model into memory before accepting traffic
-    from helpers.tools.embedder import load_model as load_embedder
+    # Embedding model — disabled while focusing on agent/tool testing
+    # from helpers.tools.embedder import load_model as load_embedder
+    # load_embedder()
 
-    load_embedder()
-
-    # Load TTS model — soft failure (voice mode disabled if model unavailable)
-    from helpers.tools.tts import load_model as load_tts
-    try:
-        load_tts()
-    except Exception as e:
-        logger.warning("TTS model failed to load (voice mode disabled): %s", e)
+    # TTS model — disabled while focusing on agent/tool testing
+    # from helpers.tools.tts import load_model as load_tts
+    # try:
+    #     load_tts()
+    # except Exception as e:
+    #     logger.warning("TTS model failed to load (voice mode disabled): %s", e)
 
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 

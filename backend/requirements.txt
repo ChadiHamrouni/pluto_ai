@@ -19,6 +19,6 @@ pytest
 pytest-asyncio
 
 # TTS
-qwen-tts
-soundfile
-torch
+# qwen-tts
+# soundfile
+# torch
