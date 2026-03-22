@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 import time
 from pathlib import Path
 
@@ -18,119 +19,91 @@ _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 _PDF_EXTS = {".pdf"}
 _TEXT_EXTS = {".txt", ".md"}
 
-# Docling converter is expensive to initialise — create it once and reuse.
-_docling_converter = None
+def _page_needs_vision(page: fitz.Page) -> bool:
+    """Return True if this page should be processed with GLM-OCR instead of PyMuPDF."""
+    if not page.get_text("text").strip():
+        return True
+    page_area = page.rect.width * page.rect.height
+    if page_area == 0:
+        return False
+    image_area = sum(img["width"] * img["height"] for img in page.get_image_info())
+    return (image_area / page_area) > 0.20
 
 
-def _get_docling_converter():
-    global _docling_converter
-    if _docling_converter is None:
-        from docling.document_converter import DocumentConverter
-
-        _docling_converter = DocumentConverter()
-    return _docling_converter
-
-
-def _pdf_needs_vision(path: Path) -> bool:
-    """
-    Scan the PDF with PyMuPDF to decide whether vision OCR is needed.
-
-    Returns True if:
-      - Any page has no text layer (scanned/image-only page)
-      - Any page has embedded images occupying >20% of page area
-        (charts, figures, diagrams dominate)
-    """
-    doc = fitz.open(str(path))
-    try:
-        for page in doc:
-            # No text layer at all → scanned page
-            if not page.get_text("text").strip():
-                logger.info("PDF page %d has no text layer → routing to GLM-OCR", page.number + 1)
-                return True
-
-            # Check image coverage on the page
-            page_area = page.rect.width * page.rect.height
-            if page_area == 0:
-                continue
-            image_area = sum((img["width"] * img["height"]) for img in page.get_image_info())
-            coverage = image_area / page_area
-            if coverage > 0.20:
-                logger.info(
-                    "PDF page %d has %.0f%% image coverage → routing to GLM-OCR",
-                    page.number + 1,
-                    coverage * 100,
-                )
-                return True
-    finally:
-        doc.close()
-    return False
-
-
-def _extract_pdf_docling(path: Path) -> str:
-    """Extract PDF text via Docling (fast, good for text-heavy PDFs)."""
-    converter = _get_docling_converter()
-    result = converter.convert(str(path))
-    markdown = result.document.export_to_markdown()
-    return markdown.strip().strip("*").strip()
-
-
-def _extract_pdf_glm_ocr(path: Path) -> str:
-    """
-    Extract PDF content via GLM-OCR page by page.
-    Each page is rendered to PNG and sent to the glm-ocr Ollama model.
-    Requires: ollama pull glm-ocr
-    """
+def _ocr_page_glm(page: fitz.Page, ollama_base: str, ocr_model: str) -> str:
+    """Render one page to PNG and send to GLM-OCR. Returns extracted text or ''."""
     import httpx
 
+    mat = fitz.Matrix(150 / 72, 150 / 72)
+    pix = page.get_pixmap(matrix=mat)
+    b64_image = base64.b64encode(pix.tobytes("png")).decode()
+
+    payload = {
+        "model": ocr_model,
+        "prompt": "Convert the document to markdown. Preserve all tables, headings, and structure.",
+        "images": [b64_image],
+        "stream": False,
+    }
+    try:
+        resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=60)
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
+    except Exception as exc:
+        logger.warning("GLM-OCR failed on page %d: %s", page.number + 1, exc)
+        return ""
+
+
+def _clean_text(text: str) -> str:
+    """Normalize raw PDF text: collapse whitespace, fix broken lines."""
+    # Collapse runs of spaces/tabs
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    # Remove hyphenation at line breaks (e.g. "infor-\nmation" → "information")
+    text = re.sub(r"-\n(\w)", r"\1", text)
+    # Merge lines that are mid-sentence (no punctuation before the break)
+    text = re.sub(r"(?<![.!?:])\n(?=[a-z])", " ", text)
+    # Collapse 3+ consecutive newlines to two
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _extract_pdf(path: Path) -> str:
+    """
+    Per-page extraction: PyMuPDF for text-heavy pages, GLM-OCR for image-heavy
+    or scanned pages. Results are concatenated in page order with markdown structure.
+    """
     config = load_config()
     ollama_base = config.get("ollama", {}).get("base_url", "http://localhost:11434")
     ocr_model = config.get("pdf", {}).get("ocr_model", "glm-ocr")
 
     doc = fitz.open(str(path))
+    total = len(doc)
     pages_text: list[str] = []
 
     try:
         for page in doc:
-            # Render page to PNG at 150 DPI (good balance of quality vs speed)
-            mat = fitz.Matrix(150 / 72, 150 / 72)
-            pix = page.get_pixmap(matrix=mat)
-            png_bytes = pix.tobytes("png")
-            b64_image = base64.b64encode(png_bytes).decode()
+            n = page.number + 1
+            if _page_needs_vision(page):
+                logger.info("Page %d: image-heavy or no text layer → GLM-OCR", n)
+                text = _ocr_page_glm(page, ollama_base, ocr_model)
+                if not text:
+                    text = _clean_text(page.get_text("text"))
+                method = "visual"
+            else:
+                text = _clean_text(page.get_text("text"))
+                logger.info("Page %d: text-heavy → PyMuPDF (%d chars)", n, len(text))
+                method = "text"
 
-            prompt = (
-                "Convert the document to markdown. Preserve all tables, headings, and structure."
-            )
-
-            payload = {
-                "model": ocr_model,
-                "prompt": prompt,
-                "images": [b64_image],
-                "stream": False,
-            }
-
-            try:
-                resp = httpx.post(
-                    f"{ollama_base}/api/generate",
-                    json=payload,
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                page_text = resp.json().get("response", "").strip()
-                if page_text:
-                    pages_text.append(f"<!-- Page {page.number + 1} -->\n{page_text}")
-                    logger.info(
-                        "GLM-OCR extracted %d chars from page %d", len(page_text), page.number + 1
-                    )
-            except Exception as exc:
-                logger.warning("GLM-OCR failed on page %d: %s", page.number + 1, exc)
-                # Fall back to raw PyMuPDF text for this page
-                raw = page.get_text("text").strip()
-                if raw:
-                    pages_text.append(f"<!-- Page {page.number + 1} -->\n{raw}")
+            if text:
+                pages_text.append(f"### Page {n} of {total} ({method})\n\n{text}")
     finally:
         doc.close()
 
-    return "\n\n".join(pages_text)
+    if not pages_text:
+        return ""
+
+    filename = path.stem.replace("_", " ").replace("-", " ")
+    header = f"## Document: {filename}\n\n---\n"
+    return header + "\n\n---\n\n".join(pages_text)
 
 
 def _mime(ext: str) -> str:
@@ -174,14 +147,7 @@ async def file_handler(
         )
 
     if ext in _PDF_EXTS:
-        use_vision = _pdf_needs_vision(file_path)
-
-        if use_vision:
-            logger.info("Routing PDF to GLM-OCR (visual content detected)")
-            pdf_text = _extract_pdf_glm_ocr(file_path)
-        else:
-            logger.info("Routing PDF to Docling (text-heavy)")
-            pdf_text = _extract_pdf_docling(file_path)
+        pdf_text = _extract_pdf(file_path)
 
         if not pdf_text:
             raise ValueError("PDF contains no extractable content.")

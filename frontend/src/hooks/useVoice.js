@@ -14,6 +14,7 @@ import { useRef, useState, useEffect } from "react";
 export function useVoice({ onSend }) {
   const [recording, setRecording]       = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [lastTranscript, setLastTranscript] = useState("");
 
   const workerRef   = useRef(null);
   const mediaRecRef = useRef(null);
@@ -28,7 +29,10 @@ export function useVoice({ onSend }) {
     workerRef.current.onmessage = (e) => {
       if (e.data.status === "complete") {
         setTranscribing(false);
-        if (e.data.text) onSend(e.data.text);
+        if (e.data.text) {
+          setLastTranscript(e.data.text);
+          onSend(e.data.text);
+        }
       }
     };
     return () => workerRef.current?.terminate();
@@ -71,5 +75,5 @@ export function useVoice({ onSend }) {
     setTranscribing(true);
   }
 
-  return { recording, transcribing, startRecording, stopRecording };
+  return { recording, transcribing, lastTranscript, startRecording, stopRecording };
 }

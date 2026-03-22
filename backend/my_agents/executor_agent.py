@@ -7,7 +7,7 @@ from helpers.agents.ollama_client import get_model
 from helpers.core.config_loader import load_config
 from tools.memory_tools import forget_memory, prune_memory, store_memory
 from tools.notes_tools import create_note, get_note, list_notes
-from tools.slides_tools import generate_slides
+from tools.slides_tools import draft_slides, render_slides
 
 _executor: Agent | None = None
 
@@ -61,7 +61,8 @@ def get_executor_agent() -> Agent:
                 create_note,
                 list_notes,
                 get_note,
-                generate_slides,
+                draft_slides,
+                render_slides,
                 report_step_result,
             ],
         )

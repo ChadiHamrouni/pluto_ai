@@ -1,13 +1,10 @@
 """LLM-based output guardrails using the OpenAI Agents SDK.
 
 Uses a small, fast model to evaluate agent responses before they reach the user.
-Two checks are applied:
 
-1. **Repetition guard** — detects looping output (common in small models).
-2. **Relevance guard** — detects hallucinated or incoherent responses.
+**Relevance guard** — detects completely incoherent or gibberish responses.
 
-Both are implemented as SDK OutputGuardrail functions so they plug directly into
-RunConfig.output_guardrails and run in parallel with the main agent.
+Implemented as an SDK OutputGuardrail that plugs into RunConfig.output_guardrails.
 """
 
 from __future__ import annotations
@@ -56,65 +53,7 @@ def _get_guardrail_model() -> str:
 
 
 # ---------------------------------------------------------------------------
-# 1. Repetition guardrail
-# ---------------------------------------------------------------------------
-
-_REPETITION_AGENT = None
-
-
-def _get_repetition_agent() -> Agent[GuardrailResult]:
-    global _REPETITION_AGENT
-    if _REPETITION_AGENT is None:
-        _REPETITION_AGENT = Agent(
-            name="RepetitionGuard",
-            model=get_model(_get_guardrail_model()),
-            instructions=(
-                "You are a quality-control assistant. Your only job is to detect "
-                "whether a given text response is repetitive — i.e., whether the "
-                "same sentence or phrase is repeated 3 or more times in a row.\n\n"
-                "Respond with a JSON object:\n"
-                '{"triggered": true/false, "reason": "one short sentence explaining why"}\n\n'
-                "Examples:\n"
-                '- Repetitive looping text → {"triggered": true,'
-                ' "reason": "Phrase X repeats 5 times."}\n'
-                '- Normal varied response → {"triggered": false,'
-                ' "reason": "No repetition detected."}'
-            ),
-            output_type=GuardrailResult,
-        )
-    return _REPETITION_AGENT
-
-
-async def repetition_guardrail(
-    ctx: RunContextWrapper,
-    agent: Agent,
-    output: str,
-) -> GuardrailFunctionOutput:
-    """Flag responses where the model has entered a repetition loop."""
-    evaluator = _get_repetition_agent()
-    try:
-        result = await Runner.run(
-            starting_agent=evaluator,
-            input=f"Evaluate this response for repetition:\n\n{output[:2000]}",
-            run_config=RunConfig(tracing_disabled=True),
-        )
-        verdict: GuardrailResult = result.final_output
-        if verdict.triggered:
-            logger.warning("Repetition guardrail triggered: %s", verdict.reason)
-        return GuardrailFunctionOutput(
-            output_info=verdict,
-            tripwire_triggered=verdict.triggered,
-        )
-    except Exception as exc:
-        logger.warning("Repetition guardrail skipped (eval failed): %s", exc)
-        return GuardrailFunctionOutput(
-            output_info=GuardrailResult(triggered=False, reason="eval_error"),
-            tripwire_triggered=False,
-        )
-
-
-# ---------------------------------------------------------------------------
-# 2. Relevance / coherence guardrail
+# Relevance / coherence guardrail
 # ---------------------------------------------------------------------------
 
 _RELEVANCE_AGENT = None
@@ -127,14 +66,20 @@ def _get_relevance_agent() -> Agent[GuardrailResult]:
             name="RelevanceGuard",
             model=get_model(_get_guardrail_model()),
             instructions=(
-                "You are a quality-control assistant. You receive a user message and "
-                "an assistant response. Decide whether the response is coherent and "
-                "relevant — not gibberish, not a complete non-sequitur, and not an "
-                "obvious hallucination (e.g. claiming to have done something impossible).\n\n"
-                "Respond with a JSON object:\n"
-                '{"triggered": true/false, "reason": "one short sentence"}\n\n'
-                "Only trigger (true) when the response is clearly incoherent or nonsensical. "
-                "Do NOT trigger for subjective quality issues — only hard failures."
+                "You are a quality-control assistant detecting completely broken LLM output.\n\n"
+                "ONLY trigger (triggered=true) when the response is OBVIOUSLY broken — "
+                "meaning pure gibberish, random characters, or a response that has absolutely "
+                "no connection to any plausible interpretation of the user message.\n\n"
+                "Do NOT trigger for:\n"
+                "- Long, detailed, or structured responses (outlines, lists, markdown)\n"
+                "- Responses that ask clarifying questions before acting\n"
+                "- Responses that partially address the request\n"
+                "- Quality or style issues (too verbose, wrong tone, incomplete)\n"
+                "- Responses that seem reasonable even if not perfect\n\n"
+                "A normal helpful assistant response of any length or format = triggered=false.\n"
+                "The bar for triggering is VERY HIGH. When in doubt, do NOT trigger.\n\n"
+                "Respond with JSON only:\n"
+                '{"triggered": true/false, "reason": "one short sentence"}'
             ),
             output_type=GuardrailResult,
         )
@@ -187,7 +132,6 @@ async def relevance_guardrail(
 # Pre-built guardrail instances for use in RunConfig
 # ---------------------------------------------------------------------------
 
-repetition_output_guardrail = OutputGuardrail(guardrail_function=repetition_guardrail)
 relevance_output_guardrail = OutputGuardrail(guardrail_function=relevance_guardrail)
 
 
@@ -196,4 +140,4 @@ def get_output_guardrails() -> list[OutputGuardrail]:
     config = load_config()
     if not config.get("guardrails", {}).get("enabled", True):
         return []
-    return [repetition_output_guardrail, relevance_output_guardrail]
+    return [relevance_output_guardrail]

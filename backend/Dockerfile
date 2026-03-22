@@ -16,13 +16,8 @@ WORKDIR /app
 
 # Install Python deps (separate layer for caching)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Pre-download Docling layout models so first PDF conversion is instant at runtime
-RUN python -c "\
-from docling.document_converter import DocumentConverter; \
-DocumentConverter(); \
-print('Docling models cached.')"
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # TTS model download — disabled for now, handle manually
 # ARG TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice

@@ -140,7 +140,7 @@ export default function App() {
 
   // ── Voice ─────────────────────────────────────────────────────────────────
 
-  const { recording, transcribing, startRecording, stopRecording } = useVoice({
+  const { recording, transcribing, lastTranscript, startRecording, stopRecording } = useVoice({
     onSend: (text) => {
       stopTTS();
       handleSend({ text, attachments: [], autoMode: false, inputRef, setInput, setAttachments });
@@ -265,6 +265,7 @@ export default function App() {
             recording={recording}
             transcribing={transcribing}
             speaking={speaking}
+            lastTranscript={lastTranscript}
             onExitVoice={() => { setVoiceMode(false); stopTTS(); }}
           />
 

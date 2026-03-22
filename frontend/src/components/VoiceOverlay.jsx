@@ -7,7 +7,7 @@ const STATE_WORDS = {
   speaking:   ["Speaking…", "Responding…", "Playing…"],
 };
 
-export default function VoiceOverlay({ recording, transcribing, thinking, speaking, onExit }) {
+export default function VoiceOverlay({ recording, transcribing, thinking, speaking, lastTranscript, onExit }) {
   const state = speaking     ? "speaking"
               : recording    ? "recording"
               : transcribing ? "thinking"
@@ -77,6 +77,11 @@ export default function VoiceOverlay({ recording, transcribing, thinking, speaki
 
       {/* State label */}
       <p className={`voice-overlay-label status-${phase}`}>{words[wordIndex]}</p>
+
+      {/* Last transcribed text */}
+      {lastTranscript && (
+        <p className="voice-transcript">"{lastTranscript}"</p>
+      )}
 
       {/* Exit — minimal, text only */}
       <button className="voice-exit" onClick={onExit}>

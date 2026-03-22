@@ -49,12 +49,12 @@ async def lifespan(app: FastAPI):
 
     load_embedder()
 
-    # TTS model loading disabled for now — will handle later
-    # from helpers.tools.tts import load_model as load_tts
-    # try:
-    #     load_tts()
-    # except RuntimeError as e:
-    #     logger.warning("TTS model failed to load (voice mode disabled): %s", e)
+    # Load TTS model — soft failure (voice mode disabled if model unavailable)
+    from helpers.tools.tts import load_model as load_tts
+    try:
+        load_tts()
+    except Exception as e:
+        logger.warning("TTS model failed to load (voice mode disabled): %s", e)
 
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 

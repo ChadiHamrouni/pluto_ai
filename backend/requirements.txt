@@ -14,7 +14,6 @@ PyJWT>=2.8
 bcrypt>=4.0
 pillow==11.1.0
 PyMuPDF==1.25.4
-docling
 ddgs
 pytest
 pytest-asyncio

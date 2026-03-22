@@ -627,6 +627,18 @@
   text-transform: uppercase;
 }
 
+/* Transcript of last spoken input */
+.voice-transcript {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-style: italic;
+  max-width: 320px;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+  opacity: 0.85;
+}
+
 /* Exit — minimal text button */
 .voice-exit {
   -webkit-app-region: no-drag;

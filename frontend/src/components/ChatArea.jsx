@@ -18,6 +18,7 @@
  *  - recording       boolean
  *  - transcribing    boolean
  *  - speaking        boolean
+ *  - lastTranscript  string
  *  - onExitVoice     ()=>void
  */
 
@@ -45,6 +46,7 @@ export default function ChatArea({
   recording,
   transcribing,
   speaking,
+  lastTranscript,
   onExitVoice,
 }) {
   if (voiceMode) {
@@ -54,6 +56,7 @@ export default function ChatArea({
         transcribing={transcribing}
         thinking={thinking}
         speaking={speaking}
+        lastTranscript={lastTranscript}
         onExit={onExitVoice}
       />
     );
