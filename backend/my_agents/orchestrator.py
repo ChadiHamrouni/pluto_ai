@@ -56,11 +56,16 @@ def get_orchestrator() -> Agent:
                 handoff(
                     get_research_agent(),
                     tool_description_override=(
-                        "Transfer to ResearchAgent ONLY when the user explicitly asks to 'research', "
-                        "'investigate', 'compare', 'analyze', or wants a multi-source report with citations. "
-                        "Do NOT transfer for simple questions — use web_search yourself for those. "
-                        "Examples that SHOULD transfer: 'research X', 'compare X vs Y', 'investigate X'. "
-                        "Examples that should NOT transfer: 'what is X?', 'how does X work?'."
+                        "Transfer to ResearchAgent ONLY when the user "
+                        "explicitly asks to 'research', 'investigate', "
+                        "'compare', 'analyze', or wants a multi-source "
+                        "report with citations. "
+                        "Do NOT transfer for simple questions — use "
+                        "web_search yourself for those. "
+                        "Examples that SHOULD transfer: 'research X', "
+                        "'compare X vs Y', 'investigate X'. "
+                        "Examples that should NOT transfer: "
+                        "'what is X?', 'how does X work?'."
                     ),
                 ),
                 handoff(

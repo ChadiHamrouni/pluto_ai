@@ -119,7 +119,9 @@ async def get_session_messages(session_id: str) -> list[dict]:
     """
     async with get_db_connection(_db_path()) as db:
         cur = await db.execute(
-            "SELECT role, content, metadata FROM conversations WHERE session_id = ? ORDER BY id ASC",
+            "SELECT role, content, metadata "
+            "FROM conversations "
+            "WHERE session_id = ? ORDER BY id ASC",
             (session_id,),
         )
         rows = await cur.fetchall()

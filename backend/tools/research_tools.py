@@ -28,7 +28,13 @@ async def fetch_page(url: str) -> str:
     if not url:
         return "Error: no URL provided."
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, timeout=15, follow_redirects=True)
             response.raise_for_status()

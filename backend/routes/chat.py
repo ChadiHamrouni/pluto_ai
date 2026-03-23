@@ -229,7 +229,11 @@ async def chat(
         # Persist this exchange and update the session title from the first message.
         # For file attachments, save the full user_content (includes extracted text) so
         # follow-up turns have the document in their history context.
-        history_user = handler_result.user_content if primary and handler_result.user_content else message
+        history_user = (
+            handler_result.user_content
+            if primary and handler_result.user_content
+            else message
+        )
         if session_id and exists:
             await append_turn(
                 session_id,

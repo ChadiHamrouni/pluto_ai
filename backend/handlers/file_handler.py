@@ -156,7 +156,11 @@ async def file_handler(
 
         logger.info("PDF extracted: %d chars", len(pdf_text))
 
-        doc_block = f"[ATTACHED DOCUMENT — answer from this content only, do NOT search the web]\n\n{pdf_text}"
+        prefix = (
+            "[ATTACHED DOCUMENT — answer from this content only, "
+            "do NOT search the web]"
+        )
+        doc_block = f"{prefix}\n\n{pdf_text}"
         user_content = (
             f"{message}\n\n---\n\n{doc_block}"
             if message and message.strip()

@@ -159,5 +159,7 @@ async def text_handler_streamed(
         messages = await compact_history(messages, get_openai_client(), model)
 
     max_turns = 15 if agent.name == "ResearchAgent" else 10
-    async for event in run_agent_streamed(agent, messages, memory_context=memory_context, max_turns=max_turns):
+    async for event in run_agent_streamed(
+        agent, messages, memory_context=memory_context, max_turns=max_turns,
+    ):
         yield event
