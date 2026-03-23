@@ -16,6 +16,15 @@ export default function ChatBubble({ message: m, onDownload }) {
           <img key={j} src={p} alt="attachment" className="bubble-img" />
         ))}
 
+        {m.attachmentNames?.map((name, j) => (
+          <div key={j} className="bubble-file-pill">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5 1v4h4L9 1zM5.5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+            </svg>
+            <span>{name}</span>
+          </div>
+        ))}
+
         {m.content !== "(image)" && <p className="bubble-text">{m.content}</p>}
 
         {m.role === "assistant" && m.file_url && (

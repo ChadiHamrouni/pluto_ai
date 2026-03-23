@@ -220,9 +220,12 @@ async def chat(
             response_text = "Your presentation is ready."
             history_response = "Presentation generated successfully."
 
-        # Persist this exchange and update the session title from the first message
+        # Persist this exchange and update the session title from the first message.
+        # For file attachments, save the full user_content (includes extracted text) so
+        # follow-up turns have the document in their history context.
+        history_user = handler_result.user_content if primary and handler_result.user_content else message
         if session_id and exists:
-            await append_turn(session_id, message, history_response)
+            await append_turn(session_id, history_user, history_response)
             # Set title from the first user message if the history was empty before this turn
             if not history and message:
                 title = message[:50] + ("…" if len(message) > 50 else "")

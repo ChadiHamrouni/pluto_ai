@@ -11,7 +11,6 @@ from agents.stream_events import (
     RunItemStreamEvent,
 )
 
-from helpers.agents.guardrails import get_output_guardrails
 from helpers.core.logger import get_logger
 from models.results import AgentRunResult
 
@@ -45,7 +44,6 @@ async def run_agent(
     """
     run_config = RunConfig(
         tracing_disabled=True,
-        output_guardrails=get_output_guardrails(),
     )
 
     # Build conversation input (user + assistant turns only — SDK handles system via instructions)
@@ -154,7 +152,6 @@ async def run_agent_streamed(
     """
     run_config = RunConfig(
         tracing_disabled=True,
-        output_guardrails=get_output_guardrails(),
     )
 
     input_items: list = [

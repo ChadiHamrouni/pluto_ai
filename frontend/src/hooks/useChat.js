@@ -97,7 +97,8 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
     appendMessage(activeId, {
       role: "user",
       content: text || "(image)",
-      previews: sentAttachments.map(a => a.preview),
+      previews: sentAttachments.map(a => a.preview).filter(Boolean),
+      attachmentNames: sentAttachments.filter(a => !a.preview).map(a => a.file.name),
     });
     setThinking(true);
 
@@ -106,24 +107,38 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
 
     // Use streaming for text-only messages, fall back to non-streaming for file attachments
     if (!hasFiles) {
-      // Append a placeholder assistant message that we'll update as tokens stream in
-      appendMessage(currentSessionId, {
-        role: "assistant",
-        content: "",
-        streaming: true,
-      });
+      let placeholderAdded = false;
 
       streamMessage(text, {
         onToken: (delta) => {
+          if (!placeholderAdded) {
+            placeholderAdded = true;
+            setThinking(false);
+            appendMessage(currentSessionId, {
+              role: "assistant",
+              content: "",
+              streaming: true,
+            });
+          }
           appendDelta(currentSessionId, delta);
         },
         onDone: ({ response, tools_used, agents_trace, file_url }) => {
-          finalizeLastMessage(currentSessionId, {
-            content: response,
-            tools_used,
-            agents_trace,
-            file_url,
-          });
+          if (!placeholderAdded) {
+            appendMessage(currentSessionId, {
+              role: "assistant",
+              content: response,
+              tools_used,
+              agents_trace,
+              file_url,
+            });
+          } else {
+            finalizeLastMessage(currentSessionId, {
+              content: response,
+              tools_used,
+              agents_trace,
+              file_url,
+            });
+          }
           onReply?.(response);
           setThinking(false);
           inputRef.current?.focus();

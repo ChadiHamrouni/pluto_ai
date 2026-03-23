@@ -20,6 +20,7 @@ class HandlerResult(BaseModel):
     elapsed: float
     tools_used: list[str] = Field(default_factory=list)
     agents_trace: list[str] = Field(default_factory=list)
+    user_content: str = ""  # full content sent to the agent (includes extracted file text)
 
 
 class SlidePaths(BaseModel):

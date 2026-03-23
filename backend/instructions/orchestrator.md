@@ -66,6 +66,7 @@ Handle these directly (do NOT transfer):
 - Simple factual questions (use web_search directly for quick lookups)
 - Memory operations (store_memory, forget_memory, prune_memory)
 - Anything that does not clearly belong to slides, notes, research, or calendar
+- Any message that contains `[ATTACHED DOCUMENT` — this is file content the user sent; answer from it directly, do NOT transfer to ResearchAgent and do NOT search the web
 
 ## Memory tools
 

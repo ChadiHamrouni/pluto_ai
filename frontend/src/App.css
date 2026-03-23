@@ -525,6 +525,20 @@
   margin-bottom: 4px;
 }
 
+/* ── Bubble file pill (PDF / txt attachments) ── */
+.bubble-file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--neon-dim);
+  border: 1px solid var(--neon-border);
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
 /* ── Footer action buttons (AUTO + VOICE stacked vertically) ── */
 .mic-stack {
   display: flex;

@@ -144,6 +144,7 @@ async def file_handler(
             elapsed=time.perf_counter() - t0,
             tools_used=result.tools_used,
             agents_trace=result.agents_trace,
+            user_content=user_content,
         )
 
     if ext in _PDF_EXTS:
@@ -154,10 +155,11 @@ async def file_handler(
 
         logger.info("PDF extracted: %d chars", len(pdf_text))
 
+        doc_block = f"[ATTACHED DOCUMENT — answer from this content only, do NOT search the web]\n\n{pdf_text}"
         user_content = (
-            f"{message}\n\n---\n\n{pdf_text}"
+            f"{message}\n\n---\n\n{doc_block}"
             if message and message.strip()
-            else f"Summarise this document:\n\n---\n\n{pdf_text}"
+            else f"Summarise this document:\n\n---\n\n{doc_block}"
         )
         messages: list[dict] = [{"role": "user", "content": user_content}]
 
@@ -166,6 +168,7 @@ async def file_handler(
         mime = _mime(ext)
         b64 = base64.b64encode(file_path.read_bytes()).decode()
         user_text = message.strip() if message and message.strip() else "Describe this image."
+        user_content = user_text  # images can't be stored in history as base64 — save just the text
         messages = [
             {
                 "role": "user",
@@ -182,4 +185,5 @@ async def file_handler(
         elapsed=time.perf_counter() - t0,
         tools_used=result.tools_used,
         agents_trace=result.agents_trace,
+        user_content=user_content,
     )
