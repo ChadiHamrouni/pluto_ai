@@ -1,4 +1,4 @@
-# Jarvis — Local-First Personal AI Assistant
+# Pluto — Local-First Personal AI Assistant
 
 A production-grade personal AI assistant that runs **entirely on your machine** — no cloud, no API keys, no data leaving your device.
 
@@ -8,50 +8,9 @@ Built with **OpenAI Agents SDK**, **Ollama**, **FastAPI**, and **Tauri + React**
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Tauri Desktop App                        │
-│              React frontend · SSE streaming UI               │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTP / SSE
-┌────────────────────────▼────────────────────────────────────┐
-│                   FastAPI Backend                            │
-│                                                              │
-│  POST /chat          POST /chat/stream    GET /health        │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                 text_handler                         │    │
-│  │  parse_command() → hard-route OR LLM routing        │    │
-│  │  Memory search (FTS5) → context injection           │    │
-│  │  Upcoming events (24h) → proactive context          │    │
-│  │  Context compaction when window fills               │    │
-│  └───────────────────┬─────────────────────────────────┘    │
-│                      │                                       │
-│  ┌───────────────────▼─────────────────────────────────┐    │
-│  │              Orchestrator Agent                      │    │
-│  │  (OpenAI Agents SDK · Ollama local model)            │    │
-│  │                                                      │    │
-│  │  handoffs ──► NotesAgent                            │    │
-│  │           ──► SlidesAgent                           │    │
-│  │           ──► ResearchAgent                         │    │
-│  │           ──► CalendarAgent                         │    │
-│  │                                                      │    │
-│  │  tools ──► store/forget/prune_memory                │    │
-│  │        ──► web_search                               │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                              │
-│  LLM Output Guardrails (SDK OutputGuardrail)                 │
-│    · RepetitionGuard — detects looping small-model output    │
-│    · RelevanceGuard  — flags incoherent / off-topic replies  │
-│                                                              │
-│  SQLite (memory · notes · sessions · events)                 │
-└─────────────────────────────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                  Ollama (local LLM)                          │
-│           http://localhost:11434/v1  (OpenAI-compat)         │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="Pluto Architecture Diagram" width="800" />
+</p>
 
 ---
 
@@ -71,7 +30,6 @@ Built with **OpenAI Agents SDK**, **Ollama**, **FastAPI**, and **Tauri + React**
 | **Slides agent** | Marp PDF presentations from natural language outlines |
 | **Voice mode** | VAD + local TTS for hands-free interaction |
 | **File attachments** | Images (multimodal), PDFs (OCR), and plain text |
-| **Secrets via env vars** | Auth credentials override via `AUTH_SECRET_KEY`, `AUTH_PASSWORD_HASH`, `AUTH_USERNAME` |
 | **100% local** | Zero cloud calls — Ollama + SQLite + local filesystem |
 
 ---
@@ -136,7 +94,7 @@ cd backend
 
 # Copy and configure
 cp config.example.json config.json
-# Edit config.json: set your auth credentials or use env vars below
+# Edit config.json: set your Ollama model and other preferences
 
 # Install dependencies
 pip install -r requirements.txt
@@ -149,14 +107,6 @@ npm install -g @marp-team/marp-cli
 
 # Start
 python main.py
-```
-
-**Secrets via environment variables** (recommended over editing config.json):
-
-```bash
-export AUTH_SECRET_KEY="your-secret-key"
-export AUTH_USERNAME="your-username"
-export AUTH_PASSWORD_HASH="bcrypt-hash"
 ```
 
 ### Desktop App (Tauri)
@@ -182,17 +132,7 @@ curl http://localhost:8000/health
 
 ## API Reference
 
-### Auth
-
-```
-POST /auth/login    body: username + password (form)
-POST /auth/refresh  body: refresh_token (form)
-POST /auth/verify   body: token (form)
-```
-
 ### Chat
-
-All chat endpoints require `Authorization: Bearer <access_token>`.
 
 ```
 POST /chat
@@ -263,7 +203,7 @@ personal_ai/
 │   │
 │   ├── handlers/                  # text_handler (routing + memory injection)
 │   ├── instructions/              # Agent system prompts as markdown
-│   ├── routes/                    # FastAPI routers (auth, chat, files, voice)
+│   ├── routes/                    # FastAPI routers (chat, files, voice)
 │   ├── models/                    # Pydantic schemas
 │   └── tests/                     # pytest unit + integration tests
 │
