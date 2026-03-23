@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from handlers.file_handler import file_handler
@@ -22,12 +22,19 @@ from helpers.agents.session_store import (
     update_session_title,
 )
 from helpers.core.logger import get_logger
-from helpers.routes.dependencies import get_current_user
 from models.chat import Attachment, ChatResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+@router.get("/commands", tags=["chat"])
+async def list_commands():
+    """Return the slash command registry for the frontend autocomplete menu."""
+    from helpers.agents.command_parser import COMMAND_REGISTRY
+
+    return [{"cmd": c["cmd"], "desc": c["desc"]} for c in COMMAND_REGISTRY]
 
 _SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".pdf", ".txt"}
 
@@ -49,7 +56,7 @@ _MIME_MAP = {
     summary="Create a session",
     responses={200: {"content": {"application/json": {"example": {"session_id": "abc123"}}}}},
 )
-async def create_session(_user: dict = Depends(get_current_user)):
+async def create_session():
     """Create a new server-side conversation session.
 
     Returns a `session_id` to pass in subsequent `POST /chat` or `POST /chat/stream` requests.
@@ -61,14 +68,14 @@ async def create_session(_user: dict = Depends(get_current_user)):
 
 
 @router.get("/sessions", tags=["chat"])
-async def get_sessions(_user: dict = Depends(get_current_user)):
+async def get_sessions():
     """Return all sessions with their titles, newest first."""
     sessions = await list_sessions()
     return {"sessions": sessions}
 
 
 @router.get("/session/{session_id}/messages", tags=["chat"])
-async def get_messages(session_id: str, _user: dict = Depends(get_current_user)):
+async def get_messages(session_id: str):
     """Return full message history for a session."""
     if not await session_exists(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -77,7 +84,7 @@ async def get_messages(session_id: str, _user: dict = Depends(get_current_user))
 
 
 @router.delete("/session/{session_id}", tags=["chat"])
-async def remove_session(session_id: str, _user: dict = Depends(get_current_user)):
+async def remove_session(session_id: str):
     """Delete a session and all its messages."""
     if not await session_exists(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -132,7 +139,6 @@ async def chat(
             " First file is the primary attachment."
         ),
     ),
-    _user: dict = Depends(get_current_user),
 ):
     """Send a message and receive a full response.
 
@@ -225,7 +231,15 @@ async def chat(
         # follow-up turns have the document in their history context.
         history_user = handler_result.user_content if primary and handler_result.user_content else message
         if session_id and exists:
-            await append_turn(session_id, history_user, history_response)
+            await append_turn(
+                session_id,
+                history_user,
+                history_response,
+                assistant_metadata={
+                    "tools_used": tools_used,
+                    "agents_trace": agents_trace,
+                },
+            )
             # Set title from the first user message if the history was empty before this turn
             if not history and message:
                 title = message[:50] + ("…" if len(message) > 50 else "")
@@ -284,7 +298,6 @@ async def chat_stream(
     attachments: List[UploadFile] = File(
         default=[], description="Not supported — use POST /chat for file attachments."
     ),
-    _user: dict = Depends(get_current_user),
 ):
     """Stream a response as Server-Sent Events.
 
@@ -331,6 +344,8 @@ async def chat_stream(
 
     async def event_generator():
         full_response = ""
+        tools_used: list = []
+        agents_trace: list = []
 
         try:
             async for event in text_handler_streamed(message, _history):
@@ -341,8 +356,8 @@ async def chat_stream(
                     full_response += data.get("delta", "")
                 elif event_type == "done":
                     full_response = data.get("response", full_response)
-                    data.get("tools_used", [])
-                    data.get("agents_trace", [])
+                    tools_used = data.get("tools_used", [])
+                    agents_trace = data.get("agents_trace", [])
 
                 yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
@@ -356,7 +371,15 @@ async def chat_stream(
 
             # Persist this exchange
             if _session_id and _exists:
-                await append_turn(_session_id, _message, history_response)
+                await append_turn(
+                    _session_id,
+                    _message,
+                    history_response,
+                    assistant_metadata={
+                        "tools_used": tools_used,
+                        "agents_trace": agents_trace,
+                    },
+                )
                 if not _history and _message:
                     title = _message[:50] + ("…" if len(_message) > 50 else "")
                     await update_session_title(_session_id, title)

@@ -16,12 +16,11 @@ POST /tts/sentences
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from helpers.core.logger import get_logger
-from helpers.routes.dependencies import get_current_user
 from helpers.tools import tts
 
 logger = get_logger(__name__)
@@ -46,7 +45,6 @@ def _check_ready():
 @router.post("")
 async def text_to_speech(
     req: TTSRequest,
-    _user: dict = Depends(get_current_user),
 ):
     """Legacy: synthesise text and stream back as a single WAV."""
     _check_ready()
@@ -61,7 +59,6 @@ async def text_to_speech(
 @router.post("/sentences")
 async def text_to_speech_sentences(
     req: TTSRequest,
-    _user: dict = Depends(get_current_user),
 ):
     """Sentence-level: stream one length-prefixed WAV blob per sentence.
 

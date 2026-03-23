@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState } from "react";
+import "./Header.css";
 
 export default function Header({ autoMode, onSettings }) {
   const [expanded, setExpanded] = useState(false);
@@ -17,7 +18,7 @@ export default function Header({ autoMode, onSettings }) {
   return (
     <header className="header" data-tauri-drag-region>
       <div className="header-left" data-tauri-drag-region>
-        <span className="header-title" data-tauri-drag-region>JARVIS</span>
+        <span className="header-title" data-tauri-drag-region>PLUTO</span>
         <span className="header-sub" data-tauri-drag-region>
           {autoMode ? "autonomous mode" : "personal assistant"}
         </span>

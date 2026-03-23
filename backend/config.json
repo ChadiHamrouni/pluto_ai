@@ -1,8 +1,9 @@
 {
   "orchestrator": {
-    "model": "qwen2.5:3b",
+    "model": "qwen3.5:4b",
     "temperature": 0.0,
-    "max_tokens": 1024,
+    "max_tokens": 2048,
+    "tool_choice": "auto",
     "base_url": "http://localhost:11434/v1",
     "api_key": "ollama",
     "history_window": 20
@@ -11,25 +12,19 @@
     "base_url": "http://localhost:11434",
     "service_token": "",
     "verify_ssl": true,
-    "request_timeout_seconds": 30
-  },
-  "auth": {
-    "secret_key": "18d8525847d94f83da1dc791703be45dbc11947df83c29a83bc4ac22f24480da",
-    "algorithm": "HS256",
-    "username": "admin",
-    "password_hash": "$2b$12$D/aVEXpNMkAjD1gjpYjXyO8qgOQp2v2YGj87IVrlqEQHRQustn7iy",
-    "access_token_expires_minutes": 15,
-    "refresh_token_expires_days": 7
+    "request_timeout_seconds": 120
   },
   "notes_agent": {
     "model": "qwen2.5:3b",
-    "temperature": 0.5,
-    "max_tokens": 1024
+    "temperature": 0.0,
+    "max_tokens": 1024,
+    "tool_choice": "required"
   },
   "slides_agent": {
     "model": "qwen2.5:3b",
     "temperature": 0.0,
-    "max_tokens": 2048
+    "max_tokens": 2048,
+    "tool_choice": "required"
   },
   "rag": {
     "chunk_size": 512,
@@ -50,8 +45,21 @@
     "memory_dir": "data/memory",
     "search_top_k": 10
   },
-  "autonomous": {
+  "research_agent": {
+    "model": "qwen3.5:7b",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "tool_choice": "auto"
+  },
+  "calendar_agent": {
     "model": "qwen2.5:3b",
+    "temperature": 0.0,
+    "max_tokens": 1024,
+    "tool_choice": "required"
+  },
+  "autonomous": {
+    "planner_model": "qwen3.5:7b",
+    "executor_model": "qwen3.5:4b",
     "max_iterations": 50,
     "max_duration_seconds": 300,
     "max_retries_per_step": 2
@@ -72,7 +80,7 @@
     "default_theme": "default"
   },
   "api": {
-    "host": "0.0.0.0",
+    "host": "127.0.0.1",
     "port": 8000
   },
   "pdf": {

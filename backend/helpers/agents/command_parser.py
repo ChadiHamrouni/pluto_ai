@@ -3,20 +3,63 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-# Maps slash command aliases to a canonical intent
-_COMMANDS: dict[str, str] = {
-    "/note": "note",
-    "/notes": "note",
-    "/slides": "slides",
-    "/slide": "slides",
-    "/remember": "memory",
-    "/memory": "memory",
-    "/forget": "forget",
-    "/research": "research",
-    "/calendar": "calendar",
-    "/schedule": "calendar",
-    "/event": "calendar",
-}
+# ---------------------------------------------------------------------------
+# Command registry — single source of truth for all slash commands.
+#
+# Each entry: primary command → {"desc": str, "intent": str, "aliases": [...]}
+#
+# To add a new slash command:
+#   1. Add an entry here.
+#   2. Handle its intent in text_handler._COMMAND_AGENTS (or rely on
+#      the orchestrator for memory/conversational intents).
+#   3. That's it — the frontend reads GET /chat/commands automatically.
+# ---------------------------------------------------------------------------
+
+COMMAND_REGISTRY: list[dict] = [
+    {
+        "cmd": "/note",
+        "desc": "Create or manage notes",
+        "intent": "note",
+        "aliases": ["/notes"],
+    },
+    {
+        "cmd": "/slides",
+        "desc": "Generate a slide presentation",
+        "intent": "slides",
+        "aliases": ["/slide"],
+    },
+    {
+        "cmd": "/research",
+        "desc": "Deep research with multiple sources",
+        "intent": "research",
+        "aliases": [],
+    },
+    {
+        "cmd": "/calendar",
+        "desc": "Schedule or view calendar events",
+        "intent": "calendar",
+        "aliases": ["/schedule", "/event"],
+    },
+    {
+        "cmd": "/remember",
+        "desc": "Save something to memory",
+        "intent": "memory",
+        "aliases": ["/memory"],
+    },
+    {
+        "cmd": "/forget",
+        "desc": "Delete a memory",
+        "intent": "forget",
+        "aliases": [],
+    },
+]
+
+# Flat alias → intent lookup built from the registry above
+_ALIAS_TO_INTENT: dict[str, str] = {}
+for _entry in COMMAND_REGISTRY:
+    _ALIAS_TO_INTENT[_entry["cmd"]] = _entry["intent"]
+    for _alias in _entry["aliases"]:
+        _ALIAS_TO_INTENT[_alias] = _entry["intent"]
 
 
 @dataclass
@@ -46,7 +89,7 @@ def parse_command(message: str) -> ParsedCommand:
     token = parts[0].lower()
     content = parts[1] if len(parts) > 1 else ""
 
-    intent = _COMMANDS.get(token)
+    intent = _ALIAS_TO_INTENT.get(token)
     if intent is None:
         return ParsedCommand(intent=None, content=message)
 

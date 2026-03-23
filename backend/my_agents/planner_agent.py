@@ -13,7 +13,7 @@ def get_planner_agent() -> Agent:
     global _planner
     if _planner is None:
         cfg = load_config()
-        model_name = cfg.get("autonomous", {}).get("model", cfg["orchestrator"]["model"])
+        model_name = cfg.get("autonomous", {}).get("planner_model", cfg["orchestrator"]["model"])
         _planner = Agent(
             name="Planner",
             model=get_model(model_name),

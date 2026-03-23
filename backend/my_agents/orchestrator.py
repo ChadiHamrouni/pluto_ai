@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents import Agent, handoff
+from agents import Agent, ModelSettings, handoff
 
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
@@ -29,13 +29,19 @@ def get_orchestrator() -> Agent:
             model=get_model(cfg["model"]),
             instructions=load_instructions("orchestrator"),
             tools=[store_memory, forget_memory, prune_memory, web_search],
+            model_settings=ModelSettings(
+                temperature=cfg.get("temperature", 0.0),
+                tool_choice=cfg.get("tool_choice", "auto"),
+            ),
             handoffs=[
                 handoff(
                     get_notes_agent(),
                     tool_description_override=(
                         "Transfer to NotesAgent when the user wants to create, save, "
-                        "write, list, or read a note. Examples: 'take a note about ...', "
-                        "'save this as a note', 'show my notes', 'list my research notes'."
+                        "write, list, or read a note. Do NOT transfer for remembering facts "
+                        "— use store_memory for those. "
+                        "Examples: 'take a note about ...', "
+                        "'save this as a note', 'show my notes'."
                     ),
                 ),
                 handoff(
@@ -50,11 +56,11 @@ def get_orchestrator() -> Agent:
                 handoff(
                     get_research_agent(),
                     tool_description_override=(
-                        "Transfer to ResearchAgent when the user wants in-depth research "
-                        "on a topic. The research agent searches multiple sources, reads "
-                        "full pages, and synthesises findings with citations. Examples: "
-                        "'research ...', 'find out about ...', 'what's the latest on ...', "
-                        "'investigate ...', 'compare X vs Y'."
+                        "Transfer to ResearchAgent ONLY when the user explicitly asks to 'research', "
+                        "'investigate', 'compare', 'analyze', or wants a multi-source report with citations. "
+                        "Do NOT transfer for simple questions — use web_search yourself for those. "
+                        "Examples that SHOULD transfer: 'research X', 'compare X vs Y', 'investigate X'. "
+                        "Examples that should NOT transfer: 'what is X?', 'how does X work?'."
                     ),
                 ),
                 handoff(

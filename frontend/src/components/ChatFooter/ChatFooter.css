@@ -1,0 +1,173 @@
+/* ── Footer ── */
+.footer {
+  flex-shrink: 0;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--sep);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Input wrap (for slash menu positioning) */
+.input-wrap {
+  position: relative;
+}
+
+.input-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.msg-input {
+  flex: 1;
+  background: var(--panel-light);
+  border: 1px solid var(--neon-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+  overflow-y: hidden;
+  min-height: 42px;
+  max-height: 300px;
+}
+
+.msg-input:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 2px rgba(0,200,255,0.1);
+}
+
+.msg-input::placeholder {
+  color: var(--text-dim);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-left: 2px;
+}
+
+/* ── Attachment bar ── */
+.attachment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 4px;
+}
+
+.attachment-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel-light);
+  border: 1px solid var(--neon-border);
+  border-radius: 8px;
+  padding: 5px 8px 5px 6px;
+  max-width: 220px;
+}
+
+.attachment-pdf-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: var(--neon-dim);
+  color: var(--neon);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.attachment-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.attachment-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.attachment-remove {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.attachment-remove:hover {
+  color: #ff6b6b;
+}
+
+/* ── Mode toggle buttons (AUTO + VOICE) ── */
+.mic-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 68px;
+}
+
+.mode-btn {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0 8px;
+  height: 28px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  background: transparent;
+  border: 1px solid var(--sep);
+  color: var(--text-dim);
+  white-space: nowrap;
+  width: 100%;
+}
+
+.mode-btn:hover {
+  border-color: var(--neon-border);
+  color: var(--text);
+  background: var(--neon-dim);
+}
+
+.mode-btn--on {
+  background: var(--neon-dim);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 10px rgba(0, 200, 255, 0.2);
+  animation: pulse-neon 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 6px rgba(0, 200, 255, 0.15); }
+  50%       { box-shadow: 0 0 14px rgba(0, 200, 255, 0.45); }
+}

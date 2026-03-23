@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import SlashMenu, { COMMANDS } from "./SlashMenu";
+import SlashMenu from "../SlashMenu";
+import { fetchCommands } from "../../api";
+import "./ChatFooter.css";
 
 export default function ChatFooter({
   input, onInputChange, onKeyDown, thinking,
@@ -9,6 +11,11 @@ export default function ChatFooter({
   inputRef,
 }) {
   const [slashIndex, setSlashIndex] = useState(0);
+  const [commands, setCommands] = useState([]);
+
+  useEffect(() => {
+    fetchCommands().then(setCommands).catch(() => {});
+  }, []);
 
   // Detect slash command prefix in input
   const slashQuery = (() => {
@@ -20,9 +27,9 @@ export default function ChatFooter({
   })();
 
   const slashFiltered = slashQuery === "/"
-    ? COMMANDS
+    ? commands
     : slashQuery
-      ? COMMANDS.filter((c) => c.cmd.startsWith(slashQuery))
+      ? commands.filter((c) => c.cmd.startsWith(slashQuery))
       : [];
 
   // Reset index when menu appears or filter changes
@@ -62,10 +69,10 @@ export default function ChatFooter({
   }
 
   const placeholder = autoMode
-    ? "Describe a multi-step task for Jarvis to plan and execute…"
+    ? "Describe a multi-step task for Pluto to plan and execute…"
     : attachments.length
       ? "Add a message… (or just Enter)"
-      : "Message Jarvis…";
+      : "Message Pluto…";
 
   return (
     <footer className="footer">
@@ -93,6 +100,7 @@ export default function ChatFooter({
       <div className="input-wrap">
         {slashQuery && (
           <SlashMenu
+            commands={commands}
             query={slashQuery}
             activeIndex={slashIndex}
             onSelect={handleSlashSelect}

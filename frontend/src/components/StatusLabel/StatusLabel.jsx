@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import "./StatusLabel.css";
 
 export default function StatusLabel({ words }) {
   const [index, setIndex] = useState(0);

@@ -1,6 +1,4 @@
 const BASE = "http://localhost:8000";
-let accessToken = null;
-let refreshToken = null;
 let sessionId = null;
 
 /** Switch the active session used by sendMessage. */
@@ -10,56 +8,13 @@ export function setActiveSession(id) {
 
 /** Create a new backend session and return its id. */
 export async function createSession() {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/chat/session`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const r = await fetch(`${BASE}/chat/session`, { method: "POST" });
   if (!r.ok) throw new Error("Failed to create session");
   const d = await r.json();
   return d.session_id;
 }
 
-async function login() {
-  console.log("[api] logging in…");
-  const r = await fetch(`${BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "admin", password: "changeme" }),
-  });
-  if (!r.ok) {
-    console.error("[api] login failed:", r.status, await r.text());
-    throw new Error("Login failed");
-  }
-  const d = await r.json();
-  accessToken = d.access_token;
-  refreshToken = d.refresh_token;
-  console.log("[api] login OK");
-}
-
-async function refresh() {
-  const r = await fetch(`${BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!r.ok) throw new Error("Refresh failed");
-  const d = await r.json();
-  accessToken = d.access_token;
-  refreshToken = d.refresh_token;
-}
-
-async function _doChat(formData) {
-  return fetch(`${BASE}/chat`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: formData,
-  });
-}
-
 export async function sendMessage(message, files = []) {
-  if (!accessToken) await login();
-
   const formData = new FormData();
   formData.append("message", message);
   formData.append("session_id", sessionId);
@@ -69,14 +24,8 @@ export async function sendMessage(message, files = []) {
     formData.append("attachments", f);
   }
 
-  console.log("[api] POST /chat — message:", JSON.stringify(message).slice(0, 120), "| files:", fileList.length, "| session:", sessionId);
-  let r = await _doChat(formData);
-
-  if (r.status === 401) {
-    console.warn("[api] 401 — refreshing token and retrying");
-    await refresh();
-    r = await _doChat(formData);
-  }
+  console.log("[api] POST /chat � message:", JSON.stringify(message).slice(0, 120), "| files:", fileList.length, "| session:", sessionId);
+  const r = await fetch(`${BASE}/chat`, { method: "POST", body: formData });
 
   if (!r.ok) {
     const body = await r.text();
@@ -92,33 +41,23 @@ export async function sendMessage(message, files = []) {
  * Stream a chat response via SSE (POST /chat/stream).
  *
  * @param {string} message
- * @param {object} callbacks — { onToken, onToolCall, onHandoff, onDone, onError }
- * @returns {AbortController} — call .abort() to cancel the stream
+ * @param {object} callbacks � { onToken, onToolCall, onHandoff, onDone, onError }
+ * @returns {AbortController} � call .abort() to cancel the stream
  */
 export function streamMessage(message, callbacks = {}) {
   const controller = new AbortController();
 
   (async () => {
-    if (!accessToken) await login();
-
     const formData = new FormData();
     formData.append("message", message);
     formData.append("session_id", sessionId);
 
-    const doFetch = async () => {
-      return fetch(`${BASE}/chat/stream`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: formData,
-        signal: controller.signal,
-      });
-    };
+    const r = await fetch(`${BASE}/chat/stream`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
 
-    let r = await doFetch();
-    if (r.status === 401) {
-      await refresh();
-      r = await doFetch();
-    }
     if (!r.ok) {
       const body = await r.text();
       callbacks.onError?.(body);
@@ -132,6 +71,8 @@ export function streamMessage(message, callbacks = {}) {
     let toolsUsed = [];
     let agentsTrace = [];
     let fileUrl = null;
+    let tokenCount = 0;
+    let streamStart = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -139,9 +80,8 @@ export function streamMessage(message, callbacks = {}) {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Parse SSE events from buffer
       const lines = buffer.split("\n");
-      buffer = lines.pop(); // keep incomplete line in buffer
+      buffer = lines.pop();
 
       let eventType = null;
       let dataLines = [];
@@ -152,15 +92,20 @@ export function streamMessage(message, callbacks = {}) {
         } else if (line.startsWith("data: ")) {
           dataLines.push(line.slice(6));
         } else if (line === "" && eventType) {
-          // End of event — dispatch
           const raw = dataLines.join("\n");
           try {
             const data = JSON.parse(raw);
             switch (eventType) {
-              case "token":
-                fullResponse += data.delta || "";
-                callbacks.onToken?.(data.delta || "");
+              case "token": {
+                const delta = data.delta || "";
+                if (delta) {
+                  if (streamStart === null) streamStart = performance.now();
+                  tokenCount += delta.split(/\s+/).filter(Boolean).length;
+                  fullResponse += delta;
+                  callbacks.onToken?.(delta);
+                }
                 break;
+              }
               case "tool_call":
                 callbacks.onToolCall?.(data);
                 break;
@@ -186,11 +131,17 @@ export function streamMessage(message, callbacks = {}) {
       }
     }
 
+    const elapsedSec = streamStart !== null ? (performance.now() - streamStart) / 1000 : null;
+    const tokensPerSecond = elapsedSec && tokenCount > 0
+      ? Math.round(tokenCount / elapsedSec)
+      : null;
+
     callbacks.onDone?.({
       response: fileUrl ? "Your presentation is ready." : fullResponse,
       tools_used: toolsUsed,
       agents_trace: agentsTrace,
       file_url: fileUrl,
+      tokens_per_second: tokensPerSecond,
     });
   })().catch((err) => {
     if (err.name !== "AbortError") {
@@ -202,113 +153,70 @@ export function streamMessage(message, callbacks = {}) {
 }
 
 export async function getModels() {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/settings/models`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return getModels(); }
+  const r = await fetch(`${BASE}/settings/models`);
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return (await r.json()).models;
 }
 
+export async function fetchCommands() {
+  const r = await fetch(`${BASE}/chat/commands`);
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export async function getAgentSettings() {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/settings/agents`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return getAgentSettings(); }
+  const r = await fetch(`${BASE}/settings/agents`);
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
 export async function saveAgentSettings(settings) {
-  if (!accessToken) await login();
   const r = await fetch(`${BASE}/settings/agents`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings),
   });
-  if (r.status === 401) { await refresh(); return saveAgentSettings(settings); }
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
 export async function getSessions() {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/chat/sessions`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return getSessions(); }
+  const r = await fetch(`${BASE}/chat/sessions`);
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
-  return (await r.json()).sessions; // [{id, title, created_at}]
+  return (await r.json()).sessions;
 }
 
 export async function getSessionMessages(sessionId) {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/chat/session/${sessionId}/messages`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return getSessionMessages(sessionId); }
+  const r = await fetch(`${BASE}/chat/session/${sessionId}/messages`);
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
-  return (await r.json()).messages; // [{role, content}]
+  return (await r.json()).messages;
 }
 
 export async function deleteSession(sessionId) {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}/chat/session/${sessionId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return deleteSession(sessionId); }
+  const r = await fetch(`${BASE}/chat/session/${sessionId}`, { method: "DELETE" });
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
 }
 
 export async function fetchFile(fileUrl) {
-  if (!accessToken) await login();
-  const r = await fetch(`${BASE}${fileUrl}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (r.status === 401) { await refresh(); return fetchFile(fileUrl); }
+  const r = await fetch(`${BASE}${fileUrl}`);
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.blob();
 }
 
 export async function startAutonomous(task) {
-  if (!accessToken) await login();
   const formData = new FormData();
   formData.append("task", task);
-  let r = await fetch(`${BASE}/autonomous/start`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: formData,
-  });
-  if (r.status === 401) {
-    await refresh();
-    r = await fetch(`${BASE}/autonomous/start`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body: formData,
-    });
-  }
+  const r = await fetch(`${BASE}/autonomous/start`, { method: "POST", body: formData });
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
 export async function cancelAutonomous(taskId) {
-  if (!accessToken) await login();
-  await fetch(`${BASE}/autonomous/${taskId}/cancel`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  await fetch(`${BASE}/autonomous/${taskId}/cancel`, { method: "POST" });
 }
 
 export function streamAutonomous(taskId, onUpdate, onDone) {
-  const es = new EventSource(
-    `${BASE}/autonomous/${taskId}/stream?token=${accessToken}`
-  );
+  const es = new EventSource(`${BASE}/autonomous/${taskId}/stream`);
   es.addEventListener("update", (e) => {
     try { onUpdate(JSON.parse(e.data)); } catch {}
   });
@@ -321,48 +229,22 @@ export function streamAutonomous(taskId, onUpdate, onDone) {
   return es;
 }
 
-/**
- * Legacy: stream the full response as a single WAV.
- * Returns the raw Response so the caller can read body as a stream.
- */
 export async function ttsStream(text, signal) {
-  if (!accessToken) await login();
   const r = await fetch(`${BASE}/tts`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
     signal,
   });
-  if (r.status === 401) {
-    await refresh();
-    return ttsStream(text, signal);
-  }
   return r;
 }
 
-/**
- * Sentence-level TTS stream.
- * The backend sends one length-prefixed WAV blob per sentence:
- *   [4 bytes uint32 LE: blob length] [N bytes: complete WAV]
- * Returns the raw Response — caller reads with ttsReadSentences().
- */
 export async function ttsStreamSentences(text, signal) {
-  if (!accessToken) await login();
   const r = await fetch(`${BASE}/tts/sentences`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
     signal,
   });
-  if (r.status === 401) {
-    await refresh();
-    return ttsStreamSentences(text, signal);
-  }
   return r;
 }

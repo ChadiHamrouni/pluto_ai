@@ -8,6 +8,7 @@ All public functions are async and use aiosqlite via get_db_connection().
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from helpers.core.config_loader import load_config
@@ -43,7 +44,8 @@ async def session_exists(session_id: str) -> bool:
 
 
 async def get_history(session_id: str, max_turns: int) -> list[dict]:
-    """Return the last max_turns×2 messages for the session (oldest first)."""
+    """Return the last max_turns×2 messages for the session (oldest first).
+    Only role+content are needed for agent context — metadata is UI-only."""
     limit = max_turns * 2
     async with get_db_connection(_db_path()) as db:
         cur = await db.execute(
@@ -62,8 +64,14 @@ async def get_history(session_id: str, max_turns: int) -> list[dict]:
     return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 
-async def append_turn(session_id: str, user_content: str, assistant_content: str) -> None:
+async def append_turn(
+    session_id: str,
+    user_content: str,
+    assistant_content: str,
+    assistant_metadata: dict | None = None,
+) -> None:
     """Persist a completed user/assistant exchange."""
+    meta_json = json.dumps(assistant_metadata or {})
     async with get_db_connection(_db_path()) as db:
         # Auto-create session row if it somehow doesn't exist
         await db.execute(
@@ -71,12 +79,12 @@ async def append_turn(session_id: str, user_content: str, assistant_content: str
             (session_id, "New Chat"),
         )
         await db.execute(
-            "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
-            (session_id, "user", user_content),
+            "INSERT INTO conversations (session_id, role, content, metadata) VALUES (?, ?, ?, ?)",
+            (session_id, "user", user_content, "{}"),
         )
         await db.execute(
-            "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
-            (session_id, "assistant", assistant_content),
+            "INSERT INTO conversations (session_id, role, content, metadata) VALUES (?, ?, ?, ?)",
+            (session_id, "assistant", assistant_content, meta_json),
         )
         await db.commit()
 
@@ -107,15 +115,27 @@ async def list_sessions() -> list[dict]:
 async def get_session_messages(session_id: str) -> list[dict]:
     """Return the full conversation for a session, oldest first.
 
-    Each entry: {role, content}
+    Each entry: {role, content, ...metadata fields for assistant turns}
     """
     async with get_db_connection(_db_path()) as db:
         cur = await db.execute(
-            "SELECT role, content FROM conversations WHERE session_id = ? ORDER BY id ASC",
+            "SELECT role, content, metadata FROM conversations WHERE session_id = ? ORDER BY id ASC",
             (session_id,),
         )
         rows = await cur.fetchall()
-    return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+    result = []
+    for r in rows:
+        msg: dict = {"role": r["role"], "content": r["content"]}
+        if r["role"] == "assistant":
+            try:
+                meta = json.loads(r["metadata"] or "{}")
+            except Exception:
+                meta = {}
+            if meta:
+                msg.update(meta)
+        result.append(msg)
+    return result
 
 
 async def delete_session(session_id: str) -> None:

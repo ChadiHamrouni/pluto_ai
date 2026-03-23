@@ -80,6 +80,7 @@ export default function App() {
     selectSession,
     newChat,
     loadSessions,
+    deleteSession,
   } = useSessions();
 
   const activeSession   = sessions.find(s => s.id === activeId) ?? null;
@@ -205,6 +206,10 @@ export default function App() {
     await newChat();
   }
 
+  async function handleDeleteSession(id) {
+    await deleteSession(id, activeId, handleNewChat);
+  }
+
   function sendCurrentMessage() {
     if (messagesLoading) return;
     handleSend({
@@ -249,6 +254,7 @@ export default function App() {
           onToggle={() => setSidebarOpen(p => !p)}
           onNewChat={handleNewChat}
           onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
         />
 
         <div className="chat-wrap">

@@ -12,7 +12,6 @@ from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
 from helpers.core.exceptions import JarvisError
 from helpers.core.logger import get_logger
-from routes.auth import router as auth_router
 from routes.autonomous import router as autonomous_router
 from routes.chat import router as chat_router
 from routes.files import router as files_router
@@ -71,15 +70,6 @@ _TAGS_METADATA = [
             "real-time Server-Sent Events (SSE) token streaming. "
             "Attach images, PDFs, or text files to any non-streaming request. "
             "Pass a `session_id` (from `POST /chat/session`) to maintain conversation history."
-        ),
-    },
-    {
-        "name": "auth",
-        "description": (
-            "JWT authentication. Login to receive an access token (15 min)"
-            " and refresh token (7 days). "
-            "Pass the access token as `Authorization: Bearer <token>`"
-            " on all protected endpoints."
         ),
     },
     {
@@ -152,7 +142,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(autonomous_router)
     app.include_router(settings_router)

@@ -34,7 +34,10 @@ def get_notes_agent() -> Agent:
         model=get_model(notes_cfg["model"]),
         instructions=load_instructions("notes_agent"),
         tools=[create_note, list_notes, get_note],
-        model_settings=ModelSettings(tool_choice="required"),
+        model_settings=ModelSettings(
+            temperature=notes_cfg.get("temperature", 0.5),
+            tool_choice=notes_cfg.get("tool_choice", "required"),
+        ),
     )
 
     return _notes_agent

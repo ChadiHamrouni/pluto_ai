@@ -11,12 +11,11 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Form, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from helpers.agents.autonomous_loop import create_loop, get_loop, remove_loop
 from helpers.core.logger import get_logger
-from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
@@ -43,7 +42,6 @@ def _make_event_callback(task_id: str):
 @router.post("/start")
 async def start_autonomous(
     task: str = Form(...),
-    _user: dict = Depends(get_current_user),
 ):
     """Start an autonomous plan-and-execute task. Returns the task_id."""
     if not task.strip():
@@ -77,7 +75,6 @@ async def start_autonomous(
 @router.post("/{task_id}/cancel")
 async def cancel_autonomous(
     task_id: str,
-    _user: dict = Depends(get_current_user),
 ):
     """Cancel a running autonomous task."""
     loop = get_loop(task_id)
@@ -90,7 +87,6 @@ async def cancel_autonomous(
 @router.get("/{task_id}/status")
 async def get_autonomous_status(
     task_id: str,
-    _user: dict = Depends(get_current_user),
 ):
     """Return the current plan state."""
     loop = get_loop(task_id)
@@ -102,7 +98,6 @@ async def get_autonomous_status(
 @router.get("/{task_id}/stream")
 async def stream_autonomous(
     task_id: str,
-    _user: dict = Depends(get_current_user),
 ):
     """SSE stream of real-time autonomous task events."""
     q = _sse_queues.get(task_id)

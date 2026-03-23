@@ -1,3 +1,5 @@
+import "./ChatArea.css";
+
 /**
  * ChatArea — the scrollable message list.
  *
@@ -22,14 +24,13 @@
  *  - onExitVoice     ()=>void
  */
 
-import StatusLabel from "./StatusLabel";
-import ChatBubble from "./ChatBubble";
+import StatusLabel from "../StatusLabel";
+import ChatBubble from "../ChatBubble";
 import PlanTracker from "../PlanTracker";
-import VoiceOverlay from "./VoiceOverlay";
+import VoiceOverlay from "../VoiceOverlay";
 
 const THINKING_WORDS = [
-  "Echkher ya talyena...", "Onfokh el zokra...",
-  "Chil aayounak aani", "يا قمر الليل", "ليلة و المزود خدام",
+    "يا قمر الليل", "ليلة و المزود خدام",
   "ام الشعور السود", "نمدح الأقطاب ", "يامه الأسمر دوني",
 ];
 
@@ -89,7 +90,7 @@ export default function ChatArea({
       {thinking && (
         <div className="bubble-row assistant">
           <div className="bubble">
-            <span className="bubble-label">Jarvis</span>
+            <span className="bubble-label">Pluto</span>
             <StatusLabel
               words={
                 currentPlan

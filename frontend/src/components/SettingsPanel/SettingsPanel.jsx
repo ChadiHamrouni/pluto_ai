@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getModels, getAgentSettings, saveAgentSettings } from "../api";
+import { getModels, getAgentSettings, saveAgentSettings } from "../../api";
+import "./SettingsPanel.css";
 
 const AGENTS = [
   { key: "orchestrator", label: "Main agent" },

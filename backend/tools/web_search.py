@@ -13,16 +13,14 @@ logger = get_logger(__name__)
 
 @function_tool
 async def web_search(query: str, max_results: int = 3) -> str:
-    """Search the web for up-to-date information and return extracted page content.
-
-    Searches DuckDuckGo for the query, fetches the top pages, and returns
-    their extracted text concatenated together. Use this for any question
-    that requires current information, definitions, or explanations you
-    don't have in your training data.
+    """Search the web and return extracted page content.
 
     Args:
-        query: The search query.
+        query: The search query — be specific, include location/date when relevant.
         max_results: Number of pages to fetch and extract (default 3).
+
+    Returns:
+        Concatenated page text from top results with a SOURCES block at the end.
     """
     try:
         results = DDGS().text(query, max_results=max_results)
@@ -42,15 +40,17 @@ async def web_search(query: str, max_results: int = 3) -> str:
         snippet = r.get("body", "")
 
         page_text = await _fetch_text(url)
-        content = page_text if page_text else snippet
+        # Always keep the snippet — DDGS often extracts the direct answer
+        # (e.g. current temperature, definition). Append page text if we got it.
+        content = snippet
+        if page_text and len(page_text) > len(snippet):
+            content = f"{snippet}\n\n{page_text}"
 
         sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
         source_lines.append(f"- [{title}]({url})")
 
     body = "\n\n---\n\n".join(sections)
-    sources_block = "\n\nSOURCES (include ALL of these verbatim in your response):\n" + "\n".join(
-        source_lines
-    )
+    sources_block = "\n\nSources:\n" + "\n".join(source_lines)
     return body + sources_block
 
 
@@ -65,6 +65,6 @@ async def _fetch_text(url: str) -> str:
             response.raise_for_status()
         text = re.sub(r"<[^>]+>", " ", response.text)
         text = re.sub(r"\s+", " ", text).strip()
-        return text[:1000]
+        return text[:3000]
     except Exception:
         return ""

@@ -5,13 +5,12 @@ import os
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from helpers.agents.ollama_client import get_ollama_base_url
 from helpers.core.config_loader import load_config, reload_config
 from helpers.core.logger import get_logger
-from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -33,7 +32,7 @@ class AgentModels(BaseModel):
 
 
 @router.get("/models")
-async def list_models(_user: dict = Depends(get_current_user)):
+async def list_models():
     """Return model names currently pulled in the user's local Ollama."""
     base_url = get_ollama_base_url()
     try:
@@ -50,7 +49,7 @@ async def list_models(_user: dict = Depends(get_current_user)):
 
 
 @router.get("/agents")
-async def get_agent_models(_user: dict = Depends(get_current_user)):
+async def get_agent_models():
     """Return the currently configured model for each agent."""
     cfg = load_config()
     return {key: cfg.get(key, {}).get("model", "") for key in _AGENT_KEYS}
@@ -59,7 +58,6 @@ async def get_agent_models(_user: dict = Depends(get_current_user)):
 @router.post("/agents")
 async def set_agent_models(
     body: AgentModels,
-    _user: dict = Depends(get_current_user),
 ):
     """Persist model choices per agent into config.json."""
     # Locate config.json — same resolution as config_loader

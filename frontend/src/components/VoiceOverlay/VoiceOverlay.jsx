@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import "./VoiceOverlay.css";
 
 const STATE_WORDS = {
   idle:       ["Listening…", "Ready", "Waiting…"],

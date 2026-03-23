@@ -1,0 +1,82 @@
+/* ── Voice mode overlay ── */
+.voice-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+
+/* Stars field — fixed size box centered */
+.voice-stars-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-stars-field {
+  position: absolute;
+  inset: 0;
+}
+
+.voice-star {
+  position: absolute;
+  animation: voice-star-burst 0.9s ease-out forwards;
+  filter: drop-shadow(0 0 5px var(--neon));
+}
+
+@keyframes voice-star-burst {
+  0%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  35%  { opacity: 1; transform: scale(1.2) rotate(15deg); }
+  100% { opacity: 0; transform: scale(0.5) rotate(40deg); }
+}
+
+/* State label */
+.voice-overlay-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--neon);
+  text-shadow: 0 0 8px rgba(0, 200, 255, 0.5);
+  text-transform: uppercase;
+}
+
+/* Transcript of last spoken input */
+.voice-transcript {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-style: italic;
+  max-width: 320px;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* Exit button */
+.voice-exit {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.2s;
+}
+
+.voice-exit:hover {
+  color: var(--text);
+}

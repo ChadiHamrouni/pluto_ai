@@ -122,7 +122,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
           }
           appendDelta(currentSessionId, delta);
         },
-        onDone: ({ response, tools_used, agents_trace, file_url }) => {
+        onDone: ({ response, tools_used, agents_trace, file_url, tokens_per_second }) => {
           if (!placeholderAdded) {
             appendMessage(currentSessionId, {
               role: "assistant",
@@ -130,6 +130,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
               tools_used,
               agents_trace,
               file_url,
+              tokens_per_second,
             });
           } else {
             finalizeLastMessage(currentSessionId, {
@@ -137,6 +138,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
               tools_used,
               agents_trace,
               file_url,
+              tokens_per_second,
             });
           }
           onReply?.(response);

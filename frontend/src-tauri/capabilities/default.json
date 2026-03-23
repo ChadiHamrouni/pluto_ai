@@ -20,6 +20,7 @@
     "global-shortcut:allow-is-registered",
     "core:window:allow-set-size",
     "core:window:allow-toggle-maximize",
-    "core:window:allow-is-maximized"
+    "core:window:allow-is-maximized",
+    "opener:allow-open-url"
   ]
 }

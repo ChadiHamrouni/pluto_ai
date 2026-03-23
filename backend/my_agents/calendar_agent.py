@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents import Agent
+from agents import Agent, ModelSettings
 
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
@@ -28,6 +28,10 @@ def get_calendar_agent() -> Agent:
         model=get_model(cfg["model"]),
         instructions=load_instructions("calendar_agent"),
         tools=[schedule_event, list_events, upcoming_events, cancel_event],
+        model_settings=ModelSettings(
+            temperature=cfg.get("temperature", 0.0),
+            tool_choice=cfg.get("tool_choice", "required"),
+        ),
     )
 
     return _calendar_agent

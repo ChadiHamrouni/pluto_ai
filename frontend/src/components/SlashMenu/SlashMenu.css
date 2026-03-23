@@ -1,0 +1,44 @@
+/* ── Slash command menu ── */
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--neon-border);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 50;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.slash-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 9px 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.slash-item:hover,
+.slash-item--active {
+  background: var(--neon-dim);
+}
+
+.slash-cmd {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neon);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.slash-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+}

@@ -49,7 +49,7 @@ def get_executor_agent() -> Agent:
     global _executor
     if _executor is None:
         cfg = load_config()
-        model_name = cfg.get("autonomous", {}).get("model", cfg["orchestrator"]["model"])
+        model_name = cfg.get("autonomous", {}).get("executor_model", cfg["orchestrator"]["model"])
         _executor = Agent(
             name="Executor",
             model=get_model(model_name),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agents import Agent
+from agents import Agent, ModelSettings
 
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
@@ -34,6 +34,10 @@ def get_slides_agent() -> Agent:
         model=get_model(slides_cfg["model"]),
         instructions=load_instructions("slides_agent"),
         tools=[web_search, draft_slides, render_slides],
+        model_settings=ModelSettings(
+            temperature=slides_cfg.get("temperature", 0.0),
+            tool_choice=slides_cfg.get("tool_choice", "required"),
+        ),
     )
 
     return _slides_agent

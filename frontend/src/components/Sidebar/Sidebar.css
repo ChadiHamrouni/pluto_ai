@@ -1,0 +1,157 @@
+/* ── Sidebar ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-right: 1px solid var(--sep);
+  flex-shrink: 0;
+  transition: width 0.18s ease;
+  overflow: hidden;
+  width: 200px;
+}
+
+.sidebar--closed { width: 0; border-right: none; }
+
+/* Floating arrow tab — always centered on the left edge */
+.sidebar-toggle-tab {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  z-index: 50;
+  background: var(--panel);
+  border: 1px solid var(--sep);
+  border-left: none;
+  border-radius: 0 5px 5px 0;
+  padding: 8px 5px;
+  cursor: pointer;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  transition: color 0.15s, background 0.15s;
+}
+.sidebar-toggle-tab:hover { color: var(--neon); background: var(--neon-dim); }
+/* When sidebar is open, tab sits flush at the sidebar's right edge */
+.sidebar-toggle-tab--open { left: 200px; }
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-toggle:hover { color: var(--text); background: var(--neon-dim); }
+
+.new-chat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--neon-dim);
+  border: 1px solid var(--neon-border);
+  border-radius: 5px;
+  color: var(--neon);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 1;
+  -webkit-app-region: no-drag;
+}
+
+.new-chat-btn:hover { background: rgba(0,200,255,0.14); }
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 5px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.session-item:hover { background: var(--panel-light); color: var(--text); }
+
+.session-item--active {
+  background: var(--neon-dim);
+  color: var(--neon);
+  border: 1px solid var(--neon-border);
+}
+
+.session-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.session-delete-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+.session-item:hover .session-delete-btn {
+  display: flex;
+}
+
+.session-delete-btn:hover {
+  color: #ff5555;
+  background: rgba(255, 85, 85, 0.1);
+  opacity: 1;
+}
+
+.session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}

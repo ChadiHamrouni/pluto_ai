@@ -1,16 +1,9 @@
-const COMMANDS = [
-  { cmd: "/note",     desc: "Create or manage notes" },
-  { cmd: "/slides",   desc: "Generate a slide presentation" },
-  { cmd: "/remember", desc: "Save something to memory" },
-  { cmd: "/forget",   desc: "Delete a memory" },
-];
+import "./SlashMenu.css";
 
-export { COMMANDS };
-
-export default function SlashMenu({ query, activeIndex, onSelect }) {
+export default function SlashMenu({ commands = [], query, activeIndex, onSelect }) {
   const filtered = query === "/"
-    ? COMMANDS
-    : COMMANDS.filter((c) => c.cmd.startsWith(query));
+    ? commands
+    : commands.filter((c) => c.cmd.startsWith(query));
 
   if (!filtered.length) return null;
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -19,10 +21,26 @@ logger = get_logger(__name__)
 _AGENT_TIMEOUT = 120  # seconds
 
 
+def _unwrap_handle_turn(text: str) -> str:
+    """Some open-source models emit handle_turn as text JSON instead of a native
+    function call.  Extract the inner text so the user never sees raw JSON."""
+    t = text.strip()
+    if not t.startswith("{"):
+        return text
+    try:
+        obj = json.loads(t)
+        if obj.get("name") == "handle_turn":
+            return obj.get("parameters", {}).get("text", text)
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return text
+
+
 async def run_agent(
     agent: Agent,
     messages: list[dict],
     memory_context: str = "",
+    max_turns: int = 10,
 ) -> AgentRunResult:
     """
     Run an agent turn using the OpenAI Agents SDK Runner.
@@ -82,6 +100,7 @@ async def run_agent(
             starting_agent=run_agent_instance,
             input=input_items,
             run_config=run_config,
+            max_turns=max_turns,
         )
     except Exception as exc:
         logger.exception("Runner.run failed for agent '%s': %s", agent.name, exc)
@@ -112,6 +131,7 @@ async def run_agent(
         agents_seen = [agent.name]
 
     response = result.final_output or ""
+    response = _unwrap_handle_turn(response)
 
     # If the final agent called a tool and returned no text, fall back to the
     # last tool output as the response (e.g. generate_slides returns a file path).
@@ -138,6 +158,7 @@ async def run_agent_streamed(
     agent: Agent,
     messages: list[dict],
     memory_context: str = "",
+    max_turns: int = 10,
 ) -> AsyncIterator[dict[str, Any]]:
     """
     Run an agent turn in streaming mode, yielding SSE-compatible event dicts.
@@ -177,6 +198,7 @@ async def run_agent_streamed(
             starting_agent=run_agent_instance,
             input=input_items,
             run_config=run_config,
+            max_turns=max_turns,
         )
 
         async for event in result.stream_events():
@@ -187,7 +209,17 @@ async def run_agent_streamed(
                     delta = getattr(event.data, "delta", "")
                     if delta:
                         full_response += delta
-                        yield {"event": "token", "data": {"delta": delta}}
+                        # Don't stream tokens that look like a handle_turn JSON blob —
+                        # we'll emit the unwrapped text in the done event instead.
+                        if not full_response.lstrip().startswith("{"):
+                            yield {"event": "token", "data": {"delta": delta}}
+                elif raw_type == "response.output_text.done":
+                    # Output text finished — if it turned out to be a handle_turn
+                    # blob, emit the unwrapped text now as a single token.
+                    unwrapped = _unwrap_handle_turn(full_response)
+                    if unwrapped != full_response:
+                        full_response = unwrapped
+                        yield {"event": "token", "data": {"delta": full_response}}
 
             # Agent handoffs and tool calls
             elif isinstance(event, RunItemStreamEvent):
@@ -225,7 +257,7 @@ async def run_agent_streamed(
         if not full_response:
             final = getattr(result, "final_output", None)
             if final:
-                full_response = str(final)
+                full_response = _unwrap_handle_turn(str(final))
                 yield {"event": "token", "data": {"delta": full_response}}
 
             # Fallback: last tool output

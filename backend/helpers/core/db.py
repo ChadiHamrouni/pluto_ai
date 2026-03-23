@@ -65,8 +65,14 @@ CREATE TABLE IF NOT EXISTS conversations (
     session_id  TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     role        TEXT    NOT NULL,
     content     TEXT    NOT NULL,
+    metadata    TEXT    NOT NULL DEFAULT '{}',
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+"""
+
+# Migration: add metadata column to existing databases that predate it
+MIGRATE_CONVERSATIONS_METADATA = """
+ALTER TABLE conversations ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
 """
 
 CREATE_CONVERSATIONS_IDX = """
@@ -114,6 +120,12 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_CONVERSATIONS_IDX)
         await db.execute(CREATE_EVENTS_TABLE)
         await db.execute(CREATE_EVENTS_IDX)
+
+        # Migrate: add metadata column if it doesn't exist yet
+        try:
+            await db.execute(MIGRATE_CONVERSATIONS_METADATA)
+        except Exception:
+            pass  # column already exists — safe to ignore
 
         await db.commit()
 

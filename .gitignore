@@ -73,11 +73,13 @@ htmlcov/
 .ipynb_checkpoints/
 
 # ── Dev and internal docs ─────────────────────────────────────────────────────
-dev.py
 requirements.md
 docker.md
 CLAUDE.md
 backend/CLAUDE.md
+
+# ── Local dev scripts (machine-specific, never push) ─────────────────────────
+tests/local/
 
 # ── Claude Code internal files ────────────────────────────────────────────────
 .claude/

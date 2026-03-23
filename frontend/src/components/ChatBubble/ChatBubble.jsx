@@ -1,3 +1,18 @@
+import "./ChatBubble.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { openUrl } from "@tauri-apps/plugin-opener";
+
+function ExternalLink({ href, children }) {
+  const handleClick = (e) => {
+    e.preventDefault();
+    if (href) openUrl(href);
+  };
+  return <a href={href} onClick={handleClick}>{children}</a>;
+}
+
+const MD_COMPONENTS = { a: ExternalLink };
+
 /**
  * ChatBubble — renders a single chat message (user or assistant).
  *
@@ -10,7 +25,7 @@ export default function ChatBubble({ message: m, onDownload }) {
   return (
     <div className={`bubble-row ${m.role}`}>
       <div className="bubble">
-        {m.role === "assistant" && <span className="bubble-label">Jarvis</span>}
+        {m.role === "assistant" && <span className="bubble-label">Pluto</span>}
 
         {m.previews?.map((p, j) => (
           <img key={j} src={p} alt="attachment" className="bubble-img" />
@@ -25,7 +40,15 @@ export default function ChatBubble({ message: m, onDownload }) {
           </div>
         ))}
 
-        {m.content !== "(image)" && <p className="bubble-text">{m.content}</p>}
+        {m.content !== "(image)" && (
+          m.role === "assistant" ? (
+            <div className="bubble-text bubble-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{m.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="bubble-text">{m.content}</p>
+          )
+        )}
 
         {m.role === "assistant" && m.file_url && (
           <button className="file-download" onClick={() => onDownload(m.file_url)}>
@@ -41,7 +64,7 @@ export default function ChatBubble({ message: m, onDownload }) {
           </button>
         )}
 
-        {m.role === "assistant" && (m.agents_trace?.length > 0 || m.tools_used?.length > 0) && (
+        {m.role === "assistant" && (m.agents_trace?.length > 0 || m.tools_used?.length > 0 || m.tokens_per_second) && (
           <div className="agent-flow">
             {m.agents_trace?.map((name, idx) => (
               <span key={idx} className="agent-flow-item">
@@ -54,6 +77,9 @@ export default function ChatBubble({ message: m, onDownload }) {
               .map(t => (
                 <span key={t} className="tool-badge">{t}</span>
               ))}
+            {m.tokens_per_second && (
+              <span className="tok-speed">{m.tokens_per_second} tok/s</span>
+            )}
           </div>
         )}
       </div>

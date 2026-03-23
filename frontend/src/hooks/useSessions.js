@@ -14,6 +14,7 @@ import {
   setActiveSession,
   getSessions,
   getSessionMessages,
+  deleteSession as apiDeleteSession,
 } from "../api";
 
 let _sessionCounter = 0;
@@ -102,6 +103,35 @@ export function useSessions() {
     }
   }, []);
 
+  // ── Delete a session ─────────────────────────────────────────────────────
+
+  const deleteSession = useCallback(async (id, currentActiveId, onNewChat) => {
+    try {
+      await apiDeleteSession(id);
+    } catch (e) {
+      console.error("Failed to delete session:", e);
+      return;
+    }
+    setSessions(prev => {
+      const remaining = prev.filter(s => s.id !== id);
+      return remaining;
+    });
+    // If we deleted the active session, switch to another or create a new one
+    if (id === currentActiveId) {
+      setSessions(prev => {
+        const remaining = prev.filter(s => s.id !== id);
+        if (remaining.length > 0) {
+          const next = remaining[0];
+          setActiveId(next.id);
+          setActiveSession(next.id);
+        } else {
+          onNewChat?.();
+        }
+        return remaining;
+      });
+    }
+  }, []);
+
   // ── Load persisted sessions on mount ─────────────────────────────────────
 
   const loadSessions = useCallback(async () => {
@@ -141,5 +171,6 @@ export function useSessions() {
     selectSession,
     newChat,
     loadSessions,
+    deleteSession,
   };
 }

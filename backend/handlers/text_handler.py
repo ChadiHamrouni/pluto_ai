@@ -9,14 +9,13 @@ from typing import Any
 from helpers.agents.command_parser import parse_command
 from helpers.agents.compactor import compact_history
 from helpers.agents.ollama_client import get_openai_client
-from helpers.agents.prompt_utils import format_chat_history, format_memory_context
+from helpers.agents.prompt_utils import format_chat_history
 from helpers.agents.runner import run_agent, run_agent_streamed
 from helpers.agents.token_counter import needs_compaction
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.calendar import get_db_path as get_cal_db_path
 from helpers.tools.calendar import upcoming_events
-from helpers.tools.memory import get_db_path, search_memories
 from models.results import HandlerResult
 from my_agents.calendar_agent import get_calendar_agent
 from my_agents.notes_agent import get_notes_agent
@@ -48,6 +47,11 @@ _COMMAND_AGENTS = {
     "slides": get_slides_agent,
     "research": get_research_agent,
     "calendar": get_calendar_agent,
+    # memory/forget: still handled by orchestrator (it calls store_memory /
+    # forget_memory tools), but they are recognised intents — the content
+    # reaching the orchestrator has the slash token stripped.
+    "memory": get_orchestrator,
+    "forget": get_orchestrator,
 }
 
 
@@ -68,24 +72,17 @@ async def text_handler(
         agent = get_orchestrator()
         content = message
 
-    top_k = load_config().get("memory", {}).get("search_top_k", 10)
-    try:
-        memory_entries = search_memories(get_db_path(), query=content or message, top_k=top_k)
-    except Exception as exc:
-        logger.warning("Memory search skipped: %s", exc)
-        memory_entries = []
-
     window = load_config().get("orchestrator", {}).get("history_window", 20)
     windowed_history = history[-(window * 2) :]
     if len(history) > len(windowed_history):
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
-    memory_context = format_memory_context(memory_entries)
+    memory_context = ""
     if parsed.intent is None:
         # Orchestrator path — inject proactive calendar context
         cal_ctx = _calendar_context()
         if cal_ctx:
-            memory_context = f"{memory_context}\n\n{cal_ctx}".strip()
+            memory_context = cal_ctx
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
@@ -107,7 +104,8 @@ async def text_handler(
         model = config.get("orchestrator", {}).get("model", "qwen2.5:3b")
         messages = await compact_history(messages, get_openai_client(), model)
 
-    result = await run_agent(agent, messages, memory_context=memory_context)
+    result = await run_agent(agent, messages, memory_context=memory_context,
+                              max_turns=15 if agent.name == "ResearchAgent" else 10)
     return HandlerResult(
         response=result.response,
         elapsed=time.perf_counter() - t0,
@@ -132,21 +130,14 @@ async def text_handler_streamed(
         agent = get_orchestrator()
         content = message
 
-    top_k = load_config().get("memory", {}).get("search_top_k", 10)
-    try:
-        memory_entries = search_memories(get_db_path(), query=content or message, top_k=top_k)
-    except Exception as exc:
-        logger.warning("Memory search skipped: %s", exc)
-        memory_entries = []
-
     window = load_config().get("orchestrator", {}).get("history_window", 20)
     windowed_history = history[-(window * 2) :]
 
-    memory_context = format_memory_context(memory_entries)
+    memory_context = ""
     if parsed.intent is None:
         cal_ctx = _calendar_context()
         if cal_ctx:
-            memory_context = f"{memory_context}\n\n{cal_ctx}".strip()
+            memory_context = cal_ctx
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
@@ -167,5 +158,6 @@ async def text_handler_streamed(
         model = config.get("orchestrator", {}).get("model", "qwen2.5:3b")
         messages = await compact_history(messages, get_openai_client(), model)
 
-    async for event in run_agent_streamed(agent, messages, memory_context=memory_context):
+    max_turns = 15 if agent.name == "ResearchAgent" else 10
+    async for event in run_agent_streamed(agent, messages, memory_context=memory_context, max_turns=max_turns):
         yield event

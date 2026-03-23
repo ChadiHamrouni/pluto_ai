@@ -5,9 +5,6 @@ _config = None
 
 # Environment variable overrides for secrets (never commit these to config.json)
 _ENV_OVERRIDES = {
-    ("auth", "secret_key"): "AUTH_SECRET_KEY",
-    ("auth", "password_hash"): "AUTH_PASSWORD_HASH",
-    ("auth", "username"): "AUTH_USERNAME",
     ("ollama", "base_url"): "OLLAMA_BASE_URL",
 }
 
