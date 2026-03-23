@@ -105,7 +105,7 @@ async def text_handler(
         messages = await compact_history(messages, get_openai_client(), model)
 
     result = await run_agent(agent, messages, memory_context=memory_context,
-                              max_turns=15 if agent.name == "ResearchAgent" else 10)
+                             max_turns=15 if agent.name == "ResearchAgent" else 10)
     return HandlerResult(
         response=result.response,
         elapsed=time.perf_counter() - t0,

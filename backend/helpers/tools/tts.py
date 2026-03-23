@@ -68,8 +68,6 @@ def _load_model():
 
     logger.info("Loading TTS model '%s' ...", model_name)
 
-    import torch
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 

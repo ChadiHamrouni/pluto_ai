@@ -45,5 +45,3 @@ async def fetch_page(url: str) -> str:
     except Exception as exc:
         logger.warning("fetch_page failed for %s: %s", url, exc)
         return f"Failed to fetch page: {exc}"
-
-

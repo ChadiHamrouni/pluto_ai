@@ -19,6 +19,7 @@ _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 _PDF_EXTS = {".pdf"}
 _TEXT_EXTS = {".txt", ".md"}
 
+
 def _page_needs_vision(page: fitz.Page) -> bool:
     """Return True if this page should be processed with GLM-OCR instead of PyMuPDF."""
     if not page.get_text("text").strip():
