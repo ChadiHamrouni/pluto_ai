@@ -104,11 +104,11 @@ def test_command_agents_covers_all_known_intents():
         if mod_name not in sys.modules:
             sys.modules[mod_name] = MagicMock()
 
-    from helpers.agents.command_parser import _COMMANDS
+    from helpers.agents.command_parser import _ALIAS_TO_INTENT
 
     # Inline the expected dispatch table rather than importing text_handler
     # (which pulls in the full agent stack) — tests the contract, not the import.
-    routable_intents = {v for v in _COMMANDS.values() if v not in ("memory", "forget")}
+    routable_intents = {v for v in _ALIAS_TO_INTENT.values() if v not in ("memory", "forget")}
     known_command_agents = {"note", "slides", "research", "calendar"}
 
     missing = routable_intents - known_command_agents

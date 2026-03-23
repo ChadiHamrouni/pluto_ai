@@ -97,8 +97,6 @@ def test_chat_returns_200_with_response(client, tmp_db):
     sdk_result = _sdk_result("I'm Jarvis, here to help!")
     with (
         patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler.search_memories", return_value=[]),
-        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
         patch("handlers.text_handler._calendar_context", return_value=""),
     ):
         resp = client.post("/chat", data={"message": "Hello!"})
@@ -114,8 +112,6 @@ def test_chat_empty_message_ok(client, tmp_db):
     sdk_result = _sdk_result("")
     with (
         patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler.search_memories", return_value=[]),
-        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
         patch("handlers.text_handler._calendar_context", return_value=""),
     ):
         resp = client.post("/chat", data={"message": ""})
@@ -146,8 +142,6 @@ def test_chat_session_create_and_use(client, tmp_db):
     sdk_result = _sdk_result("Session reply.")
     with (
         patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler.search_memories", return_value=[]),
-        patch("handlers.text_handler.get_db_path", return_value=tmp_db),
         patch("handlers.text_handler._calendar_context", return_value=""),
         patch("helpers.agents.session_store._db_path", return_value=tmp_db),
     ):
