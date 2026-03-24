@@ -36,8 +36,8 @@ def _sdk_result(text: str = "I am Jarvis.", tools: list[str] | None = None) -> M
 async def test_text_handler_returns_handler_result(tmp_db):
     sdk_result = _sdk_result("Hello!")
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         from handlers.text_handler import text_handler
         result = await text_handler("hello", history=[])
@@ -55,8 +55,8 @@ async def test_text_handler_slash_note_routes_to_notes_agent(tmp_db):
     sdk_result = _sdk_result("Note created.")
 
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         from handlers.text_handler import text_handler
         await text_handler("/note Save my idea about AI agents", history=[])
@@ -75,8 +75,8 @@ async def test_text_handler_slash_slides_routes_to_slides_agent(tmp_db):
     sdk_result = _sdk_result("Slides generated.")
 
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         from handlers.text_handler import text_handler
         await text_handler("/slides Make a deck about Python", history=[])
@@ -100,8 +100,8 @@ async def test_text_handler_passes_history(tmp_db):
     ]
 
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)) as mock_run,
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         from handlers.text_handler import text_handler
         await text_handler("follow up", history=history)
@@ -119,8 +119,8 @@ async def test_text_handler_passes_history(tmp_db):
 async def test_text_handler_empty_message(tmp_db):
     sdk_result = _sdk_result("")
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         from handlers.text_handler import text_handler
         result = await text_handler("", history=[])

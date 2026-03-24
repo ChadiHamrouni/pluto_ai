@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 # Stub out heavy optional dependencies so the full import chain resolves
 # without needing GPU/colpali/torch installed in the test environment.
-for _mod in ("colpali_engine", "torch", "PIL", "pdf2image", "ddgs", "fitz", "numpy", "sounddevice", "soundfile"):
+for _mod in ("colpali_engine", "torch", "PIL", "pdf2image", "ddgs", "fitz", "numpy", "numpy.typing", "sounddevice", "soundfile"):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
 
@@ -28,18 +28,8 @@ for _mod in ("colpali_engine", "torch", "PIL", "pdf2image", "ddgs", "fitz", "num
 _embedder_stub = types.ModuleType("helpers.tools.embedder")
 _embedder_stub.load_model = lambda: None
 _embedder_stub.is_ready = lambda: True
+_embedder_stub.embed_text = MagicMock(return_value=[0.0])
 sys.modules["helpers.tools.embedder"] = _embedder_stub
-
-# Stub tools.slides_tools.generate_slides — that symbol was removed when
-# slides was refactored into draft_slides + render_slides, but executor_agent.py
-# still imports it. Patch the module before executor_agent is imported.
-import importlib
-try:
-    _slides_tools = importlib.import_module("tools.slides_tools")
-except Exception:
-    _slides_tools = None
-if _slides_tools and not hasattr(_slides_tools, "generate_slides"):
-    _slides_tools.generate_slides = MagicMock()
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +75,7 @@ def client(tmp_db, auth_override):
         app = create_app()
         dep_key, dep_val = auth_override
         app.dependency_overrides[dep_key] = dep_val
-        with TestClient(app, raise_server_exceptions=True) as c:
+        with TestClient(app, raise_server_exceptions=True, headers={"X-Requested-With": "XMLHttpRequest"}) as c:
             yield c
 
 
@@ -96,8 +86,8 @@ def client(tmp_db, auth_override):
 def test_chat_returns_200_with_response(client, tmp_db):
     sdk_result = _sdk_result("I'm Jarvis, here to help!")
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         resp = client.post("/chat", data={"message": "Hello!"})
 
@@ -111,8 +101,8 @@ def test_chat_returns_200_with_response(client, tmp_db):
 def test_chat_empty_message_ok(client, tmp_db):
     sdk_result = _sdk_result("")
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler._calendar_context", return_value=""),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
     ):
         resp = client.post("/chat", data={"message": ""})
 
@@ -132,7 +122,7 @@ def test_chat_session_create_and_use(client, tmp_db):
     """Create a session, send a message with it, verify session persists."""
     # Create session
     with (
-        patch("helpers.agents.session_store._db_path", return_value=tmp_db),
+        patch("helpers.agents.session.session_store._db_path", return_value=tmp_db),
     ):
         sess_resp = client.post("/chat/session")
     assert sess_resp.status_code == 200
@@ -141,9 +131,9 @@ def test_chat_session_create_and_use(client, tmp_db):
 
     sdk_result = _sdk_result("Session reply.")
     with (
-        patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
-        patch("handlers.text_handler._calendar_context", return_value=""),
-        patch("helpers.agents.session_store._db_path", return_value=tmp_db),
+        patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
+        patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
+        patch("helpers.agents.session.session_store._db_path", return_value=tmp_db),
     ):
         chat_resp = client.post(
             "/chat",

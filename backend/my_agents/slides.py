@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-from tools.slides_tools import draft_slides, render_slides
+from tools.slides import draft_slides, render_slides
 
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model

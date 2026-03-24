@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # ---------------------------------------------------------------------------
 
 def test_estimate_tokens_basic():
-    from helpers.agents.token_counter import estimate_tokens
+    from helpers.agents.session.token_counter import estimate_tokens
     assert estimate_tokens("hello") > 0
     assert estimate_tokens("") == 0
     # rough check: ~1 token per 4 chars
@@ -23,7 +23,7 @@ def test_estimate_tokens_basic():
 
 
 def test_needs_compaction_false_for_short_history():
-    from helpers.agents.token_counter import needs_compaction
+    from helpers.agents.session.token_counter import needs_compaction
     messages = [
         {"role": "system", "content": "You are helpful."},
         {"role": "user", "content": "hi"},
@@ -33,7 +33,7 @@ def test_needs_compaction_false_for_short_history():
 
 
 def test_needs_compaction_true_for_long_history():
-    from helpers.agents.token_counter import needs_compaction, MODEL_CONTEXT_WINDOW
+    from helpers.agents.session.token_counter import needs_compaction, MODEL_CONTEXT_WINDOW
     # Fill past the 75% threshold
     long_content = "x" * int(MODEL_CONTEXT_WINDOW * 4 * 0.8)
     messages = [
@@ -62,7 +62,7 @@ def _make_response(content: str) -> MagicMock:
 @pytest.mark.asyncio
 async def test_compact_history_noop_when_short():
     """compact_history returns messages unchanged when under threshold."""
-    from helpers.agents.compactor import compact_history
+    from helpers.agents.session.compactor import compact_history
 
     mock_client = MagicMock()
     messages = [
@@ -78,8 +78,8 @@ async def test_compact_history_noop_when_short():
 @pytest.mark.asyncio
 async def test_compact_history_summarises_old_messages(mock_ollama_client):
     """When over threshold, old messages are replaced with a summary."""
-    from helpers.agents.compactor import compact_history
-    from helpers.agents.token_counter import MODEL_CONTEXT_WINDOW
+    from helpers.agents.session.compactor import compact_history
+    from helpers.agents.session.token_counter import MODEL_CONTEXT_WINDOW
 
     mock_ollama_client.chat.completions.create = AsyncMock(
         return_value=_make_response("Summary: user discussed Python and AI.")

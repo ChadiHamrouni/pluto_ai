@@ -61,8 +61,8 @@ MESSAGES = [
 
 @pytest.mark.asyncio
 async def test_run_agent_returns_response():
-    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=_make_run_result("Hi there!"))):
-        from helpers.agents.runner import run_agent
+    with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=_make_run_result("Hi there!"))):
+        from helpers.agents.execution.runner import run_agent
         result = await run_agent(_agent(), MESSAGES)
 
     assert isinstance(result, AgentRunResult)
@@ -74,8 +74,8 @@ async def test_run_agent_returns_response():
 @pytest.mark.asyncio
 async def test_run_agent_records_tools_used():
     run_result = _make_run_result("Done.", tool_names=["store_memory"])
-    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)):
-        from helpers.agents.runner import run_agent
+    with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=run_result)):
+        from helpers.agents.execution.runner import run_agent
         result = await run_agent(_agent(), MESSAGES)
 
     assert "store_memory" in result.tools_used
@@ -96,8 +96,8 @@ async def test_run_agent_empty_final_output_falls_back_to_tool_output():
     run_result.final_output = ""
     run_result.new_items = [tool_out_item]
 
-    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)):
-        from helpers.agents.runner import run_agent
+    with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=run_result)):
+        from helpers.agents.execution.runner import run_agent
         result = await run_agent(_agent(), MESSAGES)
 
     assert "/data/slides/deck.pdf" in result.response
@@ -105,8 +105,8 @@ async def test_run_agent_empty_final_output_falls_back_to_tool_output():
 
 @pytest.mark.asyncio
 async def test_run_agent_raises_on_sdk_error():
-    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(side_effect=Exception("connection refused"))):
-        from helpers.agents.runner import run_agent
+    with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(side_effect=Exception("connection refused"))):
+        from helpers.agents.execution.runner import run_agent
         with pytest.raises(RuntimeError, match="Agent run failed"):
             await run_agent(_agent(), MESSAGES)
 
@@ -121,8 +121,8 @@ async def test_run_agent_injects_memory_context_via_clone():
     agent.clone = MagicMock(return_value=cloned)
 
     run_result = _make_run_result("Got it.")
-    with patch("helpers.agents.runner.Runner.run", new=AsyncMock(return_value=run_result)) as mock_run:
-        from helpers.agents.runner import run_agent
+    with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=run_result)) as mock_run:
+        from helpers.agents.execution.runner import run_agent
         await run_agent(agent, MESSAGES, memory_context="User remembers: X")
 
     agent.clone.assert_called_once()

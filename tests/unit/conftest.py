@@ -82,7 +82,7 @@ def mock_ollama_client():
 
     # runner.py lazily imports get_openai_client inside run_agent().
     # Patch the source so the lazy import picks up the mock.
-    with patch("helpers.agents.ollama_client.get_openai_client", return_value=mock_client):
+    with patch("helpers.agents.execution.ollama_client.get_openai_client", return_value=mock_client):
         yield mock_client
 
 

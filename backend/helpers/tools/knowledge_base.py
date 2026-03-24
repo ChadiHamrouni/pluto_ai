@@ -24,7 +24,6 @@ from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.embedder import embed_text
 from models.knowledge_base import KnowledgeChunk
-from tools.rag import chunk_text
 
 logger = get_logger(__name__)
 
@@ -217,6 +216,7 @@ def ingest_file(file_path: str) -> dict:
         logger.warning("Empty or unreadable file: %s", filename)
         return {"filename": filename, "chunks_stored": 0, "total_chars": 0}
 
+    from tools.rag import chunk_text  # lazy import to avoid circular dependency
     rag_cfg = load_config()["rag"]
     chunks = chunk_text(text, rag_cfg["chunk_size"], rag_cfg["chunk_overlap"])
     if not chunks:
