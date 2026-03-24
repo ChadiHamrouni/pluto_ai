@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -86,13 +85,18 @@ async def text_handler(
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
-        mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
-        b64 = base64.b64encode(image_path.read_bytes()).decode()
-        user_content = [
-            {"type": "text", "text": content or message},
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-        ]
-        logger.info("Attaching image %s (%d bytes)", image_path.name, image_path.stat().st_size)
+        from handlers.file_handler import _ocr_image_glm
+
+        cfg = load_config()
+        ollama_base = cfg.get("ollama", {}).get("base_url", "http://localhost:11434")
+        ocr_model = cfg.get("pdf", {}).get("ocr_model", "glm-ocr")
+        extracted = _ocr_image_glm(image_path, ollama_base, ocr_model)
+        logger.info("Attaching image %s (%d bytes), OCR: %d chars",
+                     image_path.name, image_path.stat().st_size, len(extracted))
+        if extracted:
+            user_content = f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
+        else:
+            user_content = content or message
     else:
         user_content = content or message
 
@@ -141,12 +145,18 @@ async def text_handler_streamed(
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
-        mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
-        b64 = base64.b64encode(image_path.read_bytes()).decode()
-        user_content = [
-            {"type": "text", "text": content or message},
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-        ]
+        from handlers.file_handler import _ocr_image_glm
+
+        cfg = load_config()
+        ollama_base = cfg.get("ollama", {}).get("base_url", "http://localhost:11434")
+        ocr_model = cfg.get("pdf", {}).get("ocr_model", "glm-ocr")
+        extracted = _ocr_image_glm(image_path, ollama_base, ocr_model)
+        logger.info("Attaching image %s (%d bytes), OCR: %d chars",
+                     image_path.name, image_path.stat().st_size, len(extracted))
+        if extracted:
+            user_content = f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
+        else:
+            user_content = content or message
     else:
         user_content = content or message
 

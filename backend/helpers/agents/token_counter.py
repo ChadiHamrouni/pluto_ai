@@ -37,7 +37,7 @@ def estimate_messages_tokens(messages: list[dict]) -> int:
         if isinstance(content, list):
             # Multimodal content (text + image_url blocks)
             for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
+                if isinstance(block, dict) and block.get("type") in ("text", "input_text"):
                     total += estimate_tokens(block.get("text", ""))
                 else:
                     total += 256  # rough image token estimate

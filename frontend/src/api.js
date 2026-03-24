@@ -24,7 +24,7 @@ export async function sendMessage(message, files = []) {
     formData.append("attachments", f);
   }
 
-  console.log("[api] POST /chat — message:", JSON.stringify(message).slice(0, 120), "| files:", fileList.length, "| session:", sessionId);
+  console.log("[api] POST /chat â€” message:", JSON.stringify(message).slice(0, 120), "| files:", fileList.length, "| session:", sessionId);
   const r = await fetch(`${BASE}/chat`, { method: "POST", body: formData });
 
   if (!r.ok) {
@@ -41,8 +41,8 @@ export async function sendMessage(message, files = []) {
  * Stream a chat response via SSE (POST /chat/stream).
  *
  * @param {string} message
- * @param {object} callbacks — { onToken, onToolCall, onHandoff, onDone, onError }
- * @returns {AbortController} — call .abort() to cancel the stream
+ * @param {object} callbacks â€” { onToken, onToolCall, onHandoff, onDone, onError }
+ * @returns {AbortController} â€” call .abort() to cancel the stream
  */
 export function streamMessage(message, callbacks = {}) {
   const controller = new AbortController();

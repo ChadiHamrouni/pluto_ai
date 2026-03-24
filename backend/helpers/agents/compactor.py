@@ -79,7 +79,7 @@ def _messages_to_text(messages: list[dict]) -> str:
             content = " ".join(
                 b.get("text", "")
                 for b in content
-                if isinstance(b, dict) and b.get("type") == "text"
+                if isinstance(b, dict) and b.get("type") in ("text", "input_text")
             )
         lines.append(f"[{role.upper()}]: {content}")
     return "\n".join(lines)

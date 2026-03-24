@@ -62,7 +62,8 @@
     "executor_model": "qwen3.5:4b",
     "max_iterations": 50,
     "max_duration_seconds": 300,
-    "max_retries_per_step": 2
+    "max_retries_per_step": 2,
+    "model": "qwen3.5:9b"
   },
   "knowledge_base": {
     "embedding_model": "qwen3-embedding:0.6b",
@@ -85,7 +86,7 @@
   },
   "pdf": {
     "ocr_model": "glm-ocr",
-    "image_coverage_threshold": 0.20
+    "image_coverage_threshold": 0.2
   },
   "tts": {
     "model": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",

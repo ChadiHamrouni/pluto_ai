@@ -107,15 +107,45 @@ def _extract_pdf(path: Path) -> str:
     return header + "\n\n---\n\n".join(pages_text)
 
 
-def _mime(ext: str) -> str:
-    return {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-        ".gif": "image/gif",
-        ".bmp": "image/bmp",
-    }.get(ext, "image/png")
+def _resize_for_ocr(raw_bytes: bytes, max_pixels: int = 1536) -> bytes:
+    """Downscale an image so its longest side is at most *max_pixels*.
+
+    Returns PNG bytes (glm-ocr handles PNG well). If the image is already
+    small enough the original bytes are re-encoded as PNG to normalise format.
+    """
+    from PIL import Image
+    import io
+
+    img = Image.open(io.BytesIO(raw_bytes))
+    w, h = img.size
+    if max(w, h) > max_pixels:
+        scale = max_pixels / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        logger.debug("Resized image for OCR: %dx%d → %dx%d", w, h, img.width, img.height)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _ocr_image_glm(path: Path, ollama_base: str, ocr_model: str) -> str:
+    """Send an image file to GLM-OCR via Ollama and return extracted text."""
+    import httpx
+
+    resized = _resize_for_ocr(path.read_bytes())
+    b64_image = base64.b64encode(resized).decode()
+    payload = {
+        "model": ocr_model,
+        "prompt": "Extract all text from this image. Preserve tables, headings, and structure as markdown.",
+        "images": [b64_image],
+        "stream": False,
+    }
+    try:
+        resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=120)
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
+    except Exception as exc:
+        logger.warning("GLM-OCR failed on image %s: %s", path.name, exc)
+        return ""
 
 
 async def file_handler(
@@ -169,20 +199,22 @@ async def file_handler(
         messages: list[dict] = [{"role": "user", "content": user_content}]
 
     else:
-        # Image file — send directly as vision input
-        mime = _mime(ext)
-        b64 = base64.b64encode(file_path.read_bytes()).decode()
+        # Image file — extract text via GLM-OCR, then pass as plain text
+        config = load_config()
+        ollama_base = config.get("ollama", {}).get("base_url", "http://localhost:11434")
+        ocr_model = config.get("pdf", {}).get("ocr_model", "glm-ocr")
+
+        extracted = _ocr_image_glm(file_path, ollama_base, ocr_model)
         user_text = message.strip() if message and message.strip() else "Describe this image."
-        user_content = user_text  # images can't be stored in history as base64 — save just the text
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_text},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-                ],
-            }
-        ]
+
+        if extracted:
+            logger.info("Image OCR extracted: %d chars", len(extracted))
+            user_content = f"{user_text}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
+        else:
+            logger.warning("Image OCR returned nothing for %s — sending message only", file_path.name)
+            user_content = f"{user_text}\n\n[An image was attached but OCR could not extract any text from it.]"
+
+        messages = [{"role": "user", "content": user_content}]
 
     result = await run_agent(get_orchestrator(), messages)
     return HandlerResult(
