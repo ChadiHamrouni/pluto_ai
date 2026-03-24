@@ -5,11 +5,12 @@ import os
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from helpers.agents.execution.ollama_client import get_ollama_base_url
 from helpers.core.config_loader import load_config, reload_config
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 from models.settings import AgentModels
 
 logger = get_logger(__name__)
@@ -25,7 +26,7 @@ _AGENT_KEYS = {
 
 
 @router.get("/models")
-async def list_models():
+async def list_models(_user: str = Depends(get_current_user)):
     """Return model names currently pulled in the user's local Ollama."""
     base_url = get_ollama_base_url()
     try:
@@ -37,12 +38,12 @@ async def list_models():
         logger.warning("Could not reach Ollama to list models: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot reach Ollama at {base_url}: {exc}",
+            detail="Cannot reach Ollama. Ensure the service is running.",
         )
 
 
 @router.get("/agents")
-async def get_agent_models():
+async def get_agent_models(_user: str = Depends(get_current_user)):
     """Return the currently configured model for each agent."""
     cfg = load_config()
     return {key: cfg.get(key, {}).get("model", "") for key in _AGENT_KEYS}
@@ -51,19 +52,18 @@ async def get_agent_models():
 @router.post("/agents")
 async def set_agent_models(
     body: AgentModels,
+    _user: str = Depends(get_current_user),
 ):
     """Persist model choices per agent into config.json."""
-    # Locate config.json — same resolution as config_loader
-    config_path = os.environ.get("CONFIG_PATH", "")
-    if not config_path:
-        base_dir = Path(__file__).resolve().parent.parent
-        config_path = str(base_dir / "config.json")
-
-    if not Path(config_path).exists():
-        raise HTTPException(status_code=404, detail=f"config.json not found at {config_path}")
-
-    with open(config_path) as f:
-        raw = json.load(f)
+    # Validate model names against available Ollama models
+    base_url = get_ollama_base_url()
+    available: set[str] = set()
+    try:
+        r = httpx.get(f"{base_url}/api/tags", timeout=5)
+        r.raise_for_status()
+        available = {m["name"] for m in r.json().get("models", [])}
+    except Exception:
+        logger.warning("Could not reach Ollama to validate model names")
 
     updates = {
         "orchestrator": body.orchestrator,
@@ -71,6 +71,26 @@ async def set_agent_models(
         "slides_agent": body.slides_agent,
         "autonomous": body.autonomous,
     }
+    if available:
+        for key, model in updates.items():
+            if model and model not in available:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Model '{model}' for '{key}' is not available in Ollama.",
+                )
+
+    # Locate config.json — same resolution as config_loader
+    config_path = os.environ.get("CONFIG_PATH", "")
+    if not config_path:
+        base_dir = Path(__file__).resolve().parent.parent
+        config_path = str(base_dir / "config.json")
+
+    if not Path(config_path).exists():
+        raise HTTPException(status_code=404, detail="config.json not found.")
+
+    with open(config_path) as f:
+        raw = json.load(f)
+
     for key, model in updates.items():
         if model:
             raw.setdefault(key, {})["model"] = model
@@ -81,9 +101,9 @@ async def set_agent_models(
     reload_config()
 
     # Bust agent singletons so the next request picks up the new models
-    from my_agents.notes_agent import reset_notes_agent
+    from my_agents.notes import reset_notes_agent
     from my_agents.orchestrator import reset_orchestrator
-    from my_agents.slides_agent import reset_slides_agent
+    from my_agents.slides import reset_slides_agent
 
     reset_orchestrator()
     reset_notes_agent()

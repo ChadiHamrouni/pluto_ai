@@ -37,11 +37,11 @@ def _calendar_context() -> str:
 
 def _get_command_agents() -> dict:
     """Return the slash-command → agent-factory mapping (imported lazily to avoid cycles)."""
-    from my_agents.calendar_agent import get_calendar_agent
-    from my_agents.notes_agent import get_notes_agent
+    from my_agents.calendar import get_calendar_agent
+    from my_agents.notes import get_notes_agent
     from my_agents.orchestrator import get_orchestrator
-    from my_agents.research_agent import get_research_agent
-    from my_agents.slides_agent import get_slides_agent
+    from my_agents.research import get_research_agent
+    from my_agents.slides import get_slides_agent
 
     return {
         "note": get_notes_agent,

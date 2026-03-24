@@ -27,7 +27,7 @@ from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.plan import ExecutionPlan, PlanStep
 from models.results import LoopCreated, StepResult
-from my_agents.executor_agent import reset_executor_agent
+from my_agents.executor import reset_executor_agent
 
 logger = get_logger(__name__)
 

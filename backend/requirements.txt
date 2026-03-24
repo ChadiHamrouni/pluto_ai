@@ -1,24 +1,27 @@
 fastapi==0.116.1
-uvicorn>=0.31.0
+uvicorn==0.41.0
 openai-agents==0.9.3
 sse-starlette==2.2.1
 openai==2.21.0
-pydantic>=2.12.0
-aiosqlite
+pydantic==2.12.5
+aiosqlite==0.22.1
 sqlite-vec
-numpy
+numpy==2.4.2
 python-multipart==0.0.9
-httpx~=0.28.1
-python-dotenv~=1.1.0
-rich>=13.0
+httpx==0.28.1
+python-dotenv==1.1.0
+rich==14.0.0
 pillow==11.1.0
 PyMuPDF==1.25.4
-ddgs
-chromadb>=0.5.0
-rank-bm25>=0.2.2
-apscheduler>=3.10.0
-pytest
-pytest-asyncio
+ddgs==9.11.3
+chromadb==1.5.5
+rank-bm25==0.2.2
+apscheduler==3.11.2
+PyJWT==2.11.0
+bcrypt==5.0.0
+slowapi==0.1.9
+pytest==9.0.2
+pytest-asyncio==1.3.0
 
 # TTS
 # qwen-tts

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from helpers.agents.session.session_store import (
     delete_session,
@@ -12,6 +12,7 @@ from helpers.agents.session.session_store import (
     session_exists,
 )
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/chat", tags=["sessions"])
     summary="Create a session",
     responses={200: {"content": {"application/json": {"example": {"session_id": "abc123"}}}}},
 )
-async def create_session():
+async def create_session(_user: str = Depends(get_current_user)):
     """Create a new server-side conversation session.
 
     Returns a `session_id` to pass in subsequent `POST /chat` or `POST /chat/stream` requests.
@@ -35,14 +36,14 @@ async def create_session():
 
 
 @router.get("/sessions")
-async def get_sessions():
+async def get_sessions(_user: str = Depends(get_current_user)):
     """Return all sessions with their titles, newest first."""
     sessions = await list_sessions()
     return {"sessions": sessions}
 
 
 @router.get("/session/{session_id}/messages")
-async def get_messages(session_id: str):
+async def get_messages(session_id: str, _user: str = Depends(get_current_user)):
     """Return full message history for a session."""
     if not await session_exists(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -51,9 +52,10 @@ async def get_messages(session_id: str):
 
 
 @router.delete("/session/{session_id}")
-async def remove_session(session_id: str):
+async def remove_session(session_id: str, _user: str = Depends(get_current_user)):
     """Delete a session and all its messages."""
     if not await session_exists(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     await delete_session(session_id)
+    logger.info("AUDIT: session '%s' deleted by user '%s'", session_id, _user)
     return {"ok": True}

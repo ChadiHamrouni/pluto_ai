@@ -5,10 +5,10 @@ from agents import Agent, ModelSettings, handoff
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
-from my_agents.calendar_agent import get_calendar_agent
-from my_agents.notes_agent import get_notes_agent
-from my_agents.research_agent import get_research_agent
-from my_agents.slides_agent import get_slides_agent
+from my_agents.calendar import get_calendar_agent
+from my_agents.notes import get_notes_agent
+from my_agents.research import get_research_agent
+from my_agents.slides import get_slides_agent
 from tools.memory_tools import forget_memory, prune_memory, store_memory
 from tools.rag import search_knowledge
 from tools.web_search import web_search

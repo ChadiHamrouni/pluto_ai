@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from helpers.core.config_loader import load_config
+from helpers.routes.dependencies import get_current_user
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -20,7 +21,7 @@ def _allowed_dirs() -> list[Path]:
 
 
 @router.get("/{filename}")
-async def serve_file(filename: str):
+async def serve_file(filename: str, _user: str = Depends(get_current_user)):
     """Serve a generated file (PDF, markdown) by filename."""
     # Prevent path traversal
     if "/" in filename or "\\" in filename or ".." in filename:

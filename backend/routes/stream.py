@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from handlers.text_handler import text_handler_streamed
@@ -19,14 +20,17 @@ from helpers.agents.session.session_store import (
 )
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+_MAX_MESSAGE_CHARS = 50_000
+
 
 @router.get("/commands")
-async def list_commands():
+async def list_commands(_user: str = Depends(get_current_user)):
     """Return the slash command registry for the frontend autocomplete menu."""
     from helpers.agents.routing.command_parser import COMMAND_REGISTRY
 
@@ -60,6 +64,7 @@ async def list_commands():
     },
 )
 async def chat_stream(
+    _user: str = Depends(get_current_user),
     message: str = Form(default="", description="The user's message."),
     session_id: str = Form(default="", description="Session ID from `POST /chat/session`."),
     attachments: List[UploadFile] = File(
@@ -80,10 +85,24 @@ async def chat_stream(
 
     File attachments are not supported in this endpoint. Use `POST /chat` instead.
     """
+    if message and len(message) > _MAX_MESSAGE_CHARS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Message exceeds the {_MAX_MESSAGE_CHARS} character limit.",
+        )
+    if session_id:
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id must be a valid UUID.",
+            )
+
     logger.info(
         "POST /chat/stream — session='%s' message=%r",
         session_id or "(none)",
-        message[:80] if message else "",
+        message[:40] if message else "",
     )
 
     window = load_config().get("orchestrator", {}).get("history_window", 20)
@@ -148,9 +167,9 @@ async def chat_stream(
             if file_url:
                 yield f"event: file_url\ndata: {json.dumps({'file_url': file_url})}\n\n"
 
-        except Exception as exc:
+        except Exception:
             logger.exception("Stream error")
-            yield f"event: error\ndata: {json.dumps({'message': str(exc)})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': 'Internal server error.'})}\n\n"
 
     return StreamingResponse(
         event_generator(),

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from helpers.agents.command_parser import parse_command
+from helpers.agents.routing.command_parser import parse_command
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ def test_command_agents_covers_all_known_intents():
         if mod_name not in sys.modules:
             sys.modules[mod_name] = MagicMock()
 
-    from helpers.agents.command_parser import _ALIAS_TO_INTENT
+    from helpers.agents.routing.command_parser import _ALIAS_TO_INTENT
 
     # Inline the expected dispatch table rather than importing text_handler
     # (which pulls in the full agent stack) — tests the contract, not the import.

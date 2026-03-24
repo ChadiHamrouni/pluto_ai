@@ -11,12 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from helpers.agents.autonomous.loop import create_loop, get_loop, remove_loop
 from helpers.agents.session.session_store import append_turn, session_exists, update_session_title
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
@@ -42,12 +43,18 @@ def _make_event_callback(task_id: str):
 
 @router.post("/start")
 async def start_autonomous(
+    _user: str = Depends(get_current_user),
     task: str = Form(...),
     session_id: str = Form(default=""),
 ):
     """Start an autonomous plan-and-execute task. Returns the task_id."""
     if not task.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task cannot be empty")
+    if len(task) > 10_000:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Task description exceeds the 10,000 character limit.",
+        )
 
     q: asyncio.Queue = asyncio.Queue(maxsize=200)
 
@@ -72,9 +79,9 @@ async def start_autonomous(
     async def _run_and_cleanup():
         try:
             await loop.run()
-        except Exception as exc:
+        except Exception:
             logger.exception("Autonomous loop error for task %s", task_id)
-            q.put_nowait({"type": "error", "task_id": task_id, "error": str(exc)})
+            q.put_nowait({"type": "error", "task_id": task_id, "error": "Autonomous task failed."})
         finally:
             plan = loop.plan
 
@@ -105,6 +112,7 @@ async def start_autonomous(
 @router.post("/{task_id}/cancel")
 async def cancel_autonomous(
     task_id: str,
+    _user: str = Depends(get_current_user),
 ):
     """Cancel a running autonomous task."""
     loop = get_loop(task_id)
@@ -117,6 +125,7 @@ async def cancel_autonomous(
 @router.get("/{task_id}/status")
 async def get_autonomous_status(
     task_id: str,
+    _user: str = Depends(get_current_user),
 ):
     """Return the current plan state."""
     loop = get_loop(task_id)
@@ -128,6 +137,7 @@ async def get_autonomous_status(
 @router.get("/{task_id}/stream")
 async def stream_autonomous(
     task_id: str,
+    _user: str = Depends(get_current_user),
 ):
     """SSE stream of real-time autonomous task events."""
     q = _sse_queues.get(task_id)

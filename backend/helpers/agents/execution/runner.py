@@ -55,7 +55,7 @@ async def run_agent(
             if isinstance(content, list)
             else str(content)
         )
-        logger.info("  [%d] %s: %s", i, msg["role"].upper(), preview[:200])
+        logger.info("  [%d] %s: %s", i, msg["role"].upper(), preview[:40])
     if memory_context:
         logger.info("  + memory context: %d chars", len(memory_context))
 

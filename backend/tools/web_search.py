@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
+from urllib.parse import urlparse
 
 import httpx
 from agents import function_tool
@@ -9,6 +12,52 @@ from ddgs import DDGS
 from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+# ── SSRF protection ────────────────────────────────────────────────────────
+
+_BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain", "0.0.0.0"}
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+]
+
+
+def _is_safe_url(url: str) -> tuple[bool, str]:
+    """Validate that a URL does not point to a private/internal address.
+
+    Returns (is_safe, reason).
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False, f"Scheme '{parsed.scheme}' is not allowed — only http/https."
+
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return False, "No hostname in URL."
+
+    if hostname in _BLOCKED_HOSTNAMES:
+        return False, f"Hostname '{hostname}' is blocked."
+
+    # Resolve hostname to IP and check against private ranges
+    try:
+        infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for _, _, _, _, sockaddr in infos:
+            ip = ipaddress.ip_address(sockaddr[0])
+            for network in _PRIVATE_NETWORKS:
+                if ip in network:
+                    return False, f"Resolved IP {ip} is in a private range."
+    except socket.gaierror:
+        return False, f"Cannot resolve hostname '{hostname}'."
+
+    return True, ""
 
 
 @function_tool
@@ -67,6 +116,9 @@ async def fetch_page(url: str) -> str:
     """
     if not url:
         return "Error: no URL provided."
+    safe, reason = _is_safe_url(url)
+    if not safe:
+        return f"Error: {reason}"
     try:
         headers = {
             "User-Agent": (
@@ -76,7 +128,7 @@ async def fetch_page(url: str) -> str:
             ),
         }
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=15, follow_redirects=True)
+            response = await client.get(url, headers=headers, timeout=15, follow_redirects=False)
             response.raise_for_status()
         text = response.text
         for tag in ("script", "style", "nav", "header", "footer", "aside", "noscript"):
@@ -95,10 +147,13 @@ async def _fetch_text(url: str) -> str:
     """Fetch a URL and return the first 3000 chars of plain text (used internally by web_search)."""
     if not url:
         return ""
+    safe, _ = _is_safe_url(url)
+    if not safe:
+        return ""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (research bot)"}
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=8, follow_redirects=True)
+            response = await client.get(url, headers=headers, timeout=8, follow_redirects=False)
             response.raise_for_status()
         text = re.sub(r"<[^>]+>", " ", response.text)
         text = re.sub(r"\s+", " ", text).strip()

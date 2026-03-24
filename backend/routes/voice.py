@@ -16,10 +16,11 @@ POST /tts/sentences
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 from helpers.tools import tts
 from models.tts import TTSRequest
 
@@ -39,6 +40,7 @@ def _check_ready():
 @router.post("")
 async def text_to_speech(
     req: TTSRequest,
+    _user: str = Depends(get_current_user),
 ):
     """Legacy: synthesise text and stream back as a single WAV."""
     _check_ready()
@@ -53,6 +55,7 @@ async def text_to_speech(
 @router.post("/sentences")
 async def text_to_speech_sentences(
     req: TTSRequest,
+    _user: str = Depends(get_current_user),
 ):
     """Sentence-level: stream one length-prefixed WAV blob per sentence.
 

@@ -103,5 +103,10 @@
   "guardrails": {
     "enabled": true,
     "model": "qwen2.5:3b"
+  },
+  "auth": {
+    "algorithm": "HS256",
+    "access_token_expires_minutes": 15,
+    "refresh_token_expires_days": 7
   }
 }

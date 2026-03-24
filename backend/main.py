@@ -8,12 +8,17 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
 from helpers.core.exceptions import JarvisError
 from helpers.core.logger import get_logger, setup_logging
 from helpers.cron.ingestion_job import run_ingestion
+from routes.auth import router as auth_router
 from routes.autonomous import router as autonomous_router
 from routes.files import router as files_router
 from routes.messaging import router as messaging_router
@@ -123,6 +128,33 @@ _TAGS_METADATA = [
 ]
 
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
+# Paths exempt from CSRF check (auth endpoints, health, docs)
+_CSRF_EXEMPT = {
+    "/auth/login", "/auth/refresh", "/auth/verify",
+    "/", "/health", "/docs", "/redoc", "/openapi.json",
+}
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Require ``X-Requested-With`` header on state-changing requests.
+
+    This forces browsers to issue a CORS preflight (since ``X-Requested-With``
+    is not a CORS-safelisted header), which blocks cross-origin form POSTs.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if request.url.path not in _CSRF_EXEMPT:
+                if "x-requested-with" not in request.headers:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Missing X-Requested-With header."},
+                    )
+        return await call_next(request)
+
+
 def create_app() -> FastAPI:
     config = load_config()
 
@@ -165,11 +197,28 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Accept", "Authorization", "X-Requested-With"],
     )
 
+    # Security headers
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
+    # CSRF protection — requires X-Requested-With on state-changing requests
+    app.add_middleware(CSRFMiddleware)
+
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    app.include_router(auth_router)
     app.include_router(sessions_router)
     app.include_router(messaging_router)
     app.include_router(stream_router)
@@ -204,13 +253,11 @@ def create_app() -> FastAPI:
         },
     )
     async def health():
-        """Readiness probe — returns current model and DB configuration."""
+        """Readiness probe."""
         cfg = load_config()
         return {
             "status": "healthy",
             "orchestrator_model": cfg["orchestrator"]["model"],
-            "ollama_base_url": cfg["ollama"]["base_url"],
-            "db_path": cfg["memory"]["db_path"],
         }
 
     # ── Structured error handlers ───────────────────────────────────────────

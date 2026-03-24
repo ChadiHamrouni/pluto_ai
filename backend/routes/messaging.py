@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 import tempfile
+import uuid
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from handlers.file_handler import file_handler
 from handlers.text_handler import text_handler
@@ -19,6 +20,7 @@ from helpers.agents.session.session_store import (
 )
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from helpers.routes.dependencies import get_current_user
 from models.chat import Attachment, ChatResponse
 
 logger = get_logger(__name__)
@@ -26,6 +28,20 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 _SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".pdf", ".txt"}
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+_MAX_MESSAGE_CHARS = 50_000
+
+
+def _validate_session_id(session_id: str) -> None:
+    """Raise 400 if session_id is non-empty but not a valid UUID."""
+    if session_id:
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id must be a valid UUID.",
+            )
 
 _MIME_MAP = {
     ".jpg": "image/jpeg",
@@ -37,6 +53,25 @@ _MIME_MAP = {
     ".pdf": "application/pdf",
     ".txt": "text/plain",
 }
+
+# Magic byte signatures for content-type validation
+_MAGIC_BYTES: dict[str, list[bytes]] = {
+    ".jpg": [b"\xff\xd8\xff"],
+    ".jpeg": [b"\xff\xd8\xff"],
+    ".png": [b"\x89PNG\r\n\x1a\n"],
+    ".gif": [b"GIF87a", b"GIF89a"],
+    ".bmp": [b"BM"],
+    ".pdf": [b"%PDF"],
+    ".webp": [b"RIFF"],  # RIFF header (WebP is RIFF-based)
+}
+
+
+def _validate_magic_bytes(data: bytes, ext: str) -> bool:
+    """Return True if the file's magic bytes match the expected format."""
+    signatures = _MAGIC_BYTES.get(ext)
+    if signatures is None:
+        return True  # No signature check for .txt etc.
+    return any(data.startswith(sig) for sig in signatures)
 
 
 @router.post(
@@ -67,6 +102,7 @@ _MIME_MAP = {
     },
 )
 async def chat(
+    _user: str = Depends(get_current_user),
     message: str = Form(
         default="",
         description=(
@@ -96,10 +132,17 @@ async def chat(
 
     For token-by-token streaming, use `POST /chat/stream` instead.
     """
+    if message and len(message) > _MAX_MESSAGE_CHARS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Message exceeds the {_MAX_MESSAGE_CHARS} character limit.",
+        )
+    _validate_session_id(session_id)
+
     logger.info(
         "POST /chat — session='%s' message=%r attachments=%d",
         session_id or "(none)",
-        message[:80] if message else "",
+        message[:40] if message else "",
         len(attachments),
     )
 
@@ -126,7 +169,20 @@ async def chat(
                     status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                     detail=f"Unsupported file type '{ext}'. Allowed: {sorted(_SUPPORTED_EXTS)}",
                 )
-            data = await upload.read()
+            data = await upload.read(_MAX_UPLOAD_BYTES + 1)
+            if len(data) > _MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File '{upload.filename}' exceeds the 50 MB limit.",
+                )
+            if not _validate_magic_bytes(data, ext):
+                raise HTTPException(
+                    status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                    detail=(
+                        f"File '{upload.filename}' content does not match"
+                        f" its extension '{ext}'."
+                    ),
+                )
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
                 tmp.write(data)
                 tmp_path = Path(tmp.name)
@@ -198,9 +254,12 @@ async def chat(
         raise
     except NotImplementedError as exc:
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Chat endpoint unhandled error")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
+        )
     finally:
         for p in temp_paths:
             p.unlink(missing_ok=True)

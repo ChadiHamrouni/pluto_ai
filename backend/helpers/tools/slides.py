@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
@@ -34,9 +35,14 @@ def build_slide_paths(slides_dir: str, title: str) -> SlidePaths:
     timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
     safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in title)
     safe_title = safe_title.replace(" ", "-")[:max_len]
+    md_path = Path(os.path.join(slides_dir, f"{timestamp}-{safe_title}.md")).resolve()
+    pdf_path = Path(os.path.join(slides_dir, f"{timestamp}-{safe_title}.pdf")).resolve()
+    base = Path(slides_dir).resolve()
+    if not str(md_path).startswith(str(base)) or not str(pdf_path).startswith(str(base)):
+        raise ValueError("Generated slide paths escape the slides directory.")
     return SlidePaths(
-        md_path=os.path.join(slides_dir, f"{timestamp}-{safe_title}.md"),
-        pdf_path=os.path.join(slides_dir, f"{timestamp}-{safe_title}.pdf"),
+        md_path=str(md_path),
+        pdf_path=str(pdf_path),
     )
 
 
@@ -110,7 +116,7 @@ def run_marp(md_path: str, pdf_path: str) -> tuple[bool, str]:
     timeout = load_config()["slides"].get("marp_timeout_seconds", 120)
     try:
         result = subprocess.run(
-            ["marp", md_path, "--pdf", "--output", pdf_path, "--allow-local-files", "--no-sandbox"],
+            ["marp", md_path, "--pdf", "--output", pdf_path],
             capture_output=True,
             text=True,
             timeout=timeout,

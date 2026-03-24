@@ -45,7 +45,7 @@ def extract_url_from_tool_call(item: ToolCallItem) -> str | None:
 
 async def run_planning(task: str) -> list[PlanStep]:
     """Ask the planner agent to decompose *task* into PlanStep objects."""
-    from my_agents.planner_agent import get_planner_agent
+    from my_agents.planner import get_planner_agent
 
     logger.info("─── Planning: %s ───", task[:120])
     try:
@@ -98,7 +98,7 @@ async def execute_step(
         context: The full input prompt for the executor agent.
         on_link: Callback(url: str) invoked immediately when a link is discovered.
     """
-    from my_agents.executor_agent import get_executor_agent
+    from my_agents.executor import get_executor_agent
 
     logger.info("─── Executing step %d: %s ───", step.id, step.description)
 
