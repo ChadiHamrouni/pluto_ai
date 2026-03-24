@@ -13,7 +13,6 @@ import "./ChatArea.css";
  *  - thinking        boolean
  *  - error           string|null
  *  - currentPlan     object|null
- *  - onAutoCancel    ()=>void
  *  - onDownload      (fileUrl)=>void
  *  - bottomRef       React ref
  *  - voiceMode       boolean
@@ -40,7 +39,6 @@ export default function ChatArea({
   thinking,
   error,
   currentPlan,
-  onAutoCancel,
   onDownload,
   bottomRef,
   voiceMode,
@@ -84,7 +82,7 @@ export default function ChatArea({
       ))}
 
       {currentPlan && (
-        <PlanTracker plan={currentPlan} onCancel={onAutoCancel} />
+        <PlanTracker plan={currentPlan} />
       )}
 
       {thinking && (

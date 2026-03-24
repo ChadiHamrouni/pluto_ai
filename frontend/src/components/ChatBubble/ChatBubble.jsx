@@ -2,6 +2,7 @@ import "./ChatBubble.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import PlanTracker from "../PlanTracker";
 
 function ExternalLink({ href, children }) {
   const handleClick = (e) => {
@@ -22,6 +23,10 @@ const MD_COMPONENTS = { a: ExternalLink };
  */
 
 export default function ChatBubble({ message: m, onDownload }) {
+  if (m.role === "plan") {
+    return <PlanTracker plan={m.plan} />;
+  }
+
   return (
     <div className={`bubble-row ${m.role}`}>
       <div className="bubble">

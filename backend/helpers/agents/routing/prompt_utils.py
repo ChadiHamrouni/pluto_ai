@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Dict, List
+from zoneinfo import ZoneInfo
+
+from helpers.core.config_loader import load_config
 
 
 def format_memory_context(memories: list) -> str:
@@ -54,6 +58,23 @@ def format_chat_history(history: list) -> List[Dict[str, str]]:
     return messages
 
 
+def _build_context_block() -> str:
+    """Return a small context block with the current date/time and user location."""
+    cfg = load_config().get("user", {})
+    tz_name = cfg.get("timezone", "UTC")
+    location = cfg.get("location", "")
+    try:
+        now = datetime.now(ZoneInfo(tz_name))
+    except Exception:
+        now = datetime.utcnow()
+    date_str = now.strftime("%A, %d %B %Y")
+    time_str = now.strftime("%H:%M")
+    parts = [f"## Context\n- Date: {date_str}\n- Time: {time_str} ({tz_name})"]
+    if location:
+        parts.append(f"- Location: {location}")
+    return "\n".join(parts)
+
+
 def build_system_prompt(base_instructions: str, memory_context: str = "") -> str:
     """
     Combine base agent instructions with an optional memory context block.
@@ -62,7 +83,8 @@ def build_system_prompt(base_instructions: str, memory_context: str = "") -> str
     by a clear visual divider so the model can distinguish it from the
     core instructions.
     """
-    if not memory_context:
-        return base_instructions.strip()
-
-    return base_instructions.strip() + "\n\n---\n\n" + memory_context.strip()
+    context_block = _build_context_block()
+    parts = [base_instructions.strip(), "---", context_block]
+    if memory_context:
+        parts += ["---", memory_context.strip()]
+    return "\n\n".join(parts)

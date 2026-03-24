@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from agents import Agent, ModelSettings
 
-from helpers.agents.instructions_loader import load_instructions
-from helpers.agents.ollama_client import get_model
+from helpers.agents.execution.instructions_loader import load_instructions
+from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
-from tools.research_tools import fetch_page
-from tools.web_search import web_search
+from tools.web_search import fetch_page, web_search
 
 _research_agent: Agent | None = None
 
@@ -27,7 +26,7 @@ def get_research_agent() -> Agent:
     _research_agent = Agent(
         name="ResearchAgent",
         model=get_model(cfg["model"]),
-        instructions=load_instructions("research_agent"),
+        instructions=load_instructions("agents/research_agent"),
         tools=[web_search, fetch_page],
         model_settings=ModelSettings(
             temperature=cfg.get("temperature", 0.3),

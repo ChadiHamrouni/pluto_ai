@@ -28,8 +28,8 @@ def load_config(path: str = "config.json") -> dict:
     if _config is None:
         # Support both absolute paths and paths relative to project root
         if not os.path.isabs(path):
-            # Try relative to the directory of this file (helpers/ -> project root)
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # Try relative to the backend/ directory (helpers/core/ -> helpers/ -> backend/)
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             resolved = os.path.join(base_dir, path)
             if os.path.exists(resolved):
                 path = resolved

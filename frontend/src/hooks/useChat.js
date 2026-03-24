@@ -22,18 +22,28 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
   const [error, setError]           = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
 
-  const autoTaskIdRef = useRef(null);
-  const autoEsRef     = useRef(null);
+  const autoTaskIdRef    = useRef(null);
+  const autoEsRef        = useRef(null);
+  const currentPlanRef   = useRef(null);
+  const streamAbortRef   = useRef(null); // AbortController for normal streaming
 
-  // ── Cancel an in-progress autonomous task ────────────────────────────────
+  // ── Escape — safely interrupt whatever is running ────────────────────────
 
-  async function handleAutoCancel() {
+  async function handleEscape() {
+    if (!thinking) return;
+
+    // Autonomous mode: cancel backend task + close SSE
     if (autoTaskIdRef.current) {
-      await cancelAutonomous(autoTaskIdRef.current);
+      await cancelAutonomous(autoTaskIdRef.current).catch(() => {});
       autoTaskIdRef.current = null;
     }
     autoEsRef.current?.close();
     autoEsRef.current = null;
+
+    // Normal streaming: abort the fetch
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+
     setThinking(false);
   }
 
@@ -66,18 +76,30 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
         const es = streamAutonomous(
           task_id,
           (event) => {
-            if (event.plan) setCurrentPlan(event.plan);
+            if (event.plan) {
+              setCurrentPlan(event.plan);
+              currentPlanRef.current = event.plan;
+            }
           },
           (event) => {
-            if (event?.plan) setCurrentPlan(event.plan);
             autoTaskIdRef.current = null;
             autoEsRef.current = null;
             setThinking(false);
 
-            const failed  = event?.plan?.steps?.filter(s => s.status === "failed") ?? [];
-            const summary = event?.plan?.status === "completed"
-              ? `Autonomous task completed${failed.length ? ` (${failed.length} step(s) failed)` : ""}.`
-              : "Autonomous task stopped.";
+            const finalPlan = event?.plan ?? currentPlanRef.current;
+            setCurrentPlan(null);
+            currentPlanRef.current = null;
+
+            // Persist the completed plan as a message so it stays in the chat
+            if (finalPlan) {
+              appendMessage(activeId, { role: "plan", plan: finalPlan });
+            }
+
+            const failed  = finalPlan?.steps?.filter(s => s.status === "failed") ?? [];
+            const summary = finalPlan?.final_response
+              || (finalPlan?.status === "completed"
+                ? `Autonomous task completed${failed.length ? ` (${failed.length} step(s) failed)` : ""}.`
+                : "Autonomous task stopped.");
 
             appendMessage(activeId, { role: "assistant", content: summary });
             inputRef.current?.focus();
@@ -109,7 +131,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
     if (!hasFiles) {
       let placeholderAdded = false;
 
-      streamMessage(text, {
+      const ctrl = streamMessage(text, {
         onToken: (delta) => {
           if (!placeholderAdded) {
             placeholderAdded = true;
@@ -123,6 +145,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
           appendDelta(currentSessionId, delta);
         },
         onDone: ({ response, tools_used, agents_trace, file_url, tokens_per_second }) => {
+          streamAbortRef.current = null;
           if (!placeholderAdded) {
             appendMessage(currentSessionId, {
               role: "assistant",
@@ -148,9 +171,11 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
         onError: (msg) => {
           setError(msg);
           setThinking(false);
+          streamAbortRef.current = null;
           inputRef.current?.focus();
         },
       });
+      streamAbortRef.current = ctrl;
     } else {
       // Non-streaming path for file attachments
       const tryFetch = async () => {
@@ -192,7 +217,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
     currentPlan,
     setCurrentPlan,
     handleSend,
-    handleAutoCancel,
+    handleEscape,
   };
 }
 

@@ -6,11 +6,11 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
 
-from helpers.agents.ollama_client import get_ollama_base_url
+from helpers.agents.execution.ollama_client import get_ollama_base_url
 from helpers.core.config_loader import load_config, reload_config
 from helpers.core.logger import get_logger
+from models.settings import AgentModels
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -22,13 +22,6 @@ _AGENT_KEYS = {
     "slides_agent": "slides_agent",
     "autonomous": "autonomous",
 }
-
-
-class AgentModels(BaseModel):
-    orchestrator: str
-    notes_agent: str
-    slides_agent: str
-    autonomous: str
 
 
 @router.get("/models")

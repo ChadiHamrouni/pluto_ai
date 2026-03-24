@@ -14,7 +14,8 @@ import json
 from fastapi import APIRouter, Form, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from helpers.agents.autonomous_loop import create_loop, get_loop, remove_loop
+from helpers.agents.autonomous.loop import create_loop, get_loop, remove_loop
+from helpers.agents.session.session_store import append_turn, session_exists, update_session_title
 from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -42,13 +43,13 @@ def _make_event_callback(task_id: str):
 @router.post("/start")
 async def start_autonomous(
     task: str = Form(...),
+    session_id: str = Form(default=""),
 ):
     """Start an autonomous plan-and-execute task. Returns the task_id."""
     if not task.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task cannot be empty")
 
     q: asyncio.Queue = asyncio.Queue(maxsize=200)
-    _make_event_callback("")  # placeholder — rebound below
 
     created = create_loop(task, lambda d: None)  # create to get id first
     task_id = created.task_id
@@ -58,6 +59,16 @@ async def start_autonomous(
     # Now bind the real callback
     loop.on_event = _make_event_callback(task_id)
 
+    _session_id = session_id.strip() if session_id else ""
+
+    # Check if history is empty before the task starts (for title logic)
+    _session_valid = False
+    _history_empty = True
+    if _session_id and await session_exists(_session_id):
+        _session_valid = True
+        from helpers.agents.session.session_store import get_history as _get_history
+        _history_empty = not bool(await _get_history(_session_id, max_turns=1))
+
     async def _run_and_cleanup():
         try:
             await loop.run()
@@ -65,8 +76,27 @@ async def start_autonomous(
             logger.exception("Autonomous loop error for task %s", task_id)
             q.put_nowait({"type": "error", "task_id": task_id, "error": str(exc)})
         finally:
-            # Signal SSE stream to close
-            q.put_nowait({"type": "__done__", "task_id": task_id})
+            plan = loop.plan
+
+            # Persist to session history
+            if _session_valid:
+                user_msg = f"[AUTO] {task}"
+                assistant_msg = plan.final_response or (
+                    "Autonomous task completed."
+                    if plan.status == "completed"
+                    else "Autonomous task stopped."
+                )
+                await append_turn(_session_id, user_msg, assistant_msg)
+                if _history_empty:
+                    title = task[:50] + ("…" if len(task) > 50 else "")
+                    await update_session_title(_session_id, title)
+
+            # Signal SSE stream to close — include full plan so frontend has final_response
+            q.put_nowait({
+                "type": "__done__",
+                "task_id": task_id,
+                "plan": plan.model_dump(),
+            })
 
     asyncio.create_task(_run_and_cleanup())
     return {"task_id": task_id}

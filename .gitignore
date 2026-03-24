@@ -87,3 +87,11 @@ tests/local/
 # ── Docs folder ───────────────────────────────────────────────────────────────
 docs/*.md
 !docs/assets/
+
+# ── Paper (LaTeX source — tracked separately, not part of the codebase) ───────
+paper/
+!paper/setup.ps1
+
+personal/
+
+eval/

@@ -14,7 +14,8 @@ import json
 
 from openai import AsyncOpenAI
 
-from helpers.agents.token_counter import (
+from helpers.agents.execution.instructions_loader import load_instructions
+from helpers.agents.session.token_counter import (
     COMPACT_THRESHOLD,
     MODEL_CONTEXT_WINDOW,
     estimate_messages_tokens,
@@ -27,28 +28,8 @@ from helpers.tools.memory import get_db_path, insert_memory
 
 logger = get_logger(__name__)
 
-_SUMMARY_PROMPT = """You are summarising a conversation for an AI assistant's context window.
-
-Summarise the following messages into ONE concise paragraph. Preserve:
-- Key decisions and conclusions
-- User preferences and facts about the user
-- Any task context still in progress
-- Important information the assistant was told
-
-Discard: greetings, filler, resolved questions, repeated content.
-
-Keep the summary under 200 words. Reply with ONLY the summary paragraph, no preamble."""
-
-_EXTRACT_FACTS_PROMPT = """
-You are extracting durable facts from a conversation before it is discarded.
-
-Given these messages, extract any facts about the user worth remembering long-term.
-Only extract genuinely useful facts (preferences, goals, personal details, recurring context).
-Return a JSON array of objects with keys: content (string), category
-(one of: teaching, research, career, personal, ideas), tags (array of strings).
-If nothing is worth saving, return an empty array [].
-
-Reply with ONLY the JSON array, no other text."""
+_SUMMARY_PROMPT = load_instructions("compactor/compactor_summary")
+_EXTRACT_FACTS_PROMPT = load_instructions("compactor/compactor_extract_facts")
 
 
 async def _call_ollama(client: AsyncOpenAI, model: str, prompt: str, content: str) -> str:

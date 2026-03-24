@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import base64
-import re
 import time
 from pathlib import Path
 
-import fitz  # PyMuPDF — already in requirements
-
-from helpers.agents.runner import run_agent
+from helpers.agents.execution.runner import run_agent
+from helpers.agents.routing.prompt_utils import format_chat_history
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from helpers.tools.file_parser import extract_pdf, ocr_image
 from models.results import HandlerResult
 from my_agents.orchestrator import get_orchestrator
 
@@ -18,134 +16,6 @@ logger = get_logger(__name__)
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 _PDF_EXTS = {".pdf"}
 _TEXT_EXTS = {".txt", ".md"}
-
-
-def _page_needs_vision(page: fitz.Page) -> bool:
-    """Return True if this page should be processed with GLM-OCR instead of PyMuPDF."""
-    if not page.get_text("text").strip():
-        return True
-    page_area = page.rect.width * page.rect.height
-    if page_area == 0:
-        return False
-    image_area = sum(img["width"] * img["height"] for img in page.get_image_info())
-    return (image_area / page_area) > 0.20
-
-
-def _ocr_page_glm(page: fitz.Page, ollama_base: str, ocr_model: str) -> str:
-    """Render one page to PNG and send to GLM-OCR. Returns extracted text or ''."""
-    import httpx
-
-    mat = fitz.Matrix(150 / 72, 150 / 72)
-    pix = page.get_pixmap(matrix=mat)
-    b64_image = base64.b64encode(pix.tobytes("png")).decode()
-
-    payload = {
-        "model": ocr_model,
-        "prompt": "Convert the document to markdown. Preserve all tables, headings, and structure.",
-        "images": [b64_image],
-        "stream": False,
-    }
-    try:
-        resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=60)
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except Exception as exc:
-        logger.warning("GLM-OCR failed on page %d: %s", page.number + 1, exc)
-        return ""
-
-
-def _clean_text(text: str) -> str:
-    """Normalize raw PDF text: collapse whitespace, fix broken lines."""
-    # Collapse runs of spaces/tabs
-    text = re.sub(r"[ \t]{2,}", " ", text)
-    # Remove hyphenation at line breaks (e.g. "infor-\nmation" → "information")
-    text = re.sub(r"-\n(\w)", r"\1", text)
-    # Merge lines that are mid-sentence (no punctuation before the break)
-    text = re.sub(r"(?<![.!?:])\n(?=[a-z])", " ", text)
-    # Collapse 3+ consecutive newlines to two
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
-
-
-def _extract_pdf(path: Path) -> str:
-    """
-    Per-page extraction: PyMuPDF for text-heavy pages, GLM-OCR for image-heavy
-    or scanned pages. Results are concatenated in page order with markdown structure.
-    """
-    config = load_config()
-    ollama_base = config.get("ollama", {}).get("base_url", "http://localhost:11434")
-    ocr_model = config.get("pdf", {}).get("ocr_model", "glm-ocr")
-
-    doc = fitz.open(str(path))
-    total = len(doc)
-    pages_text: list[str] = []
-
-    try:
-        for page in doc:
-            n = page.number + 1
-            if _page_needs_vision(page):
-                logger.info("Page %d: image-heavy or no text layer → GLM-OCR", n)
-                text = _ocr_page_glm(page, ollama_base, ocr_model)
-                if not text:
-                    text = _clean_text(page.get_text("text"))
-                method = "visual"
-            else:
-                text = _clean_text(page.get_text("text"))
-                logger.info("Page %d: text-heavy → PyMuPDF (%d chars)", n, len(text))
-                method = "text"
-
-            if text:
-                pages_text.append(f"### Page {n} of {total} ({method})\n\n{text}")
-    finally:
-        doc.close()
-
-    if not pages_text:
-        return ""
-
-    filename = path.stem.replace("_", " ").replace("-", " ")
-    header = f"## Document: {filename}\n\n---\n"
-    return header + "\n\n---\n\n".join(pages_text)
-
-
-def _resize_for_ocr(raw_bytes: bytes, max_pixels: int = 1536) -> bytes:
-    """Downscale an image so its longest side is at most *max_pixels*.
-
-    Returns PNG bytes (glm-ocr handles PNG well). If the image is already
-    small enough the original bytes are re-encoded as PNG to normalise format.
-    """
-    from PIL import Image
-    import io
-
-    img = Image.open(io.BytesIO(raw_bytes))
-    w, h = img.size
-    if max(w, h) > max_pixels:
-        scale = max_pixels / max(w, h)
-        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-        logger.debug("Resized image for OCR: %dx%d → %dx%d", w, h, img.width, img.height)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
-def _ocr_image_glm(path: Path, ollama_base: str, ocr_model: str) -> str:
-    """Send an image file to GLM-OCR via Ollama and return extracted text."""
-    import httpx
-
-    resized = _resize_for_ocr(path.read_bytes())
-    b64_image = base64.b64encode(resized).decode()
-    payload = {
-        "model": ocr_model,
-        "prompt": "Extract all text from this image. Preserve tables, headings, and structure as markdown.",
-        "images": [b64_image],
-        "stream": False,
-    }
-    try:
-        resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=120)
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except Exception as exc:
-        logger.warning("GLM-OCR failed on image %s: %s", path.name, exc)
-        return ""
 
 
 async def file_handler(
@@ -169,23 +39,12 @@ async def file_handler(
             else f"Here is the content of the file:\n\n---\n\n{text_content}"
         )
         messages = [{"role": "user", "content": user_content}]
-        result = await run_agent(get_orchestrator(), messages)
-        return HandlerResult(
-            response=result.response,
-            elapsed=time.perf_counter() - t0,
-            tools_used=result.tools_used,
-            agents_trace=result.agents_trace,
-            user_content=user_content,
-        )
 
-    if ext in _PDF_EXTS:
-        pdf_text = _extract_pdf(file_path)
-
+    elif ext in _PDF_EXTS:
+        pdf_text = extract_pdf(file_path)
         if not pdf_text:
             raise ValueError("PDF contains no extractable content.")
-
         logger.info("PDF extracted: %d chars", len(pdf_text))
-
         prefix = (
             "[ATTACHED DOCUMENT — answer from this content only, "
             "do NOT search the web]"
@@ -196,25 +55,29 @@ async def file_handler(
             if message and message.strip()
             else f"Summarise this document:\n\n---\n\n{doc_block}"
         )
-        messages: list[dict] = [{"role": "user", "content": user_content}]
+        messages = [{"role": "user", "content": user_content}]
 
     else:
-        # Image file — extract text via GLM-OCR, then pass as plain text
-        config = load_config()
-        ollama_base = config.get("ollama", {}).get("base_url", "http://localhost:11434")
-        ocr_model = config.get("pdf", {}).get("ocr_model", "glm-ocr")
-
-        extracted = _ocr_image_glm(file_path, ollama_base, ocr_model)
+        # Image — OCR then pass as plain text
+        extracted = ocr_image(file_path)
         user_text = message.strip() if message and message.strip() else "Describe this image."
-
         if extracted:
             logger.info("Image OCR extracted: %d chars", len(extracted))
             user_content = f"{user_text}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
         else:
-            logger.warning("Image OCR returned nothing for %s — sending message only", file_path.name)
-            user_content = f"{user_text}\n\n[An image was attached but OCR could not extract any text from it.]"
-
+            logger.warning(
+                "Image OCR returned nothing for %s — sending message only", file_path.name
+            )
+            user_content = (
+                f"{user_text}\n\n"
+                "[An image was attached but OCR could not extract any text from it.]"
+            )
         messages = [{"role": "user", "content": user_content}]
+
+    config = load_config()
+    window = config.get("orchestrator", {}).get("history_window", 20)
+    windowed_history = history[-(window * 2):]
+    messages = list(format_chat_history(windowed_history)) + messages
 
     result = await run_agent(get_orchestrator(), messages)
     return HandlerResult(

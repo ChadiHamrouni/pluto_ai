@@ -18,20 +18,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
 from helpers.core.logger import get_logger
 from helpers.tools import tts
+from models.tts import TTSRequest
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/tts", tags=["tts"])
-
-_MAX_TEXT_LEN = 10_000  # raised from 2000 — long agent responses must not be truncated
-
-
-class TTSRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=_MAX_TEXT_LEN)
 
 
 def _check_ready():

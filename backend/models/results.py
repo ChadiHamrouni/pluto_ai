@@ -30,6 +30,15 @@ class SlidePaths(BaseModel):
     pdf_path: str
 
 
+class StepResult(BaseModel):
+    """Result of executing a single plan step."""
+
+    success: bool
+    summary: str = ""
+    error: str = ""
+    links: list[str] = Field(default_factory=list)
+
+
 class LoopCreated(BaseModel):
     """Result of create_loop()."""
 

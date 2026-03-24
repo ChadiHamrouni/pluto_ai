@@ -14,9 +14,13 @@ export function useKeyboardShortcuts(shortcuts) {
   useEffect(() => {
     const handler = (e) => {
       for (const { combo, handler: cb, condition } of shortcuts) {
-        const [modifier, key] = combo;
-        if (e[modifier] && e.key === key) {
-          if (condition !== undefined && !condition) continue;
+        if (condition !== undefined && !condition) continue;
+        // combo can be [modifier, key] or just [key] for bare keys like "Escape"
+        const [modifierOrKey, key] = combo;
+        const matches = key !== undefined
+          ? e[modifierOrKey] && e.key === key
+          : e.key === modifierOrKey;
+        if (matches) {
           e.preventDefault();
           cb(e);
         }

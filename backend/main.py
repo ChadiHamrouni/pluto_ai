@@ -4,6 +4,7 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,14 +12,28 @@ from fastapi.responses import JSONResponse
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
 from helpers.core.exceptions import JarvisError
-from helpers.core.logger import get_logger
+from helpers.core.logger import get_logger, setup_logging
+from helpers.cron.ingestion_job import run_ingestion
 from routes.autonomous import router as autonomous_router
-from routes.chat import router as chat_router
 from routes.files import router as files_router
+from routes.messaging import router as messaging_router
+from routes.sessions import router as sessions_router
 from routes.settings import router as settings_router
+from routes.stream import router as stream_router
 from routes.voice import router as voice_router
 
+setup_logging()
+
 logger = get_logger(__name__)
+
+
+def _parse_cron_time(time_str: str) -> tuple[int, int]:
+    """Parse 'HH:MM' string into (hour, minute) integers. Defaults to 03:00 on error."""
+    try:
+        h, m = time_str.strip().split(":")
+        return int(h), int(m)
+    except Exception:
+        return 3, 0
 
 
 @asynccontextmanager
@@ -43,6 +58,18 @@ async def lifespan(app: FastAPI):
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
 
+    # Ensure ChromaDB data directory exists
+    os.makedirs(config["knowledge_base"].get("chroma_path", "data/chroma"), exist_ok=True)
+
+    # Schedule nightly knowledge base ingestion
+    ingestion_hour, ingestion_minute = _parse_cron_time(
+        config["knowledge_base"].get("ingestion_cron", "03:00")
+    )
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(run_ingestion, "cron", hour=ingestion_hour, minute=ingestion_minute)
+    scheduler.start()
+    logger.info("Ingestion job scheduled at %02d:%02d", ingestion_hour, ingestion_minute)
+
     # Embedding model — disabled while focusing on agent/tool testing
     # from helpers.tools.embedder import load_model as load_embedder
     # load_embedder()
@@ -58,6 +85,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    scheduler.shutdown(wait=False)
     logger.info("Shutting down.")
 
 
@@ -142,7 +170,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(chat_router)
+    app.include_router(sessions_router)
+    app.include_router(messaging_router)
+    app.include_router(stream_router)
     app.include_router(autonomous_router)
     app.include_router(settings_router)
     app.include_router(files_router)

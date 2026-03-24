@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from agents import Agent, ModelSettings, handoff
 
-from helpers.agents.instructions_loader import load_instructions
-from helpers.agents.ollama_client import get_model
+from helpers.agents.execution.instructions_loader import load_instructions
+from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
 from my_agents.calendar_agent import get_calendar_agent
 from my_agents.notes_agent import get_notes_agent
 from my_agents.research_agent import get_research_agent
 from my_agents.slides_agent import get_slides_agent
 from tools.memory_tools import forget_memory, prune_memory, store_memory
+from tools.rag import search_knowledge
 from tools.web_search import web_search
 
 _orchestrator: Agent | None = None
@@ -27,8 +28,8 @@ def get_orchestrator() -> Agent:
         _orchestrator = Agent(
             name="Orchestrator",
             model=get_model(cfg["model"]),
-            instructions=load_instructions("orchestrator"),
-            tools=[store_memory, forget_memory, prune_memory, web_search],
+            instructions=load_instructions("agents/orchestrator"),
+            tools=[store_memory, forget_memory, prune_memory, web_search, search_knowledge],
             model_settings=ModelSettings(
                 temperature=cfg.get("temperature", 0.0),
                 tool_choice=cfg.get("tool_choice", "auto"),

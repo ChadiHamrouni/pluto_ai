@@ -206,6 +206,7 @@ export async function fetchFile(fileUrl) {
 export async function startAutonomous(task) {
   const formData = new FormData();
   formData.append("task", task);
+  if (sessionId) formData.append("session_id", sessionId);
   const r = await fetch(`${BASE}/autonomous/start`, { method: "POST", body: formData });
   if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
   return r.json();

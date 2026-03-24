@@ -1,4 +1,11 @@
-"""Load agent instructions from markdown files in the instructions/ folder."""
+"""Load agent instructions from markdown files in the instructions/ folder.
+
+Usage:
+    load_instructions("agents/orchestrator")
+    load_instructions("autonomous/planner")
+    load_instructions("compactor/compactor_summary")
+    load_instructions("guardrails/guardrail_relevance")
+"""
 
 from __future__ import annotations
 
@@ -13,6 +20,7 @@ def load_instructions(name: str) -> str:
     """
     Load instructions from instructions/<name>.md.
 
+    name may include a subdirectory, e.g. "agents/orchestrator".
     Raises FileNotFoundError if the file does not exist.
     """
     path = os.path.join(_BASE, f"{name}.md")

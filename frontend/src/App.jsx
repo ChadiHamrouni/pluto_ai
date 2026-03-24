@@ -96,7 +96,7 @@ export default function App() {
     currentPlan,
     setCurrentPlan,
     handleSend,
-    handleAutoCancel,
+    handleEscape,
   } = useChat({
     activeId,
     messages,
@@ -175,6 +175,12 @@ export default function App() {
       combo: ["ctrlKey", "h"],
       handler: () => setSidebarOpen(p => !p),
       deps: [],
+    },
+    {
+      combo: ["Escape"],
+      handler: handleEscape,
+      condition: thinking,
+      deps: [thinking],
     },
   ]);
 
@@ -264,7 +270,7 @@ export default function App() {
             thinking={thinking}
             error={error}
             currentPlan={currentPlan}
-            onAutoCancel={handleAutoCancel}
+
             onDownload={downloadFile}
             bottomRef={bottomRef}
             voiceMode={voiceMode}

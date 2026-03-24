@@ -40,8 +40,6 @@ async def web_search(query: str, max_results: int = 3) -> str:
         snippet = r.get("body", "")
 
         page_text = await _fetch_text(url)
-        # Always keep the snippet — DDGS often extracts the direct answer
-        # (e.g. current temperature, definition). Append page text if we got it.
         content = snippet
         if page_text and len(page_text) > len(snippet):
             content = f"{snippet}\n\n{page_text}"
@@ -54,8 +52,47 @@ async def web_search(query: str, max_results: int = 3) -> str:
     return body + sources_block
 
 
+@function_tool
+async def fetch_page(url: str) -> str:
+    """Fetch a web page and return its plain-text content (up to 8000 chars).
+
+    Use this to deep-read a specific URL found via web_search when you need
+    more detail than the snippet provided.
+
+    Args:
+        url: The full URL to fetch.
+
+    Returns:
+        Extracted plain text from the page (up to 8000 chars), or an error message.
+    """
+    if not url:
+        return "Error: no URL provided."
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=15, follow_redirects=True)
+            response.raise_for_status()
+        text = response.text
+        for tag in ("script", "style", "nav", "header", "footer", "aside", "noscript"):
+            text = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            return "Page returned no text content."
+        return text[:8000]
+    except Exception as exc:
+        logger.warning("fetch_page failed for %s: %s", url, exc)
+        return f"Failed to fetch page: {exc}"
+
+
 async def _fetch_text(url: str) -> str:
-    """Fetch a URL asynchronously and return the first 1000 characters of plain text."""
+    """Fetch a URL and return the first 3000 chars of plain text (used internally by web_search)."""
     if not url:
         return ""
     try:

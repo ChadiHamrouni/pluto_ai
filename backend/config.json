@@ -46,7 +46,7 @@
     "search_top_k": 10
   },
   "research_agent": {
-    "model": "qwen3.5:7b",
+    "model": "qwen3.5:9b",
     "temperature": 0.0,
     "max_tokens": 4096,
     "tool_choice": "auto"
@@ -58,8 +58,8 @@
     "tool_choice": "required"
   },
   "autonomous": {
-    "planner_model": "qwen3.5:7b",
-    "executor_model": "qwen3.5:4b",
+    "planner_model": "qwen3.5:9b",
+    "executor_model": "qwen3.5:9b",
     "max_iterations": 50,
     "max_duration_seconds": 300,
     "max_retries_per_step": 2,
@@ -68,7 +68,10 @@
   "knowledge_base": {
     "embedding_model": "qwen3-embedding:0.6b",
     "embeddings_path": "data/embeddings",
-    "files_path": "data/files"
+    "files_path": "data/files",
+    "chroma_path": "data/chroma",
+    "collection_name": "knowledge_base",
+    "ingestion_cron": "03:00"
   },
   "storage": {
     "notes_dir": "data/notes",
@@ -83,6 +86,10 @@
   "api": {
     "host": "127.0.0.1",
     "port": 8000
+  },
+  "user": {
+    "location": "Tunis, Tunisia",
+    "timezone": "Africa/Tunis"
   },
   "pdf": {
     "ocr_model": "glm-ocr",
