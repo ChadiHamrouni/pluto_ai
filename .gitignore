@@ -16,6 +16,9 @@ data/
 *.sqlite
 *.sqlite3
 
+# ── Evaluation results ────────────────────────────────────────────────────────
+backend/eval/results/
+
 # ── Virtual environments ───────────────────────────────────────────────────────
 .venv/
 venv/

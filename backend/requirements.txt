@@ -23,6 +23,11 @@ slowapi==0.1.9
 pytest==9.0.2
 pytest-asyncio==1.3.0
 
+# evaluation — not needed for app runtime
+bfcl-eval
+datasets
+openpyxl
+
 # TTS
 # qwen-tts
 # soundfile
