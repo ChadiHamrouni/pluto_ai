@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-from backend.tools.calendar import cancel_event, list_events, schedule_event
-from backend.tools.notes import create_note, get_note, list_notes
-from backend.tools.slides import draft_slides, render_slides
+from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
+from tools.notes import create_note, get_note, list_notes
+from tools.slides import draft_slides, render_slides
 
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
@@ -47,7 +47,7 @@ def get_single_agent(model: str | None = None) -> Agent:
             search_knowledge,
             create_note, list_notes, get_note,
             draft_slides, render_slides,
-            schedule_event, list_events, cancel_event,
+            schedule_event, list_events, cancel_event, upcoming_events,
         ],
         model_settings=ModelSettings(
             temperature=cfg.get("temperature", 0.0),

@@ -47,9 +47,6 @@ CREATE_NOTES_IDX = """
 CREATE INDEX IF NOT EXISTS idx_notes_category ON notes(category);
 """
 
-CREATE_NOTES_TITLE_IDX = """
-CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_title ON notes(title);
-"""
 
 CREATE_SESSIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -114,7 +111,6 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_MEMORIES_FTS)
         await db.execute(CREATE_MEMORIES_IDX)
         await db.execute(CREATE_NOTES_IDX)
-        await db.execute(CREATE_NOTES_TITLE_IDX)
         await db.execute(CREATE_SESSIONS_TABLE)
         await db.execute(CREATE_CONVERSATIONS_TABLE)
         await db.execute(CREATE_CONVERSATIONS_IDX)
@@ -126,6 +122,12 @@ async def init_db(db_path: str) -> None:
             await db.execute(MIGRATE_CONVERSATIONS_METADATA)
         except Exception:
             pass  # column already exists — safe to ignore
+
+        # Migrate: drop the unique title index — id is the PK, titles can repeat
+        try:
+            await db.execute("DROP INDEX IF EXISTS idx_notes_title;")
+        except Exception:
+            pass
 
         await db.commit()
 

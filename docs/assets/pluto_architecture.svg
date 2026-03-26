@@ -1,0 +1,212 @@
+<svg viewBox="0 0 900 720" xmlns="http://www.w3.org/2000/svg"
+     font-family="'Segoe UI', Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1,2 L8,5 L1,8" fill="none" stroke="#444"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-dash" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1,2 L8,5 L1,8" fill="none" stroke="#888"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-violet" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1,2 L8,5 L1,8" fill="none" stroke="#6d4caf"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-up" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1,2 L8,5 L1,8" fill="none" stroke="#444"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       USER  (top centre)
+  ═══════════════════════════════════════════════════════════════ -->
+  <rect x="330" y="30" width="240" height="48" rx="7"
+        fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+  <text x="450" y="50" text-anchor="middle" font-size="12" fill="#777">① User</text>
+  <text x="450" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#111"></text>
+  <!-- centred label -->
+  <text x="450" y="60" text-anchor="middle" font-size="14" font-weight="600" fill="#222">User</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ORCHESTRATOR  (centre)
+  ═══════════════════════════════════════════════════════════════ -->
+  <!-- header -->
+  <rect x="300" y="120" width="300" height="46" rx="7"
+        fill="#c7d9f8" stroke="#5b8dee" stroke-width="1.8"/>
+  <text x="450" y="149" text-anchor="middle" font-size="15"
+        font-weight="700" fill="#1a3a8f">Orchestrator</text>
+  <!-- body -->
+  <rect x="300" y="164" width="300" height="168" rx="0"
+        fill="#e8f0fe" stroke="#5b8dee" stroke-width="1.8"/>
+  <rect x="300" y="158" width="300" height="176" rx="7"
+        fill="none" stroke="#5b8dee" stroke-width="1.8"/>
+  <!-- tool rows -->
+  <line x1="310" y1="186" x2="590" y2="186" stroke="#b0c4f0" stroke-width="0.8"/>
+  <text x="450" y="182" text-anchor="middle" font-size="11" fill="#2a4aaf">store_memory</text>
+  <line x1="310" y1="206" x2="590" y2="206" stroke="#b0c4f0" stroke-width="0.8"/>
+  <text x="450" y="202" text-anchor="middle" font-size="11" fill="#2a4aaf">forget_memory</text>
+  <line x1="310" y1="226" x2="590" y2="226" stroke="#b0c4f0" stroke-width="0.8"/>
+  <text x="450" y="222" text-anchor="middle" font-size="11" fill="#2a4aaf">prune_memory</text>
+  <line x1="310" y1="246" x2="590" y2="246" stroke="#b0c4f0" stroke-width="0.8"/>
+  <text x="450" y="242" text-anchor="middle" font-size="11" fill="#2a4aaf">web_search</text>
+  <line x1="310" y1="266" x2="590" y2="266" stroke="#b0c4f0" stroke-width="0.8"/>
+  <text x="450" y="262" text-anchor="middle" font-size="11" fill="#2a4aaf">search_knowledge</text>
+  <line x1="310" y1="286" x2="590" y2="286" stroke="#b0c4f0" stroke-width="0.8"/>
+  <!-- bottom cap to close rounded rect -->
+
+  <!-- ═══════════════════════════════════════════════════════════
+       CONTEXT & STORAGE panel  (left)
+  ═══════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="148" width="210" height="230" rx="9"
+        fill="#f5f5f5" stroke="#bbb" stroke-width="1.3"/>
+  <text x="135" y="170" text-anchor="middle" font-size="11"
+        fill="#777" font-style="italic">Context &amp; Storage</text>
+
+  <!-- Memory Store -->
+  <rect x="46" y="180" width="178" height="72" rx="6"
+        fill="#ffffff" stroke="#bbb" stroke-width="1.2"/>
+  <text x="135" y="200" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#333">Memory Store</text>
+  <line x1="56" y1="207" x2="214" y2="207" stroke="#ddd" stroke-width="0.8"/>
+  <text x="135" y="222" text-anchor="middle" font-size="10.5" fill="#555">SQLite FTS5 · BM25</text>
+  <text x="135" y="238" text-anchor="middle" font-size="10.5" fill="#555">injected each turn</text>
+
+  <!-- Ctx Compaction -->
+  <rect x="46" y="278" width="178" height="82" rx="6"
+        fill="#ffffff" stroke="#bbb" stroke-width="1.2"/>
+  <text x="135" y="298" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#333">Ctx Compaction</text>
+  <line x1="56" y1="305" x2="214" y2="305" stroke="#ddd" stroke-width="0.8"/>
+  <text x="135" y="322" text-anchor="middle" font-size="10.5" fill="#555">&gt;75% ctx window</text>
+  <text x="135" y="338" text-anchor="middle" font-size="10.5" fill="#555">summarise + flush</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       KNOWLEDGE BASE  (right of orchestrator)
+  ═══════════════════════════════════════════════════════════════ -->
+  <rect x="650" y="188" width="210" height="72" rx="7"
+        fill="#fdf6e3" stroke="#d4a017" stroke-width="1.4"/>
+  <text x="755" y="212" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#7a4f00">Knowledge Base</text>
+  <line x1="660" y1="219" x2="850" y2="219" stroke="#e8c84a" stroke-width="0.8"/>
+  <text x="755" y="236" text-anchor="middle" font-size="10.5" fill="#a06000">ChromaDB · semantic search</text>
+  <text x="755" y="251" text-anchor="middle" font-size="10" fill="#b07820"
+        font-style="italic">(read via search_knowledge)</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SPECIALIST AGENTS panel  (bottom)
+  ═══════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="448" width="840" height="210" rx="9"
+        fill="#f0ebff" stroke="#b39ddb" stroke-width="1.4"/>
+  <text x="60" y="472" font-size="12" fill="#6d4caf" font-weight="600"
+        font-style="italic">Specialist Agents</text>
+
+  <!-- NotesAgent -->
+  <rect x="46" y="482" width="185" height="158" rx="6"
+        fill="#ffffff" stroke="#b39ddb" stroke-width="1.2"/>
+  <text x="138" y="504" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#4a2d8f">NotesAgent</text>
+  <line x1="56" y1="511" x2="221" y2="511" stroke="#ddd" stroke-width="0.8"/>
+  <text x="138" y="530" text-anchor="middle" font-size="10.5" fill="#5a3aaa">create_note</text>
+  <text x="138" y="548" text-anchor="middle" font-size="10.5" fill="#5a3aaa">list_notes</text>
+  <text x="138" y="566" text-anchor="middle" font-size="10.5" fill="#5a3aaa">get_note</text>
+
+  <!-- SlidesAgent -->
+  <rect x="252" y="482" width="185" height="158" rx="6"
+        fill="#ffffff" stroke="#b39ddb" stroke-width="1.2"/>
+  <text x="344" y="504" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#4a2d8f">SlidesAgent</text>
+  <line x1="262" y1="511" x2="427" y2="511" stroke="#ddd" stroke-width="0.8"/>
+  <text x="344" y="530" text-anchor="middle" font-size="10.5" fill="#5a3aaa">web_search</text>
+  <text x="344" y="548" text-anchor="middle" font-size="10.5" fill="#5a3aaa">draft_slides</text>
+  <text x="344" y="566" text-anchor="middle" font-size="10.5" fill="#5a3aaa">render_slides</text>
+
+  <!-- ResearchAgent -->
+  <rect x="458" y="482" width="185" height="158" rx="6"
+        fill="#ffffff" stroke="#b39ddb" stroke-width="1.2"/>
+  <text x="550" y="504" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#4a2d8f">ResearchAgent</text>
+  <line x1="468" y1="511" x2="633" y2="511" stroke="#ddd" stroke-width="0.8"/>
+  <text x="550" y="530" text-anchor="middle" font-size="10.5" fill="#5a3aaa">web_search</text>
+  <text x="550" y="548" text-anchor="middle" font-size="10.5" fill="#5a3aaa">fetch_page</text>
+
+  <!-- CalendarAgent -->
+  <rect x="664" y="482" width="185" height="158" rx="6"
+        fill="#ffffff" stroke="#b39ddb" stroke-width="1.2"/>
+  <text x="756" y="504" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#4a2d8f">CalendarAgent</text>
+  <line x1="674" y1="511" x2="839" y2="511" stroke="#ddd" stroke-width="0.8"/>
+  <text x="756" y="530" text-anchor="middle" font-size="10.5" fill="#5a3aaa">schedule_event</text>
+  <text x="756" y="548" text-anchor="middle" font-size="10.5" fill="#5a3aaa">list_events</text>
+  <text x="756" y="566" text-anchor="middle" font-size="10.5" fill="#5a3aaa">upcoming_events</text>
+  <text x="756" y="584" text-anchor="middle" font-size="10.5" fill="#5a3aaa">cancel_event</text>
+
+  <!-- ④ final response label inside agents panel -->
+  <text x="450" y="660" text-anchor="middle" font-size="11"
+        fill="#6d4caf" font-style="italic">④ final response (one-way handoff — no return to orchestrator)</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ARROWS
+  ═══════════════════════════════════════════════════════════════ -->
+
+  <!-- User -> Orchestrator (query, down) -->
+  <line x1="450" y1="78" x2="450" y2="118" stroke="#444"
+        stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="456" y="103" font-size="10" fill="#555" font-style="italic">query</text>
+
+  <!-- Orchestrator -> User (direct response, offset left) -->
+  <line x1="430" y1="120" x2="430" y2="80" stroke="#444"
+        stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="310" y="103" font-size="10" fill="#555" font-style="italic">direct response</text>
+
+  <!-- Memory -> Orchestrator (inject, dashed) -->
+  <line x1="224" y1="218" x2="298" y2="218" stroke="#888"
+        stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arr-dash)"/>
+  <text x="233" y="212" font-size="10" fill="#888" font-style="italic">inject</text>
+
+  <!-- Orchestrator -> Compaction (triggers, dashed) -->
+  <line x1="300" y1="290" x2="226" y2="310" stroke="#888"
+        stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arr-dash)"/>
+  <text x="226" y="286" font-size="10" fill="#888" font-style="italic">triggers &gt;75% ctx</text>
+
+  <!-- Compaction -> Memory (flush, solid down-to-up inside panel) -->
+  <line x1="135" y1="278" x2="135" y2="254" stroke="#888"
+        stroke-width="1.3" marker-end="url(#arr-dash)"/>
+  <text x="140" y="270" font-size="10" fill="#888" font-style="italic">flush</text>
+
+  <!-- Orchestrator -> Knowledge Base (search_knowledge, dashed) -->
+  <line x1="600" y1="228" x2="648" y2="228" stroke="#c08000"
+        stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arr-dash)"/>
+  <text x="600" y="218" font-size="10" fill="#a06000" font-style="italic">search_knowledge</text>
+
+  <!-- Orchestrator -> Specialist Agents (handoff, 4 lines) -->
+  <!-- to NotesAgent -->
+  <line x1="138" y1="336" x2="138" y2="480" stroke="#444"
+        stroke-width="1.5" marker-end="url(#arr)"/>
+  <!-- to SlidesAgent -->
+  <line x1="344" y1="336" x2="344" y2="480" stroke="#444"
+        stroke-width="1.5" marker-end="url(#arr)"/>
+  <!-- to ResearchAgent -->
+  <line x1="550" y1="336" x2="550" y2="480" stroke="#444"
+        stroke-width="1.5" marker-end="url(#arr)"/>
+  <!-- to CalendarAgent -->
+  <line x1="756" y1="336" x2="756" y2="480" stroke="#444"
+        stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- horizontal bus connecting the 4 handoff lines from orchestrator bottom -->
+  <line x1="138" y1="336" x2="756" y2="336" stroke="#444" stroke-width="1.5"/>
+  <!-- vertical from orch bottom to bus -->
+  <line x1="450" y1="336" x2="450" y2="336" stroke="#444" stroke-width="1.5"/>
+  <line x1="450" y1="302" x2="450" y2="338" stroke="#444" stroke-width="1.5"/>
+  <text x="560" y="390" font-size="11" fill="#444" font-style="italic">③ handoff</text>
+
+  <!-- ④ final response: agents panel top -> up to user (violet dashed) -->
+  <line x1="450" y1="448" x2="450" y2="338" stroke="#6d4caf"
+        stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr-violet)"/>
+
+</svg>

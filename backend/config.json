@@ -1,6 +1,6 @@
 {
   "orchestrator": {
-    "model": "qwen3.5:4b",
+    "model": "qwen3.5:9b",
     "temperature": 0.0,
     "max_tokens": 2048,
     "tool_choice": "auto",
@@ -15,13 +15,13 @@
     "request_timeout_seconds": 120
   },
   "notes_agent": {
-    "model": "qwen2.5:3b",
+    "model": "qwen3.5:9b",
     "temperature": 0.0,
     "max_tokens": 1024,
     "tool_choice": "required"
   },
   "slides_agent": {
-    "model": "qwen2.5:3b",
+    "model": "qwen3.5:9b",
     "temperature": 0.0,
     "max_tokens": 2048,
     "tool_choice": "required"
@@ -52,7 +52,7 @@
     "tool_choice": "auto"
   },
   "calendar_agent": {
-    "model": "qwen2.5:3b",
+    "model": "qwen2.5:9b",
     "temperature": 0.0,
     "max_tokens": 1024,
     "tool_choice": "required"

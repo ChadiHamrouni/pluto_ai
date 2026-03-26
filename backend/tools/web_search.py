@@ -91,7 +91,8 @@ async def web_search(query: str, max_results: int = 3) -> str:
         page_text = await _fetch_text(url)
         content = snippet
         if page_text and len(page_text) > len(snippet):
-            content = f"{snippet}\n\n{page_text}"
+            trimmed = page_text[:400]
+            content = f"{snippet}\n\n{trimmed}"
 
         sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
         source_lines.append(f"- [{title}]({url})")
@@ -155,8 +156,17 @@ async def _fetch_text(url: str) -> str:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, timeout=8, follow_redirects=False)
             response.raise_for_status()
-        text = re.sub(r"<[^>]+>", " ", response.text)
+        text = response.text
+        # Strip noisy elements that confuse small models
+        for tag in ("script", "style", "nav", "header", "footer", "aside", "noscript", "svg"):
+            text = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        # Strip all remaining HTML tags
+        text = re.sub(r"<[^>]+>", " ", text)
+        # Strip HTML entities
+        text = re.sub(r"&[a-zA-Z]+;", " ", text)
+        text = re.sub(r"&#?\w+;", " ", text)
+        # Collapse whitespace
         text = re.sub(r"\s+", " ", text).strip()
-        return text[:3000]
+        return text[:800]
     except Exception:
         return ""

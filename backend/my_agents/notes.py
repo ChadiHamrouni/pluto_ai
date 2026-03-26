@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-from backend.tools.notes import create_note, get_note, list_notes
+from tools.notes import create_note, get_note, list_notes
 
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model

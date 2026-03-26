@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-from backend.tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
+from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
 
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
