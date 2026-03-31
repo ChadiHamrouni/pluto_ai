@@ -76,6 +76,7 @@
   "storage": {
     "notes_dir": "data/notes",
     "slides_dir": "data/slides",
+    "diagrams_dir": "data/diagrams",
     "title_slug_max_length": 60
   },
   "slides": {
@@ -108,5 +109,20 @@
     "algorithm": "HS256",
     "access_token_expires_minutes": 15,
     "refresh_token_expires_days": 7
+  },
+  "dashboard_agent": {
+    "model": "qwen3.5:9b",
+    "temperature": 0.0,
+    "max_tokens": 2048,
+    "tool_choice": "auto"
+  },
+  "obsidian": {
+    "vault_path": "C:/Users/shadyy/ObsidianVault"
+  },
+  "budget": {
+    "categories": [
+      "salary", "freelance", "food", "transport", "rent", "utilities",
+      "subscriptions", "entertainment", "health", "education", "savings", "other"
+    ]
   }
 }

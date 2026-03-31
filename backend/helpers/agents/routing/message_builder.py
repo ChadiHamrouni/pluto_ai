@@ -38,6 +38,7 @@ def _calendar_context() -> str:
 def _get_command_agents() -> dict:
     """Return the slash-command → agent-factory mapping (imported lazily to avoid cycles)."""
     from my_agents.calendar import get_calendar_agent
+    from my_agents.dashboard import get_dashboard_agent
     from my_agents.notes import get_notes_agent
     from my_agents.orchestrator import get_orchestrator
     from my_agents.research import get_research_agent
@@ -50,6 +51,10 @@ def _get_command_agents() -> dict:
         "calendar": get_calendar_agent,
         "memory": get_orchestrator,
         "forget": get_orchestrator,
+        "task": get_dashboard_agent,
+        "budget": get_dashboard_agent,
+        "diagram": get_dashboard_agent,
+        "dashboard": get_dashboard_agent,
     }
 
 

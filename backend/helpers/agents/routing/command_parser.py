@@ -52,6 +52,30 @@ COMMAND_REGISTRY: list[dict] = [
         "intent": "forget",
         "aliases": [],
     },
+    {
+        "cmd": "/task",
+        "desc": "Manage tasks and kanban board",
+        "intent": "task",
+        "aliases": ["/tasks"],
+    },
+    {
+        "cmd": "/budget",
+        "desc": "Track income, expenses, and savings goals",
+        "intent": "budget",
+        "aliases": [],
+    },
+    {
+        "cmd": "/diagram",
+        "desc": "Generate a Mermaid diagram as PNG",
+        "intent": "diagram",
+        "aliases": [],
+    },
+    {
+        "cmd": "/dashboard",
+        "desc": "Sync Obsidian vault and generate views",
+        "intent": "dashboard",
+        "aliases": ["/obsidian", "/vault"],
+    },
 ]
 
 # Flat alias → intent lookup built from the registry above

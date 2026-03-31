@@ -92,6 +92,54 @@ CREATE_EVENTS_IDX = """
 CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_time);
 """
 
+CREATE_TASKS_TABLE = """
+CREATE TABLE IF NOT EXISTS tasks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    title        TEXT    NOT NULL,
+    description  TEXT    NOT NULL DEFAULT '',
+    status       TEXT    NOT NULL DEFAULT 'todo',
+    priority     TEXT    NOT NULL DEFAULT 'medium',
+    due_date     TEXT,
+    tags         TEXT    NOT NULL DEFAULT '[]',
+    project      TEXT    NOT NULL DEFAULT '',
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);
+"""
+
+CREATE_TASKS_IDX = """
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+"""
+
+CREATE_BUDGET_TRANSACTIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS budget_transactions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    type          TEXT    NOT NULL,
+    amount        REAL    NOT NULL,
+    category      TEXT    NOT NULL,
+    description   TEXT    NOT NULL DEFAULT '',
+    date          TEXT    NOT NULL,
+    recurring     TEXT    NOT NULL DEFAULT '',
+    recurring_day INTEGER,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_BUDGET_IDX = """
+CREATE INDEX IF NOT EXISTS idx_budget_date ON budget_transactions(date);
+"""
+
+CREATE_SAVINGS_GOALS_TABLE = """
+CREATE TABLE IF NOT EXISTS savings_goals (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT    NOT NULL,
+    target_amount  REAL    NOT NULL,
+    current_amount REAL    NOT NULL DEFAULT 0,
+    deadline       TEXT,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 
 async def init_db(db_path: str) -> None:
     """
@@ -116,6 +164,11 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_CONVERSATIONS_IDX)
         await db.execute(CREATE_EVENTS_TABLE)
         await db.execute(CREATE_EVENTS_IDX)
+        await db.execute(CREATE_TASKS_TABLE)
+        await db.execute(CREATE_TASKS_IDX)
+        await db.execute(CREATE_BUDGET_TRANSACTIONS_TABLE)
+        await db.execute(CREATE_BUDGET_IDX)
+        await db.execute(CREATE_SAVINGS_GOALS_TABLE)
 
         # Migrate: add metadata column if it doesn't exist yet
         try:

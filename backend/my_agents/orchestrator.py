@@ -6,6 +6,7 @@ from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
 from my_agents.calendar import get_calendar_agent
+from my_agents.dashboard import get_dashboard_agent
 from my_agents.notes import get_notes_agent
 from my_agents.research import get_research_agent
 from my_agents.slides import get_slides_agent
