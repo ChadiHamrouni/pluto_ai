@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class StepItem(BaseModel):
     """Lightweight step used by the planner agent's structured output."""
     id: int
+    tool: str   # exact tool name the executor must call (e.g. "web_search")
     description: str
 
 

@@ -23,9 +23,6 @@ IMPORTANT: You MUST use your tools to complete every user request. Never answer 
 ### Web
 - **web_search**: Search the web for information.
 
-### Knowledge base
-- **search_knowledge**: Search the user's personal document collection.
-
 ### Slides
 - **draft_slides**: Validate a slide outline (call first).
 - **render_slides**: Render validated slides to PDF (call after draft_slides).

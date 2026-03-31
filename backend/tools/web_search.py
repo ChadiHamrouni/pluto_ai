@@ -60,19 +60,21 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
     return True, ""
 
 
+_MAX_RESULTS = 3
+
+
 @function_tool
-async def web_search(query: str, max_results: int = 3) -> str:
-    """Search the web and return extracted page content.
+async def web_search(query: str) -> str:
+    """Search the web and return extracted page content from the top 3 results.
 
     Args:
         query: The search query — be specific, include location/date when relevant.
-        max_results: Number of pages to fetch and extract (default 3).
 
     Returns:
         Concatenated page text from top results with a SOURCES block at the end.
     """
     try:
-        results = DDGS().text(query, max_results=max_results)
+        results = DDGS().text(query, max_results=_MAX_RESULTS)
     except Exception as exc:
         logger.error("DuckDuckGo search failed: %s", exc)
         return f"Search failed: {exc}"

@@ -34,14 +34,14 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
     descriptive and unique. Duplicate titles will cause an error.
 
     Args:
-        title:    Human-readable title for the note. Used as the filename base.
+        title:    REQUIRED. Human-readable title for the note. Used as the filename base.
                   Must be unique across all notes (e.g. "Meeting notes 2026-03-20").
-        content:  Full markdown body of the note. May include headings, bullet
-                  points, code blocks, etc.
-        category: Classification bucket. Must be one of:
-                  teaching, research, career, personal, ideas.
-        tags:     Comma-separated keywords for later filtering or retrieval
-                  (e.g. "meeting,project-x,action-items").
+                  Always provide this — the call will fail without it.
+        content:  REQUIRED. Full markdown body of the note. May include headings,
+                  bullet points, code blocks, etc.
+        category: REQUIRED. Must be one of: teaching, research, career, personal, ideas.
+        tags:     REQUIRED. Comma-separated keywords (e.g. "meeting,project-x,action-items").
+                  Use empty string "" if no tags apply.
 
     Returns:
         Confirmation string with the assigned note id and the file path on

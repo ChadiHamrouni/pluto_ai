@@ -9,7 +9,6 @@ from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
 from tools.memory_tools import forget_memory, prune_memory, store_memory
-from tools.rag import search_knowledge
 from tools.web_search import web_search
 
 _single_agent: Agent | None = None
@@ -44,7 +43,6 @@ def get_single_agent(model: str | None = None) -> Agent:
         tools=[
             store_memory, forget_memory, prune_memory,
             web_search,
-            search_knowledge,
             create_note, list_notes, get_note,
             draft_slides, render_slides,
             schedule_event, list_events, cancel_event, upcoming_events,
