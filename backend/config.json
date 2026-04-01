@@ -71,7 +71,7 @@
     "files_path": "data/files",
     "chroma_path": "data/chroma",
     "collection_name": "knowledge_base",
-    "ingestion_cron": "03:00",
+    "ingestion_cron": "17:25",
     "search_similarity_threshold": 0.3
   },
   "storage": {

@@ -118,8 +118,9 @@ def generate_diagram(
     logger.info("Diagram saved: %s", png_path)
     # Write sidecar metadata so diagrams are searchable via Ctrl+P
     try:
-        from helpers.tools.diagram_meta import write_diagram_meta
         from pathlib import Path as _Path
+
+        from helpers.tools.diagram_meta import write_diagram_meta
         write_diagram_meta(_Path(png_path).name, title, mermaid_code)
     except Exception:
         pass  # non-fatal

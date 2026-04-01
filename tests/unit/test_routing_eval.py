@@ -94,9 +94,9 @@ def test_parse_command_calendar_aliases():
 # ---------------------------------------------------------------------------
 
 def test_command_agents_covers_all_known_intents():
-    """Every intent that parse_command can return is handled by the single Jarvis agent.
+    """Every intent that parse_command can return is handled by the single Pluto agent.
 
-    With the single-agent architecture, all slash commands are forwarded to Jarvis
+    With the single-agent architecture, all slash commands are forwarded to Pluto
     with a [intent] hint prefix. This test verifies that every registered intent
     is a known, expected intent — i.e. the COMMAND_REGISTRY is complete.
     """

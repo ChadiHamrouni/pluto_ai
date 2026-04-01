@@ -239,7 +239,10 @@ def ingest_file(file_path: str, content_type: str = "file", source_prefix: str =
         pass
 
     ids = [f"{source_key}::{i}" for i in range(len(chunks))]
-    metadatas = [{"source": source_key, "chunk_index": i, "content_type": content_type} for i in range(len(chunks))]
+    metadatas = [
+        {"source": source_key, "chunk_index": i, "content_type": content_type}
+        for i in range(len(chunks))
+    ]
 
     # Batch embed — one VRAM swap for the whole file
     embeddings = [embed_text(chunk) for chunk in chunks]
@@ -287,7 +290,9 @@ def search_knowledge(
     kb_cfg = full_cfg.get("knowledge_base", {})
     rag_cfg = full_cfg["rag"]
     # Use the looser search threshold (0.3) rather than the RAG chat threshold (0.75)
-    threshold: float = kb_cfg.get("search_similarity_threshold", rag_cfg.get("similarity_threshold", 0.3))
+    threshold: float = kb_cfg.get(
+        "search_similarity_threshold", rag_cfg.get("similarity_threshold", 0.3)
+    )
     # Fetch more candidates per path so RRF has room to work
     fetch_k = max(top_k * 2, 10)
 

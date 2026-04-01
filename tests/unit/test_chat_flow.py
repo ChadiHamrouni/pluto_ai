@@ -36,7 +36,7 @@ sys.modules["helpers.tools.embedder"] = _embedder_stub
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _sdk_result(text: str = "Hello from Jarvis!") -> MagicMock:
+def _sdk_result(text: str = "Hello from Pluto!") -> MagicMock:
     result = MagicMock()
     result.final_output = text
     result.new_items = []
@@ -84,7 +84,7 @@ def client(tmp_db, auth_override):
 # ---------------------------------------------------------------------------
 
 def test_chat_returns_200_with_response(client, tmp_db):
-    sdk_result = _sdk_result("I'm Jarvis, here to help!")
+    sdk_result = _sdk_result("I'm Pluto, here to help!")
     with (
         patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=sdk_result)),
         patch("helpers.agents.routing.message_builder._calendar_context", return_value=""),
@@ -93,7 +93,7 @@ def test_chat_returns_200_with_response(client, tmp_db):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["response"] == "I'm Jarvis, here to help!"
+    assert body["response"] == "I'm Pluto, here to help!"
     assert isinstance(body["tools_used"], list)
     assert isinstance(body["agents_trace"], list)
 

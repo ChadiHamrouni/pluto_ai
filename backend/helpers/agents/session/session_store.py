@@ -89,7 +89,9 @@ async def append_turn(
             (session_id, "New Chat"),
         )
         await db.execute(
-            "INSERT INTO conversations (session_id, role, content, metadata, user_metadata) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO conversations"
+            " (session_id, role, content, metadata, user_metadata)"
+            " VALUES (?, ?, ?, ?, ?)",
             (session_id, "user", user_content, "{}", user_meta_json),
         )
         await db.execute(

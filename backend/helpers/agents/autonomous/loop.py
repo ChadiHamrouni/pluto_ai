@@ -1,7 +1,7 @@
 """Autonomous ReAct loop.
 
 Architecture (collapsed single-agent):
-  User task → Jarvis (ReAct, max_turns=20, streamed)
+  User task → Pluto (ReAct, max_turns=20, streamed)
                ├─ token events → frontend in real time
                ├─ tool_call events → frontend in real time
                └─ done → final response
@@ -17,10 +17,13 @@ SSE event contract (unchanged from before):
 
 from __future__ import annotations
 
+import json
+import re
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
+from urllib.parse import urlparse
 
 from agents import RunConfig, Runner
 
@@ -45,6 +48,7 @@ class AutonomousLoop:
         cfg = load_config().get("autonomous", {})
         self.max_turns: int = cfg.get("max_turns", 20)
         self.max_duration: float = cfg.get("max_duration_seconds", 300)
+        self._pending_steps: list[tuple[PlanStep, str]] = []  # (step, tool_name)
         # Minimal plan object — kept for API/frontend compatibility
         self.plan = ExecutionPlan(
             task_id=task_id,
@@ -70,6 +74,11 @@ class AutonomousLoop:
 
     async def run(self) -> ExecutionPlan:
         from my_agents.single import get_single_agent
+        from tools.web_search import clear_session_cache
+
+        # Clear URL/query cache so each autonomous run starts fresh
+        # and doesn't re-fetch URLs from previous sessions
+        clear_session_cache()
 
         start_time = time.monotonic()
         self.plan.status = "executing"
@@ -118,20 +127,61 @@ class AutonomousLoop:
 
                     elif ev_type == "tool_call":
                         tool_name = sse["data"]["tool"]
+                        raw_args = sse["data"].get("arguments", "")
+                        try:
+                            args = json.loads(raw_args) if raw_args else {}
+                        except Exception:
+                            args = {}
+
+                        # Build an initial label — web_search labels get
+                        # replaced with actual hostnames once the output arrives
+                        links: list[str] = []
+                        if tool_name == "web_search":
+                            label = args.get("query", "searching…")
+                        elif tool_name == "fetch_page":
+                            url = args.get("url", "")
+                            try:
+                                label = urlparse(url).hostname or url
+                            except Exception:
+                                label = url
+                            if url:
+                                links = [url]
+                        else:
+                            label = tool_name
+
                         step_counter += 1
-                        # Add a lightweight step to the plan for frontend visibility
                         step = PlanStep(
                             id=step_counter,
-                            description=tool_name,
+                            description=label,
                             status="in_progress",
+                            links=links,
                         )
                         self.plan.steps.append(step)
                         self.plan.current_step = step_counter
+                        self._pending_steps.append((step, tool_name))
                         self._push("step_started", {
                             "step_id": step_counter,
                             "tool": tool_name,
-                            "arguments": sse["data"].get("arguments", ""),
+                            "arguments": raw_args,
                         })
+
+                    elif ev_type == "tool_output":
+                        if self._pending_steps:
+                            step, tool_name = self._pending_steps.pop(0)
+                            if tool_name == "web_search":
+                                output = sse["data"].get("output", "")
+                                urls = re.findall(r'\[.*?\]\((https?://[^)]+)\)', output)
+                                if urls:
+                                    hostnames = []
+                                    for u in urls:
+                                        try:
+                                            h = urlparse(u).hostname or u
+                                            hostnames.append(h.replace("www.", ""))
+                                        except Exception:
+                                            hostnames.append(u)
+                                    step.description = " · ".join(hostnames)
+                                    step.links = urls
+                                    self._push("step_updated", {"step_id": step.id})
 
                     elif ev_type == "agent_handoff":
                         self._push("agent_handoff", {"agent": sse["data"]["agent"]})

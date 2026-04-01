@@ -21,6 +21,7 @@
     "core:window:allow-set-size",
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
+    "core:window:allow-minimize",
     "opener:allow-open-url"
   ]
 }

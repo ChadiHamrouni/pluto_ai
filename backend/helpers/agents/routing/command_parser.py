@@ -8,7 +8,7 @@ from typing import Optional
 #
 # Each entry: primary command → {"desc": str, "intent": str, "aliases": [...]}
 #
-# All commands route to the single Jarvis agent. The slash prefix is stripped
+# All commands route to the single Pluto agent. The slash prefix is stripped
 # and replaced with a [intent] hint so the agent knows which tool domain to use.
 #
 # To add a new slash command:

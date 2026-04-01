@@ -21,7 +21,7 @@ from models.results import AgentRunResult, HandlerResult
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _sdk_result(text: str = "I am Jarvis.", tools: list[str] | None = None) -> MagicMock:
+def _sdk_result(text: str = "I am Pluto.", tools: list[str] | None = None) -> MagicMock:
     r = MagicMock()
     r.final_output = text
     r.new_items = []
@@ -50,8 +50,8 @@ async def test_text_handler_returns_handler_result(tmp_db):
 
 
 @pytest.mark.asyncio
-async def test_text_handler_slash_note_routes_to_jarvis(tmp_db):
-    """/note command injects a [note] hint and routes to single Jarvis agent."""
+async def test_text_handler_slash_note_routes_to_Pluto(tmp_db):
+    """/note command injects a [note] hint and routes to single Pluto agent."""
     sdk_result = _sdk_result("Note created.")
 
     with (
@@ -66,14 +66,14 @@ async def test_text_handler_slash_note_routes_to_jarvis(tmp_db):
         "starting_agent",
         mock_run.call_args.args[0] if mock_run.call_args.args else None,
     )
-    # Single-agent architecture: all commands route through Jarvis
+    # Single-agent architecture: all commands route through Pluto
     assert agent_used is not None
-    assert agent_used.name.lower() == "jarvis"
+    assert agent_used.name.lower() == "Pluto"
 
 
 @pytest.mark.asyncio
-async def test_text_handler_slash_slides_routes_to_jarvis(tmp_db):
-    """/slides command injects a [slides] hint and routes to single Jarvis agent."""
+async def test_text_handler_slash_slides_routes_to_Pluto(tmp_db):
+    """/slides command injects a [slides] hint and routes to single Pluto agent."""
     sdk_result = _sdk_result("Slides generated.")
 
     with (
@@ -88,9 +88,9 @@ async def test_text_handler_slash_slides_routes_to_jarvis(tmp_db):
         "starting_agent",
         mock_run.call_args.args[0] if mock_run.call_args.args else None,
     )
-    # Single-agent architecture: all commands route through Jarvis
+    # Single-agent architecture: all commands route through Pluto
     assert agent_used is not None
-    assert agent_used.name.lower() == "jarvis"
+    assert agent_used.name.lower() == "Pluto"
 
 
 @pytest.mark.asyncio

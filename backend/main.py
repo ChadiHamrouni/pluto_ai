@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
-from helpers.core.exceptions import JarvisError
+from helpers.core.exceptions import PlutoError
 from helpers.core.logger import get_logger, setup_logging
 from helpers.cron.ingestion_job import run_ingestion
 from routes.auth import router as auth_router
@@ -160,7 +160,7 @@ def create_app() -> FastAPI:
     config = load_config()
 
     app = FastAPI(
-        title="Jarvis — Personal AI Assistant",
+        title="Pluto — Personal AI Assistant",
         description=(
             "A **local-first** multi-agent AI assistant. No cloud, no API keys — "
             "everything runs on your machine via Ollama.\n\n"
@@ -232,7 +232,7 @@ def create_app() -> FastAPI:
     @app.get("/", tags=["health"], summary="Root")
     async def root():
         """Liveness probe. Always returns 200 if the process is running."""
-        return {"status": "ok", "service": "jarvis", "version": "2.0.0"}
+        return {"status": "ok", "service": "Pluto", "version": "2.0.0"}
 
     @app.get(
         "/health",
@@ -264,8 +264,8 @@ def create_app() -> FastAPI:
 
     # ── Structured error handlers ───────────────────────────────────────────
 
-    @app.exception_handler(JarvisError)
-    async def jarvis_error_handler(_request: Request, exc: JarvisError):
+    @app.exception_handler(PlutoError)
+    async def Pluto_error_handler(_request: Request, exc: PlutoError):
         status_map = {
             "model_unavailable": 503,
             "context_exceeded": 413,

@@ -41,7 +41,7 @@ def reset_single_agent() -> None:
 
 def get_single_agent(model: str | None = None) -> Agent:
     """
-    Jarvis — the primary single agent with all tools and no handoffs.
+    Pluto — the primary single agent with all tools and no handoffs.
 
     One agent handles everything: notes, calendar, memory, slides, research,
     tasks, budget, diagrams, and Obsidian vault sync. Planning and execution
@@ -58,7 +58,7 @@ def get_single_agent(model: str | None = None) -> Agent:
     model_name = model or cfg["model"]
 
     agent = Agent(
-        name="Jarvis",
+        name="Pluto",
         model=get_model(model_name),
         instructions=load_instructions("agents/single_agent"),
         tools=[

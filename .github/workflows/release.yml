@@ -43,7 +43,7 @@ jobs:
         with:
           projectPath: frontend
           tagName: ${{ github.ref_name }}
-          releaseName: "Jarvis ${{ github.ref_name }}"
+          releaseName: "Pluto ${{ github.ref_name }}"
           releaseBody: "See CHANGELOG for details."
           releaseDraft: true
           prerelease: false

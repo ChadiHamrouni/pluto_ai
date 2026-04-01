@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Jarvis",
+        "title": "Pluto",
         "width": 420,
         "height": 750,
         "resizable": true,

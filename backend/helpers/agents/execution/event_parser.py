@@ -45,7 +45,12 @@ def extract_tool_name(item: ToolCallItem) -> str | None:
 def extract_tool_arguments(item: ToolCallItem) -> str:
     """Return the raw arguments string from a ToolCallItem."""
     raw = getattr(item, "raw_item", None)
-    return getattr(getattr(raw, "function", None), "arguments", None) or ""
+    return (
+        getattr(getattr(raw, "function", None), "arguments", None)
+        or getattr(raw, "arguments", None)
+        or getattr(item, "arguments", None)
+        or ""
+    )
 
 
 def extract_last_tool_output(new_items: list) -> str:
@@ -115,6 +120,16 @@ def process_stream_event(
             to_yield.append({
                 "event": "tool_call",
                 "data": {"tool": name or "unknown", "arguments": arguments},
+            })
+
+        elif event.name == "tool_output":
+            item = event.item
+            output = ""
+            if isinstance(item, ToolCallOutputItem):
+                output = str(getattr(item, "output", None) or "")
+            to_yield.append({
+                "event": "tool_output",
+                "data": {"output": output},
             })
 
         elif event.name in ("handoff_requested", "handoff_occured"):

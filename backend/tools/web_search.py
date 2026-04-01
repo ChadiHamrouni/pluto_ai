@@ -14,6 +14,21 @@ from helpers.core.logger import get_logger
 logger = get_logger(__name__)
 
 
+# ── Session-scoped deduplication cache ─────────────────────────────────────
+# Cleared at the start of each autonomous run so repeat fetches within a
+# single session return cached content instead of hitting the network again.
+
+_url_cache: dict[str, str] = {}    # url  → fetched text
+_query_cache: dict[str, str] = {}  # query → full web_search result string
+
+
+def clear_session_cache() -> None:
+    """Clear URL and query caches. Call once at the start of each autonomous run."""
+    _url_cache.clear()
+    _query_cache.clear()
+    logger.debug("Web search session cache cleared.")
+
+
 # ── SSRF protection ────────────────────────────────────────────────────────
 
 _BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain", "0.0.0.0"}
@@ -73,6 +88,11 @@ async def web_search(query: str) -> str:
     Returns:
         Concatenated page text from top results with a SOURCES block at the end.
     """
+    # Return cached result for identical queries within the same session
+    if query in _query_cache:
+        logger.debug("web_search cache hit: %r", query)
+        return _query_cache[query]
+
     try:
         results = DDGS().text(query, max_results=_MAX_RESULTS)
     except Exception as exc:
@@ -101,7 +121,10 @@ async def web_search(query: str) -> str:
 
     body = "\n\n---\n\n".join(sections)
     sources_block = "\n\nSources:\n" + "\n".join(source_lines)
-    return body + sources_block
+    result = body + sources_block
+
+    _query_cache[query] = result
+    return result
 
 
 @function_tool
@@ -119,6 +142,12 @@ async def fetch_page(url: str) -> str:
     """
     if not url:
         return "Error: no URL provided."
+
+    # Return cached content for already-fetched URLs within the same session
+    if url in _url_cache:
+        logger.debug("fetch_page cache hit: %s", url)
+        return _url_cache[url]
+
     safe, reason = _is_safe_url(url)
     if not safe:
         return f"Error: {reason}"
@@ -140,16 +169,26 @@ async def fetch_page(url: str) -> str:
         text = re.sub(r"\s+", " ", text).strip()
         if not text:
             return "Page returned no text content."
-        return text[:8000]
+        result = text[:8000]
+        _url_cache[url] = result
+        return result
     except Exception as exc:
         logger.warning("fetch_page failed for %s: %s", url, exc)
-        return f"Failed to fetch page: {exc}"
+        # Cache the failure so the agent doesn't waste a turn retrying the same blocked URL
+        error_msg = f"Failed to fetch page: {exc}"
+        _url_cache[url] = error_msg
+        return error_msg
 
 
 async def _fetch_text(url: str) -> str:
-    """Fetch a URL and return the first 3000 chars of plain text (used internally by web_search)."""
+    """Fetch a URL and return the first 800 chars of plain text (used internally by web_search)."""
     if not url:
         return ""
+
+    # Check URL cache first — avoids redundant fetches within a session
+    if url in _url_cache:
+        return _url_cache[url][:800]
+
     safe, _ = _is_safe_url(url)
     if not safe:
         return ""
@@ -169,6 +208,8 @@ async def _fetch_text(url: str) -> str:
         text = re.sub(r"&#?\w+;", " ", text)
         # Collapse whitespace
         text = re.sub(r"\s+", " ", text).strip()
+        # Cache the full cleaned text for fetch_page reuse, return truncated
+        _url_cache[url] = text[:8000]
         return text[:800]
     except Exception:
         return ""
