@@ -65,6 +65,7 @@ def run_mmdc(
                 "--backgroundColor", bg_color,
                 "--width", str(width),
                 "--height", str(height),
+                "--puppeteerConfigFile", "/app/puppeteer-config.json",
             ],
             capture_output=True,
             text=True,

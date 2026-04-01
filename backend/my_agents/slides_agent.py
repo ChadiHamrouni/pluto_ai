@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-
+from backend.tools.slides import draft_slides, render_slides
 from helpers.agents.instructions_loader import load_instructions
 from helpers.agents.ollama_client import get_model
+
 from helpers.core.config_loader import load_config
-from backend.tools.slides import draft_slides, render_slides
 from tools.web_search import web_search
 
 _slides_agent: Agent | None = None

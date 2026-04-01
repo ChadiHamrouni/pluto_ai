@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from models.tasks import TaskCreate
 
 logger = get_logger(__name__)
 
@@ -36,11 +37,30 @@ def create_task(
     tags_json: str = "[]",
     project: str = "",
 ) -> dict:
+    # Validate via Pydantic
+    tag_list = json.loads(tags_json) if tags_json else []
+    validated = TaskCreate(
+        title=title,
+        description=description,
+        status=status,  # type: ignore[arg-type]
+        priority=priority,  # type: ignore[arg-type]
+        due_date=due_date or None,
+        tags=tag_list,
+        project=project,
+    )
     conn = _connect(db_path)
     cursor = conn.execute(
         """INSERT INTO tasks (title, description, status, priority, due_date, tags, project)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (title, description, status, priority, due_date or None, tags_json, project),
+        (
+            validated.title,
+            validated.description,
+            validated.status,
+            validated.priority,
+            validated.due_date,
+            json.dumps(validated.tags),
+            validated.project,
+        ),
     )
     task_id = cursor.lastrowid
     conn.commit()
@@ -86,7 +106,10 @@ def get_task(db_path: str, task_id: int) -> dict | None:
 
 
 def update_task(db_path: str, task_id: int, **fields) -> dict | None:
-    allowed = {"title", "description", "status", "priority", "due_date", "tags", "project", "completed_at"}
+    allowed = {
+        "title", "description", "status", "priority",
+        "due_date", "tags", "project", "completed_at",
+    }
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return get_task(db_path, task_id)

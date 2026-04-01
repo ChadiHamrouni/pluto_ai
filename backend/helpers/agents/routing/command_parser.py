@@ -8,10 +8,12 @@ from typing import Optional
 #
 # Each entry: primary command → {"desc": str, "intent": str, "aliases": [...]}
 #
+# All commands route to the single Jarvis agent. The slash prefix is stripped
+# and replaced with a [intent] hint so the agent knows which tool domain to use.
+#
 # To add a new slash command:
 #   1. Add an entry here.
-#   2. Handle its intent in text_handler._COMMAND_AGENTS (or rely on
-#      the orchestrator for memory/conversational intents).
+#   2. Add a row to the hint table in instructions/agents/single_agent.md.
 #   3. That's it — the frontend reads GET /chat/commands automatically.
 # ---------------------------------------------------------------------------
 

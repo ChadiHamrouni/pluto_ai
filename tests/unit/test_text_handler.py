@@ -50,8 +50,8 @@ async def test_text_handler_returns_handler_result(tmp_db):
 
 
 @pytest.mark.asyncio
-async def test_text_handler_slash_note_routes_to_notes_agent(tmp_db):
-    """/note command should route to NotesAgent, not Orchestrator."""
+async def test_text_handler_slash_note_routes_to_jarvis(tmp_db):
+    """/note command injects a [note] hint and routes to single Jarvis agent."""
     sdk_result = _sdk_result("Note created.")
 
     with (
@@ -66,12 +66,14 @@ async def test_text_handler_slash_note_routes_to_notes_agent(tmp_db):
         "starting_agent",
         mock_run.call_args.args[0] if mock_run.call_args.args else None,
     )
+    # Single-agent architecture: all commands route through Jarvis
     assert agent_used is not None
-    assert "note" in agent_used.name.lower()
+    assert agent_used.name.lower() == "jarvis"
 
 
 @pytest.mark.asyncio
-async def test_text_handler_slash_slides_routes_to_slides_agent(tmp_db):
+async def test_text_handler_slash_slides_routes_to_jarvis(tmp_db):
+    """/slides command injects a [slides] hint and routes to single Jarvis agent."""
     sdk_result = _sdk_result("Slides generated.")
 
     with (
@@ -86,8 +88,9 @@ async def test_text_handler_slash_slides_routes_to_slides_agent(tmp_db):
         "starting_agent",
         mock_run.call_args.args[0] if mock_run.call_args.args else None,
     )
+    # Single-agent architecture: all commands route through Jarvis
     assert agent_used is not None
-    assert "slide" in agent_used.name.lower()
+    assert agent_used.name.lower() == "jarvis"
 
 
 @pytest.mark.asyncio

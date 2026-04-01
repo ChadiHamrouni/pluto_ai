@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import calendar
-import json
 import os
 from datetime import date, datetime, timedelta
-from typing import Any
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
@@ -62,14 +60,17 @@ def generate_dashboard_md(
     todo_count = sum(1 for t in tasks if t.get("status") == "todo")
     wip_count = sum(1 for t in tasks if t.get("status") == "in_progress")
     done_count = sum(1 for t in tasks if t.get("status") == "done")
-    urgent = [t for t in tasks if t.get("priority") in ("urgent", "high") and t.get("status") != "done"]
+    urgent = [
+        t for t in tasks
+        if t.get("priority") in ("urgent", "high") and t.get("status") != "done"
+    ]
 
     # Upcoming events (next 7 days)
     upcoming = sorted(events, key=lambda e: e.get("start_time", ""))[:5]
 
     lines = [
         "---",
-        f"tags: [dashboard, home]",
+        "tags: [dashboard, home]",
         f"updated: {now}",
         "---",
         "",
@@ -81,8 +82,8 @@ def generate_dashboard_md(
         "",
         "## 📋 Tasks Overview",
         "",
-        f"| Status | Count |",
-        f"|--------|-------|",
+        "| Status | Count |",
+        "|--------|-------|",
         f"| ⬜ Todo | {todo_count} |",
         f"| 🔵 In Progress | {wip_count} |",
         f"| ✅ Done | {done_count} |",
@@ -118,8 +119,8 @@ def generate_dashboard_md(
         "",
         "## 💰 Budget Snapshot",
         "",
-        f"| | Amount |",
-        f"|---|--------|",
+        "| | Amount |",
+        "|---|--------|",
         f"| 💚 Income | {budget_summary.get('total_income', 0):.2f} |",
         f"| 🔴 Expenses | {budget_summary.get('total_expenses', 0):.2f} |",
         f"| 💙 Net | {budget_summary.get('net', 0):.2f} |",
@@ -132,7 +133,9 @@ def generate_dashboard_md(
             pct = g.get("percent_complete", 0)
             proj = g.get("projected_completion_date", "Unknown")
             bar = _progress_bar(pct)
-            lines.append(f"**{g['name']}** — {g.get('current_amount', 0):.2f} / {g['target_amount']:.2f}")
+            cur = g.get("current_amount", 0)
+            tgt = g["target_amount"]
+            lines.append(f"**{g['name']}** — {cur:.2f} / {tgt:.2f}")
             lines.append(f"`{bar}` → {proj}")
             lines.append("")
 
@@ -141,7 +144,7 @@ def generate_dashboard_md(
         "",
         "## 🔗 Quick Links",
         "",
-        f"- [[Kanban/tasks|📋 Kanban Board]]",
+        "- [[Kanban/tasks|📋 Kanban Board]]",
         f"- [[Calendar/{today[:7]}|📅 This Month's Calendar]]",
         f"- [[Budget/{today[:7]}|💰 Budget Report]]",
         f"- [[Weekly/{_week_label(date.today())}|📆 This Week's Plan]]",
@@ -260,7 +263,7 @@ def generate_kanban_md(tasks: list[dict], project: str = "") -> str:
     lines += [_task_item(t) for t in todo] or ["_Nothing here._"]
     lines += [
         "",
-        f"---",
+        "---",
         "",
         f"## 🔵 In Progress ({len(wip)})",
         "",
@@ -317,7 +320,11 @@ def generate_budget_md(
     # By category
     by_cat = summary.get("by_category", [])
     if by_cat:
-        lines += ["## Breakdown by Category", "", "| Type | Category | Amount |", "|------|----------|--------|"]
+        lines += [
+            "## Breakdown by Category", "",
+            "| Type | Category | Amount |",
+            "|------|----------|--------|",
+        ]
         for item in by_cat:
             icon = "💚" if item["type"] == "income" else "🔴"
             lines.append(f"| {icon} {item['type']} | {item['category']} | {item['total']:.2f} |")
@@ -335,8 +342,8 @@ def generate_budget_md(
             lines += [
                 f"### {g['name']}",
                 "",
-                f"| | |",
-                f"|---|---|",
+                "| | |",
+                "|---|---|",
                 f"| Target | {g['target_amount']:.2f} |",
                 f"| Saved | {g.get('current_amount', 0):.2f} |",
                 f"| Remaining | {remaining:.2f} |",
@@ -459,7 +466,11 @@ def generate_weekly_plan_md(
             lines.append("")
 
     if unscheduled:
-        overdue = [t for t in unscheduled if t.get("due_date") and t["due_date"][:10] < week_start.isoformat()]
+        week_iso = week_start.isoformat()
+        overdue = [
+            t for t in unscheduled
+            if t.get("due_date") and t["due_date"][:10] < week_iso
+        ]
         inbox = [t for t in unscheduled if not t.get("due_date")]
         if overdue:
             lines += ["---", "", "## ⚠️ Overdue", ""]

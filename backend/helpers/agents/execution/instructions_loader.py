@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import os
 
+_HERE = os.path.abspath(__file__)
 _BASE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "instructions"
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))),
+    "instructions",
 )
 
 

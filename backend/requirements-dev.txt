@@ -1,0 +1,16 @@
+# Development-only dependencies — NOT installed in Docker
+# Install locally with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# BFCL evaluation framework (pins numpy==1.26.4 — conflicts with prod numpy)
+# Install in a separate venv if you need to run evals:
+#   python -m venv eval_env && eval_env\Scripts\activate
+#   pip install bfcl-eval datasets openpyxl
+bfcl-eval
+datasets
+openpyxl
+
+# TTS (optional, large deps)
+# qwen-tts
+# soundfile
+# torch

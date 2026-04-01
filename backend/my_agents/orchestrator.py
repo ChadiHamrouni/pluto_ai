@@ -80,6 +80,17 @@ def get_orchestrator() -> Agent:
                         "'remind me about the call on Monday'."
                     ),
                 ),
+                handoff(
+                    get_dashboard_agent(),
+                    tool_description_override=(
+                        "Transfer to DashboardAgent when the user wants to: "
+                        "manage tasks or a to-do list ('add a task', 'mark done', 'show kanban'), "
+                        "track budget or finances ('I spent X', 'record income', 'show my goals'), "
+                        "generate a diagram or chart ('make a flowchart', 'create a mindmap'), "
+                        "or sync/update their Obsidian vault ('update dashboard', 'sync vault', "
+                        "'generate weekly plan', 'show budget report')."
+                    ),
+                ),
             ],
         )
     return _orchestrator

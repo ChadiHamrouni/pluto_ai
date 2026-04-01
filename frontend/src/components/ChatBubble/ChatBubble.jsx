@@ -1,8 +1,10 @@
+import { useState, useEffect } from "react";
 import "./ChatBubble.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import PlanTracker from "../PlanTracker";
+import { fetchFile } from "../../api";
 
 function ExternalLink({ href, children }) {
   const handleClick = (e) => {
@@ -22,7 +24,27 @@ const MD_COMPONENTS = { a: ExternalLink };
  *  - onDownload  (fileUrl: string) => void  — called when the user clicks Download PDF
  */
 
+/** Loads a protected image via authenticated fetch and returns an object URL. */
+function useAuthImage(fileUrl) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    if (!fileUrl) return;
+    let objectUrl;
+    fetchFile(fileUrl)
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {});
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [fileUrl]);
+  return src;
+}
+
 export default function ChatBubble({ message: m, onDownload }) {
+  const isPng = m.role === "assistant" && m.file_url?.endsWith(".png");
+  const diagramSrc = useAuthImage(isPng ? m.file_url : null);
+
   if (m.role === "plan") {
     return <PlanTracker plan={m.plan} />;
   }
@@ -56,17 +78,26 @@ export default function ChatBubble({ message: m, onDownload }) {
         )}
 
         {m.role === "assistant" && m.file_url && (
-          <button className="file-download" onClick={() => onDownload(m.file_url)}>
-            <svg
-              width="13" height="13" viewBox="0 0 13 13"
-              fill="none" stroke="currentColor" strokeWidth="1.5"
-              strokeLinecap="round" strokeLinejoin="round"
-            >
-              <path d="M6.5 1v7M3.5 5.5l3 3 3-3" />
-              <path d="M1 10h11" />
-            </svg>
-            Download PDF
-          </button>
+          <>
+            {isPng && diagramSrc && (
+              <img
+                src={diagramSrc}
+                alt="Generated diagram"
+                className="diagram-preview"
+              />
+            )}
+            <button className="file-download" onClick={() => onDownload(m.file_url)}>
+              <svg
+                width="13" height="13" viewBox="0 0 13 13"
+                fill="none" stroke="currentColor" strokeWidth="1.5"
+                strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M6.5 1v7M3.5 5.5l3 3 3-3" />
+                <path d="M1 10h11" />
+              </svg>
+              {isPng ? "Download Diagram" : "Download PDF"}
+            </button>
+          </>
         )}
 
         {m.role === "assistant" && (m.agents_trace?.length > 0 || m.tools_used?.length > 0 || m.tokens_per_second) && (

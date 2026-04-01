@@ -145,10 +145,14 @@ async def chat_stream(
 
             file_url = None
             history_response = full_response
-            m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md)", full_response)
+            m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md|png)", full_response)
             if m:
-                file_url = f"/files/{Path(m.group(0)).name}"
-                history_response = "Presentation generated successfully."
+                matched_name = Path(m.group(0)).name
+                file_url = f"/files/{matched_name}"
+                if matched_name.endswith(".png"):
+                    history_response = "Diagram generated successfully."
+                else:
+                    history_response = "Presentation generated successfully."
 
             if _session_id and _exists:
                 await append_turn(

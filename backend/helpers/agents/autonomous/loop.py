@@ -1,35 +1,39 @@
-"""Autonomous plan-and-execute loop.
+"""Autonomous ReAct loop.
 
-Architecture:
-1. Planner decomposes the task into PlanStep objects (structured output)
-2. Executor runs each step via Runner.run_streamed — tool calls are intercepted
-   in real-time so links are pushed to the frontend as they are visited
-3. On step failure: retry up to max_retries with error context
-4. Synthesiser produces a coherent final answer from all step summaries
-5. SSE events are pushed to the frontend via on_event callback throughout
+Architecture (collapsed single-agent):
+  User task → Jarvis (ReAct, max_turns=20, streamed)
+               ├─ token events → frontend in real time
+               ├─ tool_call events → frontend in real time
+               └─ done → final response
+
+Replaces the old Planner → Executor → Synthesizer pipeline (3 agents,
+N+2 LLM calls). Now: 1 agent, N LLM turns, parallel tool execution when
+the model emits multiple tool calls in a single turn.
+
+SSE event contract (unchanged from before):
+  update  → {"type": "tool_call"|"token"|"done"|"error", "task_id": ..., ...}
+  done    → {"type": "__done__", "task_id": ..., "plan": {...}}
 """
 
 from __future__ import annotations
 
-import asyncio
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
 
-from helpers.agents.autonomous.phases import (
-    build_step_context,
-    execute_step,
-    run_planning,
-    synthesise,
-)
+from agents import RunConfig, Runner
+
+from helpers.agents.execution.event_parser import process_stream_event
+from helpers.agents.routing.prompt_utils import _build_context_block
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.plan import ExecutionPlan, PlanStep
-from models.results import LoopCreated, StepResult
-from my_agents.executor import reset_executor_agent
+from models.results import LoopCreated
 
 logger = get_logger(__name__)
+
+_RUN_CONFIG = RunConfig(tracing_disabled=True)
 
 
 class AutonomousLoop:
@@ -39,9 +43,9 @@ class AutonomousLoop:
         self.on_event = on_event
         self._cancelled = False
         cfg = load_config().get("autonomous", {})
-        self.max_iterations: int = cfg.get("max_iterations", 50)
+        self.max_turns: int = cfg.get("max_turns", 20)
         self.max_duration: float = cfg.get("max_duration_seconds", 300)
-        self.max_retries: int = cfg.get("max_retries_per_step", 2)
+        # Minimal plan object — kept for API/frontend compatibility
         self.plan = ExecutionPlan(
             task_id=task_id,
             task=task,
@@ -64,94 +68,88 @@ class AutonomousLoop:
         except Exception as exc:
             logger.warning("SSE push failed: %s", exc)
 
-    async def _run_step_with_retries(
-        self, step: PlanStep, previous_results: list[str]
-    ) -> StepResult | None:
-        for attempt in range(self.max_retries + 1):
-            self.plan.iterations += 1
-            context = build_step_context(self.task, self.plan, step, previous_results)
-
-            def on_link(url: str) -> None:
-                step.links = list({*step.links, url})
-                self._push("step_link", {"step_id": step.id, "url": url})
-
-            result = await execute_step(step, context, on_link)
-            if result.success:
-                return result
-            step.retry_count = attempt + 1
-            if attempt < self.max_retries:
-                logger.info(
-                    "Step %d failed (attempt %d/%d): %s — retrying",
-                    step.id, attempt + 1, self.max_retries + 1, result.error,
-                )
-                await asyncio.sleep(0.5)
-        return result  # last failed result
-
     async def run(self) -> ExecutionPlan:
+        from my_agents.single import get_single_agent
+
         start_time = time.monotonic()
-        reset_executor_agent()
+        self.plan.status = "executing"
+        self._push("planning_started")  # signal frontend the task has begun
 
-        # Phase 1: Plan
-        self.plan.status = "planning"
-        self._push("planning_started")
+        # Inject date/time context into the task prompt so the agent can
+        # resolve relative dates ("tomorrow", "next Monday", etc.)
+        context_block = _build_context_block()
+        user_input = f"{context_block}\n\n---\n\nTask: {self.task}"
 
-        steps = await run_planning(self.task)
-        if not steps:
+        agent = get_single_agent()
+        full_response = ""
+        tools_used: list[str] = []
+        agents_seen: list[str] = [agent.name]
+        step_counter = 0
+
+        try:
+            streamed = Runner.run_streamed(
+                starting_agent=agent,
+                input=user_input,
+                run_config=_RUN_CONFIG,
+                max_turns=self.max_turns,
+            )
+
+            async for event in streamed.stream_events():
+                if self._cancelled:
+                    self.plan.status = "paused"
+                    self._push("cancelled")
+                    return self.plan
+
+                if time.monotonic() - start_time > self.max_duration:
+                    self.plan.status = "failed"
+                    self._push("timeout", {"error": f"Exceeded {self.max_duration}s limit"})
+                    return self.plan
+
+                # Reuse the existing event parser — handles tokens, tool calls, handoffs
+                full_response, sse_events = process_stream_event(
+                    event, full_response, tools_used, agents_seen
+                )
+
+                for sse in sse_events:
+                    ev_type = sse.get("event")
+
+                    if ev_type == "token":
+                        self._push("token", {"delta": sse["data"]["delta"]})
+
+                    elif ev_type == "tool_call":
+                        tool_name = sse["data"]["tool"]
+                        step_counter += 1
+                        # Add a lightweight step to the plan for frontend visibility
+                        step = PlanStep(
+                            id=step_counter,
+                            description=tool_name,
+                            status="in_progress",
+                        )
+                        self.plan.steps.append(step)
+                        self.plan.current_step = step_counter
+                        self._push("step_started", {
+                            "step_id": step_counter,
+                            "tool": tool_name,
+                            "arguments": sse["data"].get("arguments", ""),
+                        })
+
+                    elif ev_type == "agent_handoff":
+                        self._push("agent_handoff", {"agent": sse["data"]["agent"]})
+
+            # Mark all steps completed now that streaming finished
+            for step in self.plan.steps:
+                if step.status == "in_progress":
+                    step.status = "completed"
+
+        except Exception as exc:
+            logger.exception("ReAct loop failed for task %s: %s", self.task_id, exc)
             self.plan.status = "failed"
-            self._push("plan_failed", {"error": "Planner returned no steps"})
+            self._push("error", {"error": str(exc)})
             return self.plan
 
-        self.plan.steps = steps
-        self.plan.status = "executing"
-        self._push("plan_created")
-
-        # Phase 2: Execute
-        previous_results: list[str] = []
-
-        for step in self.plan.steps:
-            if self._cancelled:
-                self.plan.status = "paused"
-                self._push("cancelled")
-                return self.plan
-
-            if time.monotonic() - start_time > self.max_duration:
-                self.plan.status = "failed"
-                self._push("timeout", {"error": f"Exceeded {self.max_duration}s limit"})
-                return self.plan
-
-            if self.plan.iterations >= self.max_iterations:
-                self.plan.status = "failed"
-                self._push("max_iterations", {"error": "Exceeded max iterations"})
-                return self.plan
-
-            step.status = "in_progress"
-            self.plan.current_step = step.id
-            self._push("step_started", {"step_id": step.id})
-
-            step_result = await self._run_step_with_retries(step, previous_results)
-
-            if step_result and step_result.success:
-                step.status = "completed"
-                step.result = step_result.summary
-                step.links = step_result.links
-                previous_results.append(
-                    f"Step {step.id} ({step.description}): {step_result.summary}"
-                )
-            else:
-                step.status = "failed"
-                step.error = step_result.error if step_result else "Unknown error"
-                step.links = step_result.links if step_result else []
-                previous_results.append(f"Step {step.id} FAILED: {step.error}")
-                logger.warning("Step %d permanently failed: %s", step.id, step.error)
-
-            self._push("step_completed", {"step_id": step.id})
-
-        # Phase 3: Synthesise
-        self.plan.final_response = await synthesise(self.task, previous_results)
-
-        failed = [s for s in self.plan.steps if s.status == "failed"]
-        self.plan.status = "completed" if not failed else "failed"
-        self._push("completed" if not failed else "completed_with_failures")
+        self.plan.final_response = full_response or "Done."
+        self.plan.status = "completed"
+        self._push("completed")
         return self.plan
 
 

@@ -217,11 +217,16 @@ async def chat(
 
         file_url: str | None = None
         history_response = response_text
-        m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md)", response_text)
+        m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md|png)", response_text)
         if m:
-            file_url = f"/files/{Path(m.group(0)).name}"
-            response_text = "Your presentation is ready."
-            history_response = "Presentation generated successfully."
+            matched_name = Path(m.group(0)).name
+            file_url = f"/files/{matched_name}"
+            if matched_name.endswith(".png"):
+                response_text = "Your diagram is ready."
+                history_response = "Diagram generated successfully."
+            else:
+                response_text = "Your presentation is ready."
+                history_response = "Presentation generated successfully."
 
         history_user = (
             handler_result.user_content

@@ -16,6 +16,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { fetchFile } from "./api";
 
+import { useAuth } from "./hooks/useAuth";
 import { useSessions } from "./hooks/useSessions";
 import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
@@ -29,6 +30,7 @@ import Sidebar from "./components/Sidebar";
 import ChatArea from "./components/ChatArea";
 import ChatFooter from "./components/ChatFooter";
 import SettingsPanel from "./components/SettingsPanel";
+import LoginPage from "./components/LoginPage/LoginPage";
 
 import "./App.css";
 
@@ -37,9 +39,12 @@ import "./App.css";
 async function downloadFile(fileUrl) {
   try {
     const filename = fileUrl.split("/").pop();
+    const isPng = filename.endsWith(".png");
     const savePath = await save({
       defaultPath: filename,
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      filters: isPng
+        ? [{ name: "PNG Image", extensions: ["png"] }]
+        : [{ name: "PDF", extensions: ["pdf"] }],
     });
     if (!savePath) return;
     const blob = await fetchFile(fileUrl);
@@ -53,6 +58,22 @@ async function downloadFile(fileUrl) {
 // ── Root component ────────────────────────────────────────────────────────────
 
 export default function App() {
+  const { isLoggedIn, loading: authLoading, error: authError, login, logout } = useAuth();
+
+  // Show login screen until authenticated
+  if (!isLoggedIn) {
+    return (
+      <div className="layout">
+        <Header autoMode={false} />
+        <LoginPage onLogin={login} loading={authLoading} error={authError} />
+      </div>
+    );
+  }
+
+  return <AppShell onLogout={logout} />;
+}
+
+function AppShell({ onLogout }) {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [input, setInput]               = useState("");
@@ -249,7 +270,7 @@ export default function App() {
         </div>
       )}
 
-      <Header autoMode={autoMode} onSettings={() => setShowSettings(true)} />
+      <Header autoMode={autoMode} onSettings={() => setShowSettings(true)} onLogout={onLogout} />
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
 
       <div className="app-body">

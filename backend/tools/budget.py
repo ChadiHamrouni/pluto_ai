@@ -9,13 +9,29 @@ from agents import function_tool
 from helpers.core.logger import get_logger
 from helpers.tools.budget import (
     add_transaction as _add_transaction,
+)
+from helpers.tools.budget import (
     create_goal as _create_goal,
+)
+from helpers.tools.budget import (
     delete_goal as _delete_goal,
+)
+from helpers.tools.budget import (
     delete_transaction as _delete_transaction,
+)
+from helpers.tools.budget import (
     get_db_path,
+)
+from helpers.tools.budget import (
     get_summary as _get_summary,
+)
+from helpers.tools.budget import (
     list_goals as _list_goals,
+)
+from helpers.tools.budget import (
     list_transactions as _list_transactions,
+)
+from helpers.tools.budget import (
     recalculate_goals as _recalculate_goals,
 )
 
@@ -132,7 +148,8 @@ def delete_transaction(transaction_id: int) -> str:
             return f"No transaction found with id={transaction_id}."
         goals = _recalculate_goals(db_path)
         goal_lines = [
-            f"  • {g['name']}: {g.get('percent_complete', 0)}% funded → {g.get('projected_completion_date', 'Unknown')}"
+            f"  • {g['name']}: {g.get('percent_complete', 0)}% funded"
+            f" → {g.get('projected_completion_date', 'Unknown')}"
             for g in goals
         ]
         goal_summary = "\n".join(goal_lines) if goal_lines else "  (no savings goals)"

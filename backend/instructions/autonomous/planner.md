@@ -28,6 +28,7 @@ For every step you MUST output both:
 | Action | tool value |
 |---|---|
 | Search the web | `web_search` |
+| Search personal knowledge base | `search_knowledge` |
 | List notes by category | `list_notes` |
 | Open a specific note by title | `get_note` |
 | Create a new note | `create_note` |
@@ -39,6 +40,25 @@ For every step you MUST output both:
 | Cancel a calendar event | `cancel_event` |
 | Build a slide outline | `draft_slides` |
 | Render slides to PDF (only after draft_slides) | `render_slides` |
+| Create a task | `create_task` |
+| List tasks (filtered by status/priority/project) | `list_tasks` |
+| Update a task | `update_task` |
+| Mark a task complete | `complete_task` |
+| Delete a task | `delete_task` |
+| Record income or expense transaction | `add_transaction` |
+| List budget transactions | `list_transactions` |
+| Delete a transaction | `delete_transaction` |
+| Get budget summary with goal progress | `budget_summary` |
+| Create a savings goal | `create_savings_goal` |
+| List savings goals with projections | `list_savings_goals` |
+| Delete a savings goal | `delete_savings_goal` |
+| Generate a Mermaid diagram as PNG | `generate_diagram` |
+| Update Obsidian dashboard page | `update_dashboard` |
+| Generate monthly calendar page in vault | `generate_calendar_view` |
+| Generate kanban board page in vault | `generate_kanban_board` |
+| Generate budget report page in vault | `generate_budget_report` |
+| Generate weekly plan page in vault | `generate_weekly_plan` |
+| Sync all Obsidian vault pages at once | `sync_vault` |
 
 ## Examples
 

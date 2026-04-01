@@ -35,51 +35,31 @@ def _calendar_context() -> str:
         return ""
 
 
-def _get_command_agents() -> dict:
-    """Return the slash-command → agent-factory mapping (imported lazily to avoid cycles)."""
-    from my_agents.calendar import get_calendar_agent
-    from my_agents.dashboard import get_dashboard_agent
-    from my_agents.notes import get_notes_agent
-    from my_agents.orchestrator import get_orchestrator
-    from my_agents.research import get_research_agent
-    from my_agents.slides import get_slides_agent
-
-    return {
-        "note": get_notes_agent,
-        "slides": get_slides_agent,
-        "research": get_research_agent,
-        "calendar": get_calendar_agent,
-        "memory": get_orchestrator,
-        "forget": get_orchestrator,
-        "task": get_dashboard_agent,
-        "budget": get_dashboard_agent,
-        "diagram": get_dashboard_agent,
-        "dashboard": get_dashboard_agent,
-    }
-
-
 async def build_messages(
     message: str,
     history: list[dict],
     image_path: Path | None = None,
 ) -> tuple[Any, list[dict[str, Any]], str]:
-    """Parse the message, select an agent, build the message list, and compact if needed.
+    """Parse the message, strip any slash-command prefix, build the message list, and compact.
 
     Returns:
         (agent, messages, memory_context)
     """
-    from my_agents.orchestrator import get_orchestrator
+    from my_agents.single import get_single_agent
 
-    command_agents = _get_command_agents()
+    # Slash commands: strip the token but prepend the intent as a hint so the
+    # agent knows which tool domain to focus on (e.g. "[note] buy groceries").
     parsed = parse_command(message)
-
-    if parsed.intent in command_agents:
-        agent = command_agents[parsed.intent]()
-        content = parsed.content
-        logger.info("Hard-routing to %s via slash command", agent.name)
+    if parsed.intent and parsed.content:
+        content = f"[{parsed.intent}] {parsed.content}"
+    elif parsed.intent and not parsed.content:
+        # bare command with no body (e.g. just "/dashboard") — keep intent as full message
+        content = parsed.intent
     else:
-        agent = get_orchestrator()
         content = message
+
+    agent = get_single_agent()
+    logger.info("Routing to %s (single-agent mode)", agent.name)
 
     config = load_config()
     window = config.get("orchestrator", {}).get("history_window", 20)
@@ -88,10 +68,9 @@ async def build_messages(
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
     memory_context = ""
-    if parsed.intent is None:
-        cal_ctx = _calendar_context()
-        if cal_ctx:
-            memory_context = cal_ctx
+    cal_ctx = _calendar_context()
+    if cal_ctx:
+        memory_context = cal_ctx
 
     messages: list[dict] = list(format_chat_history(windowed_history))
 

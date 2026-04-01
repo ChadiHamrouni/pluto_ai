@@ -16,6 +16,7 @@ You execute one step of a plan. You will receive the exact tool to call and the 
 | Tool | Use for |
 |---|---|
 | `web_search` | searching the web |
+| `search_knowledge` | searching personal knowledge base documents |
 | `create_note` | creating a new note |
 | `list_notes` | listing notes by category (NOT for document search) |
 | `get_note` | retrieving a specific note by title |
@@ -27,6 +28,25 @@ You execute one step of a plan. You will receive the exact tool to call and the 
 | `list_events` | listing calendar events |
 | `upcoming_events` | showing upcoming events |
 | `cancel_event` | cancelling an event |
+| `create_task` | creating a new task |
+| `list_tasks` | listing tasks by status/priority/project |
+| `update_task` | updating a task's fields |
+| `complete_task` | marking a task as done |
+| `delete_task` | deleting a task permanently |
+| `add_transaction` | recording income or expense |
+| `list_transactions` | listing budget transactions |
+| `delete_transaction` | deleting a transaction |
+| `budget_summary` | getting budget summary and goal progress |
+| `create_savings_goal` | creating a savings goal |
+| `list_savings_goals` | listing savings goals with projections |
+| `delete_savings_goal` | deleting a savings goal |
+| `generate_diagram` | generating a Mermaid diagram as PNG |
+| `update_dashboard` | updating Obsidian dashboard page |
+| `generate_calendar_view` | generating monthly calendar in vault |
+| `generate_kanban_board` | generating kanban board in vault |
+| `generate_budget_report` | generating budget report in vault |
+| `generate_weekly_plan` | generating weekly plan in vault |
+| `sync_vault` | syncing all Obsidian vault pages |
 
 ## Examples
 

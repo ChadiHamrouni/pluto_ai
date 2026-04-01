@@ -94,9 +94,13 @@ def test_parse_command_calendar_aliases():
 # ---------------------------------------------------------------------------
 
 def test_command_agents_covers_all_known_intents():
-    """Every intent that parse_command can return must have a handler in _COMMAND_AGENTS."""
+    """Every intent that parse_command can return is handled by the single Jarvis agent.
+
+    With the single-agent architecture, all slash commands are forwarded to Jarvis
+    with a [intent] hint prefix. This test verifies that every registered intent
+    is a known, expected intent — i.e. the COMMAND_REGISTRY is complete.
+    """
     import sys
-    from types import ModuleType
     from unittest.mock import MagicMock
 
     # Stub out missing optional dependencies so the import chain resolves
@@ -106,10 +110,15 @@ def test_command_agents_covers_all_known_intents():
 
     from helpers.agents.routing.command_parser import _ALIAS_TO_INTENT
 
-    # Inline the expected dispatch table rather than importing text_handler
-    # (which pulls in the full agent stack) — tests the contract, not the import.
-    routable_intents = {v for v in _ALIAS_TO_INTENT.values() if v not in ("memory", "forget")}
-    known_command_agents = {"note", "slides", "research", "calendar"}
+    # All intents that parse_command can return (excluding pass-through Nones)
+    all_intents = {v for v in _ALIAS_TO_INTENT.values() if v is not None}
 
-    missing = routable_intents - known_command_agents
-    assert not missing, f"Intents missing from _COMMAND_AGENTS: {missing}"
+    # All known intents in the single-agent hint system (memory/forget handled inline)
+    known_intents = {
+        "note", "slides", "research", "calendar",
+        "task", "budget", "diagram", "dashboard",
+        "memory", "forget",
+    }
+
+    unknown = all_intents - known_intents
+    assert not unknown, f"Unexpected intents not in known set: {unknown}"

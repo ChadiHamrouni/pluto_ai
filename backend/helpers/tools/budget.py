@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from models.budget import SavingsGoalCreate, TransactionCreate
 
 logger = get_logger(__name__)
 
@@ -37,14 +38,31 @@ def add_transaction(
     recurring: str = "",
     recurring_day: int | None = None,
 ) -> dict:
-    if not tx_date:
-        tx_date = date.today().isoformat()
+    # Validate via Pydantic
+    validated = TransactionCreate(
+        tx_type=tx_type,  # type: ignore[arg-type]
+        amount=amount,
+        category=category,
+        description=description,
+        date=tx_date,
+        recurring=recurring,  # type: ignore[arg-type]
+        recurring_day=recurring_day,
+    )
+    effective_date = validated.date or date.today().isoformat()
     conn = _connect(db_path)
     cursor = conn.execute(
         """INSERT INTO budget_transactions
            (type, amount, category, description, date, recurring, recurring_day)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (tx_type, abs(amount), category, description, tx_date, recurring, recurring_day),
+        (
+            validated.tx_type,
+            validated.amount,
+            validated.category,
+            validated.description,
+            effective_date,
+            validated.recurring,
+            validated.recurring_day,
+        ),
     )
     tx_id = cursor.lastrowid
     conn.commit()
@@ -111,38 +129,43 @@ def get_summary(db_path: str, month: str = "") -> dict:
         _, last_day = monthrange(year, mon)
         from_date = f"{month}-01"
         to_date = f"{month}-{last_day:02d}"
-        where = "WHERE date >= ? AND date <= ?"
-        params_income = ["income", from_date, to_date]
-        params_expense = ["expense", from_date, to_date]
-        params_cat = [from_date, to_date]
+        date_filter = "AND date >= ? AND date <= ?"
+        date_params = [from_date, to_date]
+        cat_where = "WHERE date >= ? AND date <= ?"
     else:
-        where = ""
-        params_income = ["income"]
-        params_expense = ["expense"]
-        params_cat = []
+        date_filter = ""
+        date_params = []
+        cat_where = ""
 
-    def _total(tx_type: str, extra_params: list) -> float:
-        q = f"SELECT COALESCE(SUM(amount), 0) FROM budget_transactions WHERE type = ? {('AND date >= ? AND date <= ?' if month else '')}"
-        row = conn.execute(q, [tx_type] + (extra_params if month else [])).fetchone()
+    def _total(tx_type: str) -> float:
+        q = (
+            f"SELECT COALESCE(SUM(amount), 0) FROM budget_transactions"
+            f" WHERE type = ? {date_filter}"
+        )
+        row = conn.execute(q, [tx_type] + date_params).fetchone()
         return float(row[0])
 
-    total_income = _total("income", [from_date, to_date] if month else [])
-    total_expense = _total("expense", [from_date, to_date] if month else [])
+    total_income = _total("income")
+    total_expense = _total("expense")
     net = total_income - total_expense
 
     # Per-category breakdown
-    date_clause = "AND date >= ? AND date <= ?" if month else ""
-    cat_params = ([from_date, to_date] if month else [])
     rows = conn.execute(
-        f"SELECT type, category, SUM(amount) as total FROM budget_transactions {('WHERE date >= ? AND date <= ?' if month else '')} GROUP BY type, category ORDER BY total DESC",
-        cat_params,
+        f"SELECT type, category, SUM(amount) as total"
+        f" FROM budget_transactions {cat_where}"
+        f" GROUP BY type, category ORDER BY total DESC",
+        date_params,
     ).fetchall()
     conn.close()
 
     by_category: dict[str, dict] = {}
     for r in rows:
         key = f"{r['type']}:{r['category']}"
-        by_category[key] = {"type": r["type"], "category": r["category"], "total": round(float(r["total"]), 2)}
+        by_category[key] = {
+            "type": r["type"],
+            "category": r["category"],
+            "total": round(float(r["total"]), 2),
+        }
 
     return {
         "period": month or "all_time",
@@ -158,10 +181,15 @@ def get_summary(db_path: str, month: str = "") -> dict:
 # ---------------------------------------------------------------------------
 
 def create_goal(db_path: str, name: str, target_amount: float, deadline: str = "") -> dict:
+    validated = SavingsGoalCreate(
+        name=name,
+        target_amount=target_amount,
+        deadline=deadline or None,
+    )
     conn = _connect(db_path)
     cursor = conn.execute(
         "INSERT INTO savings_goals (name, target_amount, deadline) VALUES (?, ?, ?)",
-        (name, target_amount, deadline or None),
+        (validated.name, validated.target_amount, validated.deadline),
     )
     goal_id = cursor.lastrowid
     conn.commit()
@@ -237,18 +265,12 @@ def recalculate_goals(db_path: str) -> list[dict]:
         m_from = target_month.isoformat()
         m_to = target_month.replace(day=last_day).isoformat()
 
-        m_income = float(
-            conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions WHERE type = 'income' AND date >= ? AND date <= ?",
-                (m_from, m_to),
-            ).fetchone()[0]
+        _q = (
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions"
+            " WHERE type = ? AND date >= ? AND date <= ?"
         )
-        m_expense = float(
-            conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions WHERE type = 'expense' AND date >= ? AND date <= ?",
-                (m_from, m_to),
-            ).fetchone()[0]
-        )
+        m_income = float(conn.execute(_q, ("income", m_from, m_to)).fetchone()[0])
+        m_expense = float(conn.execute(_q, ("expense", m_from, m_to)).fetchone()[0])
         monthly_rates.append(m_income - m_expense)
 
     avg_monthly_rate = sum(monthly_rates) / len(monthly_rates) if monthly_rates else 0.0

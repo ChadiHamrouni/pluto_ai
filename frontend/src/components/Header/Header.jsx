@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState } from "react";
 import "./Header.css";
 
-export default function Header({ autoMode, onSettings }) {
+export default function Header({ autoMode, onSettings, onLogout }) {
   const [expanded, setExpanded] = useState(false);
 
   async function handleExpand() {
@@ -27,6 +27,15 @@ export default function Header({ autoMode, onSettings }) {
         )}
       </div>
       <div className="header-actions">
+        {onLogout && (
+          <button className="expand-btn" onClick={onLogout} title="Sign out">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3" />
+              <polyline points="10 10 13 7 10 4" />
+              <line x1="13" y1="7" x2="5" y2="7" />
+            </svg>
+          </button>
+        )}
         <button className="expand-btn" onClick={onSettings} title="Model settings">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="7" cy="7" r="2" />

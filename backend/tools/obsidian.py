@@ -88,7 +88,6 @@ def generate_calendar_view(month: str = "") -> str:
         else:
             year, mon = int(month[:4]), int(month[5:7])
 
-        from datetime import datetime
         from calendar import monthrange
         _, last_day = monthrange(year, mon)
         from_date = f"{month}-01"
@@ -191,7 +190,8 @@ def generate_weekly_plan(week_start_date: str = "") -> str:
             week_start = today - timedelta(days=today.weekday())
 
         week_end = week_start + timedelta(days=6)
-        events = list_events(get_cal_db(), week_start.isoformat(), week_end.isoformat() + "T23:59:59")
+        week_end_str = week_end.isoformat() + "T23:59:59"
+        events = list_events(get_cal_db(), week_start.isoformat(), week_end_str)
         tasks = list_tasks(get_tasks_db())
 
         content = generate_weekly_plan_md(events, tasks, week_start)
@@ -241,7 +241,8 @@ def sync_vault() -> str:
     try:
         from calendar import monthrange
         _, last_day = monthrange(today.year, today.month)
-        events_cal = list_events(get_cal_db(), f"{month_str}-01", f"{month_str}-{last_day:02d}T23:59:59")
+        cal_to = f"{month_str}-{last_day:02d}T23:59:59"
+        events_cal = list_events(get_cal_db(), f"{month_str}-01", cal_to)
         content = generate_calendar_md(events_cal, today.year, today.month)
         path = write_vault_file(vault_path, f"Calendar/{month_str}.md", content)
         results.append(f"✅ Calendar: {path}")
@@ -271,7 +272,8 @@ def sync_vault() -> str:
     # Weekly plan
     try:
         week_end = week_start + timedelta(days=6)
-        week_events = list_events(get_cal_db(), week_start.isoformat(), week_end.isoformat() + "T23:59:59")
+        week_end_str = week_end.isoformat() + "T23:59:59"
+        week_events = list_events(get_cal_db(), week_start.isoformat(), week_end_str)
         all_tasks = list_tasks(get_tasks_db())
         content = generate_weekly_plan_md(week_events, all_tasks, week_start)
         label = _week_label(week_start)

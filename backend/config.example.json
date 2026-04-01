@@ -14,10 +14,7 @@
     "request_timeout_seconds": 30
   },
   "auth": {
-    "secret_key": "CHANGE_ME_generate_with_openssl_rand_hex_32",
     "algorithm": "HS256",
-    "username": "admin",
-    "password_hash": "CHANGE_ME_generate_with_passlib_bcrypt",
     "access_token_expires_minutes": 15,
     "refresh_token_expires_days": 7
   },

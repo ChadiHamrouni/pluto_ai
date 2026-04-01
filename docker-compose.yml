@@ -9,6 +9,7 @@ services:
       - ./backend/data:/app/data
       - ./backend/config.json:/app/config.json
       - hf_cache:/root/.cache/huggingface
+    user: "1000:1000"
     env_file:
       - ./backend/.env
     environment:

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from agents import Agent, ModelSettings
-from tools.notes import create_note, get_note, list_notes
 
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
+from tools.notes import create_note, get_note, list_notes
 
 _notes_agent: Agent | None = None
 
