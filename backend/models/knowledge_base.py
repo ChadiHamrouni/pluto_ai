@@ -12,3 +12,4 @@ class KnowledgeChunk(BaseModel):
     semantic_score: float = Field(default=0.0, description="Cosine similarity from ChromaDB")
     bm25_score: float = Field(default=0.0, description="Normalised BM25 score")
     rrf_score: float = Field(default=0.0, description="Reciprocal Rank Fusion combined score")
+    content_type: str = Field(default="file", description="Content category: file|note|memory|obsidian")

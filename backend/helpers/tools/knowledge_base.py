@@ -197,7 +197,7 @@ def _read_file(file_path: str) -> str:
 # Ingestion
 # ---------------------------------------------------------------------------
 
-def ingest_file(file_path: str) -> dict:
+def ingest_file(file_path: str, content_type: str = "file", source_prefix: str = "") -> dict:
     """
     Ingest a document into the knowledge base.
 
@@ -205,35 +205,41 @@ def ingest_file(file_path: str) -> dict:
     them into ChromaDB. Invalidates the BM25 index so it is rebuilt on the
     next search.
 
+    Args:
+        file_path: Path to the file to ingest.
+        content_type: Category tag stored in metadata — file|note|memory|obsidian.
+        source_prefix: Prefix prepended to filename for the source key (e.g. "obsidian::").
+
     Returns:
         {"filename": str, "chunks_stored": int, "total_chars": int}
     """
     path = Path(file_path)
     filename = path.name
+    source_key = f"{source_prefix}{filename}"
 
     text = _read_file(file_path)
     if not text.strip():
-        logger.warning("Empty or unreadable file: %s", filename)
-        return {"filename": filename, "chunks_stored": 0, "total_chars": 0}
+        logger.warning("Empty or unreadable file: %s", source_key)
+        return {"filename": source_key, "chunks_stored": 0, "total_chars": 0}
 
     from tools.rag import chunk_text  # lazy import to avoid circular dependency
     rag_cfg = load_config()["rag"]
     chunks = chunk_text(text, rag_cfg["chunk_size"], rag_cfg["chunk_overlap"])
     if not chunks:
-        return {"filename": filename, "chunks_stored": 0, "total_chars": len(text)}
+        return {"filename": source_key, "chunks_stored": 0, "total_chars": len(text)}
 
-    logger.info("Ingesting %s — %d chunks", filename, len(chunks))
+    logger.info("Ingesting %s (%s) — %d chunks", source_key, content_type, len(chunks))
 
     col = get_collection()
 
     # Remove stale chunks for this file
     try:
-        col.delete(where={"source": filename})
+        col.delete(where={"source": source_key})
     except Exception:
         pass
 
-    ids = [f"{filename}::{i}" for i in range(len(chunks))]
-    metadatas = [{"source": filename, "chunk_index": i} for i in range(len(chunks))]
+    ids = [f"{source_key}::{i}" for i in range(len(chunks))]
+    metadatas = [{"source": source_key, "chunk_index": i, "content_type": content_type} for i in range(len(chunks))]
 
     # Batch embed — one VRAM swap for the whole file
     embeddings = [embed_text(chunk) for chunk in chunks]
@@ -246,15 +252,19 @@ def ingest_file(file_path: str) -> dict:
     )
 
     _invalidate_bm25()
-    logger.info("Ingested %s: %d chunks stored", filename, len(chunks))
-    return {"filename": filename, "chunks_stored": len(chunks), "total_chars": len(text)}
+    logger.info("Ingested %s: %d chunks stored", source_key, len(chunks))
+    return {"filename": source_key, "chunks_stored": len(chunks), "total_chars": len(text)}
 
 
 # ---------------------------------------------------------------------------
 # Search — hybrid (semantic + BM25 + RRF)
 # ---------------------------------------------------------------------------
 
-def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
+def search_knowledge(
+    query: str,
+    top_k: int = 5,
+    content_type_filter: Optional[str] = None,
+) -> list[KnowledgeChunk]:
     """
     Hybrid search: semantic similarity (ChromaDB) + BM25 lexical, fused via RRF.
 
@@ -263,16 +273,26 @@ def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
       2. Lexical: tokenise query → BM25Okapi.get_top_n → top_k * 2 candidates
       3. RRF: merge both ranked lists → return top_k final results
 
+    Args:
+        content_type_filter: When set, restricts results to that content_type
+                             (file|note|memory|obsidian).
+
     Returns a list of KnowledgeChunk with semantic_score, bm25_score, and rrf_score.
     """
     col = get_collection()
     if col.count() == 0:
         return []
 
-    cfg = load_config()["rag"]
-    threshold: float = cfg.get("similarity_threshold", 0.3)
+    full_cfg = load_config()
+    kb_cfg = full_cfg.get("knowledge_base", {})
+    rag_cfg = full_cfg["rag"]
+    # Use the looser search threshold (0.3) rather than the RAG chat threshold (0.75)
+    threshold: float = kb_cfg.get("search_similarity_threshold", rag_cfg.get("similarity_threshold", 0.3))
     # Fetch more candidates per path so RRF has room to work
     fetch_k = max(top_k * 2, 10)
+
+    # Build optional ChromaDB where clause
+    where_clause = {"content_type": content_type_filter} if content_type_filter else None
 
     # ------------------------------------------------------------------
     # 1. Semantic path
@@ -280,11 +300,15 @@ def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
     semantic_hits: list[KnowledgeChunk] = []
     try:
         query_vec = embed_text(query)
-        result = col.query(
-            query_embeddings=[query_vec],
-            n_results=min(fetch_k, col.count()),
-            include=["documents", "metadatas", "distances"],
-        )
+        query_kwargs: dict = {
+            "query_embeddings": [query_vec],
+            "n_results": min(fetch_k, col.count()),
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if where_clause:
+            query_kwargs["where"] = where_clause
+
+        result = col.query(**query_kwargs)
         docs = result["documents"][0] if result["documents"] else []
         metas = result["metadatas"][0] if result["metadatas"] else []
         distances = result["distances"][0] if result["distances"] else []
@@ -297,6 +321,7 @@ def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
                     source=meta.get("source", "unknown"),
                     chunk_index=meta.get("chunk_index", 0),
                     semantic_score=score,
+                    content_type=meta.get("content_type", "file"),
                 ))
     except Exception as exc:
         logger.warning("Semantic search failed: %s", exc)
@@ -337,12 +362,16 @@ def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
                 for norm_score, idx in ranked:
                     chunk_id = ids[idx]
                     meta = id_to_meta.get(chunk_id, {})
+                    # Apply content_type filter on BM25 path
+                    if content_type_filter and meta.get("content_type") != content_type_filter:
+                        continue
                     doc = id_to_doc.get(chunk_id, corpus[idx])
                     bm25_hits.append(KnowledgeChunk(
                         content=doc,
                         source=meta.get("source", "unknown"),
                         chunk_index=meta.get("chunk_index", 0),
                         bm25_score=round(norm_score, 4),
+                        content_type=meta.get("content_type", "file"),
                     ))
     except Exception as exc:
         logger.warning("BM25 search failed: %s", exc)

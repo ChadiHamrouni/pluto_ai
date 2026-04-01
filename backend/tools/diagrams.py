@@ -116,4 +116,11 @@ def generate_diagram(
         return f"Diagram generation failed: {result}"
 
     logger.info("Diagram saved: %s", png_path)
+    # Write sidecar metadata so diagrams are searchable via Ctrl+P
+    try:
+        from helpers.tools.diagram_meta import write_diagram_meta
+        from pathlib import Path as _Path
+        write_diagram_meta(_Path(png_path).name, title, mermaid_code)
+    except Exception:
+        pass  # non-fatal
     return f"Diagram saved: {png_path}"

@@ -187,6 +187,7 @@
   border: 1px solid var(--neon-border);
   object-fit: cover;
   margin-bottom: 4px;
+  cursor: zoom-in;
 }
 
 /* File pill (PDF / txt attachments) */
@@ -203,6 +204,18 @@
   margin-bottom: 4px;
 }
 
+/* PDF first-page thumbnail */
+.pdf-thumbnail {
+  max-width: 100%;
+  width: 360px;
+  border-radius: 10px;
+  border: 1px solid var(--neon-border);
+  margin-bottom: 6px;
+  cursor: zoom-in;
+  display: block;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
 /* Inline diagram image preview */
 .diagram-preview {
   max-width: 100%;
@@ -212,6 +225,65 @@
   object-fit: contain;
   margin-bottom: 6px;
   background: #fff;
+  cursor: zoom-in;
+}
+
+/* ── Lightbox overlay ── */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lb-fade-in 0.15s ease;
+}
+
+@keyframes lb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 1001;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--neon-border);
+  background: var(--panel);
+  color: var(--neon);
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.lightbox-close:hover {
+  background: var(--panel-light);
+}
+
+.lightbox-img {
+  max-width: calc(100vw - 80px);
+  max-height: calc(100vh - 80px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 40px rgba(0, 200, 255, 0.15);
+}
+
+.lightbox-pdf {
+  width: calc(100vw - 40px);
+  height: calc(100vh - 40px);
+  border: none;
+  border-radius: 8px;
 }
 
 /* File download button */

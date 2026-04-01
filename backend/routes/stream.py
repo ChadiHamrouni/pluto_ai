@@ -162,6 +162,7 @@ async def chat_stream(
                     assistant_metadata={
                         "tools_used": tools_used,
                         "agents_trace": agents_trace,
+                        **({"file_url": file_url} if file_url else {}),
                     },
                 )
                 if not _history and _message:

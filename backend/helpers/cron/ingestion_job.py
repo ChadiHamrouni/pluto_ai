@@ -1,8 +1,14 @@
 """
 Nightly knowledge base ingestion job.
 
-Scans data/files/ for supported documents (.txt, .md, .pdf) that have
-not yet been ingested into ChromaDB, and ingests them in batch.
+Scans multiple content directories for supported documents (.txt, .md, .pdf)
+that have not yet been ingested into ChromaDB, and ingests them in batch.
+
+Content sources:
+  - data/files/           — user-uploaded files (content_type: "file")
+  - data/notes/           — AI-generated markdown notes (content_type: "note")
+  - data/memory/          — personal memory markdown files (content_type: "memory")
+  - ObsidianVault/        — Obsidian vault (content_type: "obsidian", recursive)
 
 This job is designed to run while the system is idle (e.g. 3:00 AM)
 so VRAM is not contested with active LLM inference.
@@ -23,51 +29,63 @@ SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf"}
 
 async def run_ingestion() -> None:
     """
-    Scan the files_path directory for new documents and ingest them into ChromaDB.
+    Scan all content directories for new documents and ingest them into ChromaDB.
 
-    Skips files already present in the collection (by filename).
+    Skips files already present in the collection (by source key).
     Logs a summary of what was ingested and any failures.
     """
-    cfg = load_config()["knowledge_base"]
-    files_path = Path(cfg.get("files_path", "data/files"))
+    cfg = load_config()
+    cfg_kb = cfg["knowledge_base"]
+    cfg_storage = cfg["storage"]
+    cfg_memory = cfg.get("memory", {})
+    obsidian_path = cfg.get("obsidian", {}).get("vault_path", "")
 
-    if not files_path.exists():
-        logger.info("Ingestion job: files_path %s does not exist, skipping.", files_path)
-        return
+    # Build scan targets: (directory, content_type, source_prefix, recursive)
+    scan_targets: list[tuple[str, str, str, bool]] = [
+        (cfg_kb.get("files_path", "data/files"),           "file",     "",           False),
+        (cfg_storage.get("notes_dir", "data/notes"),       "note",     "",           False),
+        (cfg_memory.get("memory_dir", "data/memory"),      "memory",   "",           False),
+    ]
+    if obsidian_path and Path(obsidian_path).exists():
+        scan_targets.append((obsidian_path, "obsidian", "obsidian::", True))
 
     already_ingested = kb.get_ingested_files()
-    candidates = [
-        f for f in files_path.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
-    ]
 
-    new_files = [f for f in candidates if f.name not in already_ingested]
-
-    if not new_files:
-        logger.info("Ingestion job: no new files to ingest (checked %d files).", len(candidates))
-        return
-
-    logger.info(
-        "Ingestion job: ingesting %d new file(s) out of %d total.",
-        len(new_files), len(candidates),
-    )
-
+    total_new = 0
     total_chunks = 0
-    failed = []
+    failed: list[str] = []
 
-    for file in new_files:
-        try:
-            result = kb.ingest_file(str(file))
-            total_chunks += result["chunks_stored"]
-            logger.info(
-                "  ✓ %s — %d chunks stored (%d chars)",
-                result["filename"], result["chunks_stored"], result["total_chars"],
-            )
-        except Exception as exc:
-            logger.warning("  ✗ Failed to ingest %s: %s", file.name, exc)
-            failed.append(file.name)
+    for dir_path, ctype, prefix, recursive in scan_targets:
+        p = Path(dir_path)
+        if not p.exists():
+            logger.debug("Ingestion job: skipping missing directory %s", p)
+            continue
+
+        items = p.rglob("*") if recursive else p.iterdir()
+        for f in items:
+            if not f.is_file() or f.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            source_key = f"{prefix}{f.name}"
+            if source_key in already_ingested:
+                continue
+
+            total_new += 1
+            try:
+                result = kb.ingest_file(str(f), content_type=ctype, source_prefix=prefix)
+                total_chunks += result["chunks_stored"]
+                logger.info(
+                    "  ✓ %s [%s] — %d chunks (%d chars)",
+                    result["filename"], ctype, result["chunks_stored"], result["total_chars"],
+                )
+            except Exception as exc:
+                logger.warning("  ✗ Failed to ingest %s: %s", source_key, exc)
+                failed.append(source_key)
+
+    if total_new == 0:
+        logger.info("Ingestion job: no new files to ingest.")
+        return
 
     logger.info(
         "Ingestion job complete: %d file(s) ingested, %d chunk(s) total, %d failure(s).",
-        len(new_files) - len(failed), total_chunks, len(failed),
+        total_new - len(failed), total_chunks, len(failed),
     )

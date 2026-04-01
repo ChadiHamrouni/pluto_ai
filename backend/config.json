@@ -23,7 +23,7 @@
   "slides_agent": {
     "model": "qwen3.5:2b",
     "temperature": 0.0,
-    "max_tokens": 2048,
+    "max_tokens": 4096,
     "tool_choice": "required"
   },
   "rag": {
@@ -66,12 +66,13 @@
     "model": "qwen3.5:2b"
   },
   "knowledge_base": {
-    "embedding_model": "qwen3-embedding:0.6b",
+    "embedding_model": "bge-m3",
     "embeddings_path": "data/embeddings",
     "files_path": "data/files",
     "chroma_path": "data/chroma",
     "collection_name": "knowledge_base",
-    "ingestion_cron": "03:00"
+    "ingestion_cron": "03:00",
+    "search_similarity_threshold": 0.3
   },
   "storage": {
     "notes_dir": "data/notes",

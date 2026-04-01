@@ -22,6 +22,7 @@ from routes.auth import router as auth_router
 from routes.autonomous import router as autonomous_router
 from routes.files import router as files_router
 from routes.messaging import router as messaging_router
+from routes.search import router as search_router
 from routes.sessions import router as sessions_router
 from routes.settings import router as settings_router
 from routes.stream import router as stream_router
@@ -225,6 +226,7 @@ def create_app() -> FastAPI:
     app.include_router(autonomous_router)
     app.include_router(settings_router)
     app.include_router(files_router)
+    app.include_router(search_router)
     app.include_router(voice_router)
 
     @app.get("/", tags=["health"], summary="Root")

@@ -69,9 +69,19 @@ async def append_turn(
     user_content: str,
     assistant_content: str,
     assistant_metadata: dict | None = None,
+    user_metadata: dict | None = None,
 ) -> None:
-    """Persist a completed user/assistant exchange."""
-    meta_json = json.dumps(assistant_metadata or {})
+    """Persist a completed user/assistant exchange.
+
+    user_metadata may contain:
+      - attachment_names: list[str]  — filenames the user attached
+      - previews: list[str]          — data-URL previews for images (optional)
+
+    assistant_metadata may contain:
+      - tools_used, agents_trace, file_url
+    """
+    asst_meta_json = json.dumps(assistant_metadata or {})
+    user_meta_json = json.dumps(user_metadata or {})
     async with get_db_connection(_db_path()) as db:
         # Auto-create session row if it somehow doesn't exist
         await db.execute(
@@ -79,12 +89,12 @@ async def append_turn(
             (session_id, "New Chat"),
         )
         await db.execute(
-            "INSERT INTO conversations (session_id, role, content, metadata) VALUES (?, ?, ?, ?)",
-            (session_id, "user", user_content, "{}"),
+            "INSERT INTO conversations (session_id, role, content, metadata, user_metadata) VALUES (?, ?, ?, ?, ?)",
+            (session_id, "user", user_content, "{}", user_meta_json),
         )
         await db.execute(
             "INSERT INTO conversations (session_id, role, content, metadata) VALUES (?, ?, ?, ?)",
-            (session_id, "assistant", assistant_content, meta_json),
+            (session_id, "assistant", assistant_content, asst_meta_json),
         )
         await db.commit()
 
@@ -115,11 +125,13 @@ async def list_sessions() -> list[dict]:
 async def get_session_messages(session_id: str) -> list[dict]:
     """Return the full conversation for a session, oldest first.
 
-    Each entry: {role, content, ...metadata fields for assistant turns}
+    Each entry: {role, content, ...metadata fields}
+    - assistant turns include: tools_used, agents_trace, file_url
+    - user turns include: attachment_names (list of filenames the user sent)
     """
     async with get_db_connection(_db_path()) as db:
         cur = await db.execute(
-            "SELECT role, content, metadata "
+            "SELECT role, content, metadata, user_metadata "
             "FROM conversations "
             "WHERE session_id = ? ORDER BY id ASC",
             (session_id,),
@@ -136,6 +148,18 @@ async def get_session_messages(session_id: str) -> list[dict]:
                 meta = {}
             if meta:
                 msg.update(meta)
+        else:
+            try:
+                user_meta = json.loads(r["user_metadata"] or "{}")
+            except Exception:
+                user_meta = {}
+            if user_meta:
+                # Use the clean display text if stored; the full extraction
+                # is kept in content for agent context only.
+                display = user_meta.pop("display_content", None)
+                if display is not None:
+                    msg["content"] = display
+                msg.update(user_meta)
         result.append(msg)
     return result
 

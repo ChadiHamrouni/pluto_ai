@@ -234,6 +234,13 @@ async def chat(
             else message
         )
         if session_id and exists:
+            user_meta: dict = {}
+            if attachment_meta:
+                user_meta["attachment_names"] = [a.filename for a in attachment_meta]
+            # Store the original display message so the bubble shows clean text,
+            # not the full extracted PDF/OCR dump that lives in history_user.
+            if primary and message:
+                user_meta["display_content"] = message
             await append_turn(
                 session_id,
                 history_user,
@@ -241,7 +248,9 @@ async def chat(
                 assistant_metadata={
                     "tools_used": tools_used,
                     "agents_trace": agents_trace,
+                    **({"file_url": file_url} if file_url else {}),
                 },
+                user_metadata=user_meta or None,
             )
             if not history and message:
                 title = message[:50] + ("…" if len(message) > 50 else "")
