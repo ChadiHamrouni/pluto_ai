@@ -1,9 +1,24 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useState, useEffect } from "react";
+import { getVaultPath, setVaultPath } from "../../api";
 import "./Header.css";
 
 export default function Header({ autoMode, onSettings, onLogout }) {
   const [expanded, setExpanded] = useState(false);
+  const [vault, setVault] = useState("");
+
+  useEffect(() => {
+    getVaultPath().then(setVault).catch(() => {});
+  }, []);
+
+  async function handlePickVault() {
+    const selected = await open({ directory: true, title: "Select Obsidian Vault" });
+    if (selected) {
+      await setVaultPath(selected);
+      setVault(selected);
+    }
+  }
 
   async function handleExpand() {
     const win = getCurrentWindow();
@@ -14,6 +29,9 @@ export default function Header({ autoMode, onSettings, onLogout }) {
   async function handleClose() {
     await getCurrentWindow().close();
   }
+
+  // Show just the folder name from the full path
+  const vaultLabel = vault ? vault.split(/[/\\]/).filter(Boolean).pop() : "";
 
   return (
     <header className="header" data-tauri-drag-region>
@@ -27,6 +45,16 @@ export default function Header({ autoMode, onSettings, onLogout }) {
         )}
       </div>
       <div className="header-actions">
+        <button
+          className="expand-btn vault-btn"
+          onClick={handlePickVault}
+          title={vault ? `Vault: ${vault}` : "Set Obsidian vault"}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 11a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3.5l2 2H12a1 1 0 0 1 1 1v6z" />
+          </svg>
+          {vaultLabel && <span className="vault-label">{vaultLabel}</span>}
+        </button>
         {onLogout && (
           <button className="expand-btn" onClick={onLogout} title="Sign out">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

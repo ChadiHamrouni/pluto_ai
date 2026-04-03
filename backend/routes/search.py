@@ -7,11 +7,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.routes.dependencies import get_current_user
-from helpers.tools import knowledge_base as kb
-from helpers.tools import memory as mem
+from helpers.core import knowledge_base as kb
 from helpers.tools.diagram_meta import search_diagram_meta
 from models.search import SearchResponse, SearchResult
 
@@ -19,13 +17,9 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/search", tags=["search"])
 
 # Maps CLI prefix → content_type used in ChromaDB metadata
+# "pdf" is a virtual filter: searches obsidian content filtered by .pdf extension
 _PREFIX_MAP: dict[str, str] = {
-    "-note":     "note",
-    "-notes":    "note",
-    "-pdf":      "file",
-    "-file":     "file",
-    "-memory":   "memory",
-    "-mem":      "memory",
+    "-pdf":      "pdf",       # virtual — obsidian sources ending in .pdf
     "-obsidian": "obsidian",
     "-obs":      "obsidian",
     "-img":      "image",
@@ -34,7 +28,7 @@ _PREFIX_MAP: dict[str, str] = {
 }
 
 # content_type values that live in ChromaDB (not handled separately)
-_KB_TYPES = {"file", "note", "memory", "obsidian"}
+_KB_TYPES = {"obsidian"}
 
 
 def _parse_query(raw: str) -> tuple[str, Optional[str]]:
@@ -60,8 +54,10 @@ def _make_snippet(text: str, max_len: int = 150) -> str:
 
 
 def _title_from_source(source: str) -> str:
-    """Turn a filename like '20260101T120000-my-redis-notes.md' into 'My Redis Notes'."""
-    name = re.sub(r"^\d{8}T\d{6}-", "", source)
+    """Turn a source like 'Slides/Streamlit_Workshop.pdf' into 'Streamlit Workshop'."""
+    # Use only the filename part (strip folder path)
+    name = source.split("/")[-1].split("\\")[-1]
+    name = re.sub(r"^\d{8}T\d{6}-", "", name)
     name = re.sub(r"\.(md|pdf|txt|png)$", "", name, flags=re.IGNORECASE)
     return name.replace("-", " ").replace("_", " ").title()
 
@@ -70,6 +66,25 @@ def _title_from_source(source: str) -> str:
 # Async wrappers (all underlying calls are sync — run in thread pool)
 # ---------------------------------------------------------------------------
 
+def _chunks_to_results(chunks: list) -> list[SearchResult]:
+    results = []
+    for c in chunks:
+        bare_name = c.source.replace("obsidian::", "")
+        file_url: Optional[str] = None
+        if bare_name.endswith((".pdf", ".png", ".md", ".txt")):
+            file_url = f"/files/{bare_name}"
+        results.append(SearchResult(
+            id=f"kb::{c.source}::{c.chunk_index}",
+            content_type=c.content_type,
+            title=_title_from_source(bare_name),
+            snippet=_make_snippet(c.content),
+            source=c.source,
+            file_url=file_url,
+            score=c.rrf_score,
+        ))
+    return results
+
+
 async def _search_knowledge_async(
     query: str, content_type_filter: Optional[str], top_k: int
 ) -> list[SearchResult]:
@@ -77,44 +92,23 @@ async def _search_knowledge_async(
 
     def _run() -> list[SearchResult]:
         chunks = kb.search_knowledge(query, top_k=top_k, content_type_filter=content_type_filter)
-        results = []
-        for c in chunks:
-            bare_name = c.source.replace("obsidian::", "")
-            file_url: Optional[str] = None
-            if bare_name.endswith((".pdf", ".png", ".md", ".txt")):
-                file_url = f"/files/{bare_name}"
-            results.append(SearchResult(
-                id=f"kb::{c.source}::{c.chunk_index}",
-                content_type=c.content_type,
-                title=_title_from_source(bare_name),
-                snippet=_make_snippet(c.content),
-                source=c.source,
-                file_url=file_url,
-                score=c.rrf_score,
-            ))
-        return results
+        return _chunks_to_results(chunks)
 
     return await loop.run_in_executor(None, _run)
 
 
-async def _search_memories_async(query: str, top_k: int) -> list[SearchResult]:
+async def _search_by_source_async(
+    query: str, content_type_filter: Optional[str], top_k: int
+) -> list[SearchResult]:
+    """Filename-based search — finds files whose name contains the query string."""
     loop = asyncio.get_event_loop()
 
     def _run() -> list[SearchResult]:
-        db_path = load_config()["memory"]["db_path"]
-        rows = mem.search_memories(db_path, query, top_k=top_k)
-        results = []
-        for r in rows:
-            results.append(SearchResult(
-                id=f"mem::{r['id']}",
-                content_type="memory",
-                title=f"Memory · {r.get('category', 'general').title()}",
-                snippet=_make_snippet(r["content"]),
-                source=r.get("category", "memory"),
-                file_url=None,
-                score=0.5,  # FTS5 rank is not normalised to [0,1]; fixed mid-value
-                created_at=str(r["created_at"]) if r.get("created_at") else None,
-            ))
+        chunks = kb.search_by_source(query, content_type_filter=content_type_filter, top_k=top_k)
+        results = _chunks_to_results(chunks)
+        # Give filename matches a fixed score so they rank well
+        for r in results:
+            r.score = 0.75
         return results
 
     return await loop.run_in_executor(None, _run)
@@ -169,22 +163,44 @@ async def search(
     """
     clean_query, type_filter = _parse_query(q)
 
+    # "pdf" is a virtual filter — search obsidian content, keep only .pdf sources
+    pdf_filter = type_filter == "pdf"
+    kb_filter = "obsidian" if pdf_filter else type_filter
+
     if not clean_query:
-        return SearchResponse(results=[], query=q, content_type_filter=type_filter, total=0)
+        if not type_filter:
+            return SearchResponse(results=[], query=q, content_type_filter=None, total=0)
+        # Bare prefix — list all items of that type immediately
+        if type_filter == "image":
+            result_lists = await asyncio.gather(_search_images_async("", top_k))
+        else:
+            result_lists = await asyncio.gather(
+                _search_knowledge_async("", kb_filter, top_k * (3 if pdf_filter else 1))
+            )
+        merged = [r for sub in result_lists if isinstance(sub, list) for r in sub]
+        if pdf_filter:
+            merged = [r for r in merged if r.source.lower().endswith(".pdf")]
+        # Deduplicate by source so each file appears only once
+        seen_src: set[str] = set()
+        deduped_bare = []
+        for r in merged:
+            if r.source not in seen_src:
+                seen_src.add(r.source)
+                deduped_bare.append(r)
+        return SearchResponse(results=deduped_bare[:top_k], query=q, content_type_filter=type_filter, total=len(deduped_bare[:top_k]))
 
     # Fan out to relevant backends in parallel
     tasks = []
 
     if type_filter == "image":
         tasks.append(_search_images_async(clean_query, top_k))
-    elif type_filter == "memory":
-        tasks.append(_search_memories_async(clean_query, top_k))
-    elif type_filter in _KB_TYPES:
-        tasks.append(_search_knowledge_async(clean_query, type_filter, top_k))
+    elif kb_filter in _KB_TYPES:
+        tasks.append(_search_knowledge_async(clean_query, kb_filter, top_k * (3 if pdf_filter else 1)))
+        tasks.append(_search_by_source_async(clean_query, kb_filter, top_k))
     else:
         # No filter — search everything simultaneously
         tasks.append(_search_knowledge_async(clean_query, None, top_k))
-        tasks.append(_search_memories_async(clean_query, max(top_k // 2, 3)))
+        tasks.append(_search_by_source_async(clean_query, None, top_k))
         tasks.append(_search_images_async(clean_query, max(top_k // 2, 3)))
 
     result_lists = await asyncio.gather(*tasks, return_exceptions=True)
@@ -195,6 +211,9 @@ async def search(
             merged.extend(r)
         elif isinstance(r, Exception):
             logger.warning("Search backend error: %s", r)
+
+    if pdf_filter:
+        merged = [r for r in merged if r.source.lower().endswith(".pdf")]
 
     # De-duplicate by id, sort by score descending
     seen: set[str] = set()

@@ -16,6 +16,45 @@ from models.settings import AgentModels
 logger = get_logger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
 
+
+# ---------------------------------------------------------------------------
+# Vault path
+# ---------------------------------------------------------------------------
+
+@router.get("/vault")
+async def get_vault_path(_user: str = Depends(get_current_user)):
+    """Return the currently configured Obsidian vault path."""
+    cfg = load_config()
+    return {"vault_path": cfg.get("obsidian", {}).get("vault_path", "")}
+
+
+@router.put("/vault")
+async def set_vault_path(body: dict, _user: str = Depends(get_current_user)):
+    """Update the Obsidian vault path in config.json."""
+    vault_path = body.get("vault_path", "")
+    if not vault_path:
+        raise HTTPException(status_code=400, detail="vault_path is required.")
+
+    config_path = os.environ.get("CONFIG_PATH", "")
+    if not config_path:
+        base_dir = Path(__file__).resolve().parent.parent
+        config_path = str(base_dir / "config.json")
+
+    if not Path(config_path).exists():
+        raise HTTPException(status_code=404, detail="config.json not found.")
+
+    with open(config_path) as f:
+        raw = json.load(f)
+
+    raw.setdefault("obsidian", {})["vault_path"] = vault_path
+
+    with open(config_path, "w") as f:
+        json.dump(raw, f, indent=2)
+
+    reload_config()
+    logger.info("Vault path updated: %s", vault_path)
+    return {"status": "ok", "vault_path": vault_path}
+
 # Agent keys exposed in the UI — maps display label → config.json section key
 _AGENT_KEYS = {
     "orchestrator": "orchestrator",

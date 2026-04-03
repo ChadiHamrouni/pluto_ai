@@ -277,6 +277,24 @@ export async function saveAgentSettings(settings) {
   return r.json();
 }
 
+// ── Vault ────────────────────────────────────────────────────────────────────
+
+export async function getVaultPath() {
+  const r = await _fetch(`${BASE}/settings/vault`);
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return (await r.json()).vault_path;
+}
+
+export async function setVaultPath(vaultPath) {
+  const r = await _fetch(`${BASE}/settings/vault`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vault_path: vaultPath }),
+  });
+  if (!r.ok) throw new Error(`Error ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 export async function getSessions() {

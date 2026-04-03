@@ -86,7 +86,7 @@
     "default_theme": "default"
   },
   "api": {
-    "host": "127.0.0.1",
+    "host": "0.0.0.0",
     "port": 8000
   },
   "user": {
@@ -118,12 +118,23 @@
     "tool_choice": "auto"
   },
   "obsidian": {
-    "vault_path": "C:/Users/shadyy/ObsidianVault"
+    "vault_path": "/app/obsidian_vault",
+    "ignored_folders": ["Bills", "Excalidraw"]
   },
   "budget": {
     "categories": [
-      "salary", "freelance", "food", "transport", "rent", "utilities",
-      "subscriptions", "entertainment", "health", "education", "savings", "other"
+      "salary",
+      "freelance",
+      "food",
+      "transport",
+      "rent",
+      "utilities",
+      "subscriptions",
+      "entertainment",
+      "health",
+      "education",
+      "savings",
+      "other"
     ]
   }
 }

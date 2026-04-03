@@ -74,7 +74,7 @@ class AutonomousLoop:
 
     async def run(self) -> ExecutionPlan:
         from my_agents.single import get_single_agent
-        from tools.web_search import clear_session_cache
+        from helpers.tools.web_search import clear_session_cache
 
         # Clear URL/query cache so each autonomous run starts fresh
         # and doesn't re-fetch URLs from previous sessions

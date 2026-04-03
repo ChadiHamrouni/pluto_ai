@@ -42,22 +42,45 @@ def load_model() -> None:
     logger.info("Embedding model ready (lazy — will load on first use via Ollama).")
 
 
+_MAX_CHARS = 2000   # bge-m3 512-token limit; ~4 chars/token → 2000 chars is safe
+_MIN_CHARS = 150    # bge-m3 produces NaN embeddings for very short inputs
+_MAX_RETRIES = 2
+
+
 def _call_ollama(base_url: str, model: str, text: str) -> List[float]:
-    """POST to Ollama /api/embeddings and return the embedding vector."""
+    """POST to Ollama /api/embeddings and return the embedding vector.
+
+    Retries up to _MAX_RETRIES times, halving the text on each 500 error to
+    stay within the model's token limit.
+    """
     url = base_url.rstrip("/") + "/api/embeddings"
     timeout = load_config()["ollama"].get("request_timeout_seconds", 30)
 
-    response = httpx.post(
-        url,
-        json={"model": model, "prompt": text},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    data = response.json()
+    # Pad short text to avoid NaN embeddings from bge-m3
+    prompt = text[:_MAX_CHARS]
+    if len(prompt) < _MIN_CHARS:
+        prompt = (prompt + " ") * (_MIN_CHARS // max(len(prompt), 1) + 1)
+        prompt = prompt[:_MIN_CHARS]
 
+    for attempt in range(_MAX_RETRIES + 1):
+        response = httpx.post(url, json={"model": model, "prompt": prompt}, timeout=timeout)
+        if response.status_code == 500 and attempt < _MAX_RETRIES:
+            # Halve the text and retry — likely exceeds the model's token limit
+            prompt = prompt[: max(len(prompt) // 2, _MIN_CHARS)]
+            logger.debug("embed retry %d — truncated to %d chars", attempt + 1, len(prompt))
+            continue
+        response.raise_for_status()
+        break
+
+    data = response.json()
     embedding = data.get("embedding")
     if not embedding:
         raise ValueError(f"Ollama returned no embedding. Response: {data}")
+
+    # Guard against NaN values (bge-m3 can return NaN for degenerate inputs)
+    import math
+    if any(math.isnan(v) for v in embedding):
+        raise ValueError(f"Ollama returned NaN embedding for input of length {len(text)}")
 
     return embedding
 

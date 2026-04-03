@@ -61,7 +61,7 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
         logger.info("Created note id=%d title='%s' path=%s", note_id, title, file_path)
         # Ingest into ChromaDB in the background so new notes are immediately searchable
         try:
-            from helpers.tools import knowledge_base as kb
+            from helpers.core import knowledge_base as kb
             threading.Thread(
                 target=kb.ingest_file,
                 args=(file_path,),

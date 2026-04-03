@@ -17,9 +17,11 @@ export function useContentSearch() {
 
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    // Check if query meets minimum length after stripping a type prefix
+    // Fire immediately for bare type prefixes (e.g. "-note", "-pdf")
+    // otherwise require MIN_QUERY_LEN chars after stripping the prefix
     const stripped = newQuery.replace(/^-\w+\s*/, "").trim();
-    if (!newQuery || (stripped.length < MIN_QUERY_LEN && !newQuery.match(/^-\w+$/))) {
+    const isBarePrefix = /^-\w+$/.test(newQuery.trim());
+    if (!newQuery || (!isBarePrefix && stripped.length < MIN_QUERY_LEN)) {
       setResults([]);
       setLoading(false);
       return;

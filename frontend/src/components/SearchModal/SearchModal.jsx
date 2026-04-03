@@ -10,7 +10,6 @@ import "./SearchModal.css";
 const TYPE_ICON = {
   file:     "📄",
   note:     "📝",
-  memory:   "🧠",
   obsidian: "💎",
   image:    "🖼",
 };
@@ -18,17 +17,14 @@ const TYPE_ICON = {
 const TYPE_LABEL = {
   file:     "File",
   note:     "Note",
-  memory:   "Memory",
   obsidian: "Obsidian",
   image:    "Diagram",
 };
 
 const FILTER_HINTS = [
-  { prefix: "-note ",     label: "Notes"    },
-  { prefix: "-pdf ",      label: "PDFs"     },
-  { prefix: "-img ",      label: "Diagrams" },
-  { prefix: "-memory ",   label: "Memory"   },
-  { prefix: "-obsidian ", label: "Obsidian" },
+  { prefix: "-obsidian", label: "Obsidian" },
+  { prefix: "-pdf",      label: "PDFs"     },
+  { prefix: "-img",      label: "Diagrams" },
 ];
 
 export default function SearchModal({ onClose }) {
@@ -130,7 +126,11 @@ export default function SearchModal({ onClose }) {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleQueryChange(h.prefix);
-                  inputRef.current?.focus();
+                  // Put cursor after prefix + space so user can keep typing
+                  setTimeout(() => {
+                    const el = inputRef.current;
+                    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+                  }, 0);
                 }}
               >
                 {h.label}

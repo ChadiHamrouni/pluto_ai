@@ -91,3 +91,25 @@
   background: rgba(200, 40, 40, 0.2);
   color: #ff6b6b;
 }
+
+/* ── Vault picker ── */
+.vault-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding: 0 8px;
+}
+
+.vault-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-btn:hover .vault-label {
+  color: var(--neon);
+}

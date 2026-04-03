@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -66,6 +67,14 @@ async def lifespan(app: FastAPI):
 
     # Ensure ChromaDB data directory exists
     os.makedirs(config["knowledge_base"].get("chroma_path", "data/chroma"), exist_ok=True)
+
+    # Run ingestion in a thread so blocking httpx/ChromaDB calls don't starve the event loop
+    def _run_ingestion_sync():
+        import asyncio as _asyncio
+        _asyncio.run(run_ingestion())
+
+    asyncio.get_event_loop().run_in_executor(None, _run_ingestion_sync)
+    logger.info("Startup ingestion started in background.")
 
     # Schedule nightly knowledge base ingestion
     ingestion_hour, ingestion_minute = _parse_cron_time(
@@ -199,7 +208,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Accept", "Authorization", "X-Requested-With"],
     )
 
