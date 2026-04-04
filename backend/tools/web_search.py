@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from agents import function_tool
 from ddgs import DDGS
 
@@ -39,18 +41,23 @@ async def web_search(query: str) -> str:
     if not results:
         return "No results found for this query."
 
+    # Fetch all pages concurrently instead of one-by-one
+    urls = [r.get("href", "") for r in results]
+    page_texts = await asyncio.gather(*[fetch_text_short(u) for u in urls])
+
     sections: list[str] = []
     source_lines: list[str] = []
 
-    for i, r in enumerate(results, 1):
+    for i, (r, page_text) in enumerate(zip(results, page_texts), 1):
         title = r.get("title", "No title")
         url = r.get("href", "")
         snippet = r.get("body", "")
 
-        page_text = await fetch_text_short(url)
-        content = snippet
+        # Prefer fetched page text over the snippet; use both if page adds value
         if page_text and len(page_text) > len(snippet):
-            content = f"{snippet}\n\n{page_text[:400]}"
+            content = f"{snippet}\n\n{page_text}"
+        else:
+            content = snippet
 
         sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
         source_lines.append(f"- [{title}]({url})")

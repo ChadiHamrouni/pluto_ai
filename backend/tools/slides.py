@@ -31,18 +31,23 @@ def draft_slides(title: str, slides_json: str) -> str:
     Args:
         title: Presentation title (e.g. "Quantum Computing Fundamentals").
         slides_json: A JSON array of slide objects. Each object has:
-            - "heading": slide title string
-            - "bullets": array of bullet point strings (3-6 per slide)
+            - "heading": slide title string (required)
+            - "bullets": array of bullet point strings, 3-6 per slide (required)
+            - "code": optional object for a syntax-highlighted code block:
+                {"language": "python", "content": "def hello():\n    print('hi')"}
+                Supported languages: python, java, javascript, typescript, sql, bash, cpp, etc.
+                Use this on slides that demonstrate or explain code — always pair with bullets
+                that describe what the code does.
             Example:
             [
               {"heading": "What is Quantum Computing?", "bullets": [
                 "Uses qubits instead of bits",
                 "Leverages superposition and entanglement",
                 "Can solve certain problems exponentially faster"]},
-              {"heading": "Key Applications", "bullets": [
-                "Drug discovery and molecular simulation",
-                "Cryptography and security",
-                "Optimization problems in logistics"]}
+              {"heading": "Hello World in Python", "bullets": [
+                "print() writes output to the console",
+                "Strings use single or double quotes"],
+               "code": {"language": "python", "content": "print('Hello, World!')"}}
             ]
 
     Returns:
@@ -80,6 +85,7 @@ def render_slides(title: str, slides_json: str, theme: str = "default") -> str:
         title: Same title passed to draft_slides.
         slides_json: Same JSON array passed to draft_slides.
         theme: Visual theme — one of: default, gaia, uncover.
+               Use "default" for clean white background with black text (recommended).
 
     Returns:
         On success: the file path to the generated PDF.

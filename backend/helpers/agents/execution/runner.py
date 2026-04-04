@@ -42,7 +42,7 @@ async def run_agent(
     agent: Agent,
     messages: list[dict],
     memory_context: str = "",
-    max_turns: int = 10,
+    max_turns: int = 20,
 ) -> AgentRunResult:
     """Run an agent turn and return the full response with metadata."""
     input_items = _prepare_input(messages)
@@ -87,7 +87,7 @@ async def run_agent_streamed(
     agent: Agent,
     messages: list[dict],
     memory_context: str = "",
-    max_turns: int = 10,
+    max_turns: int = 20,
 ) -> AsyncIterator[dict[str, Any]]:
     """Run an agent turn in streaming mode, yielding SSE-compatible event dicts.
 

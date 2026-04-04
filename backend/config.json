@@ -6,7 +6,8 @@
     "tool_choice": "auto",
     "base_url": "http://localhost:11434/v1",
     "api_key": "ollama",
-    "history_window": 20
+    "history_window": 20,
+    "max_turns": 30
   },
   "ollama": {
     "base_url": "http://localhost:11434",

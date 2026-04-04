@@ -5,6 +5,7 @@ Used by tools/web_search.py (@function_tool wrappers).
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import re
 import socket
@@ -91,12 +92,13 @@ def _strip_html(text: str, extra_tags: tuple[str, ...] = ()) -> str:
 
 
 async def fetch_text_short(url: str) -> str:
-    """Fetch URL and return first 800 chars of plain text (used internally by web_search)."""
+    """Fetch URL and return first 3 000 chars of plain text (used internally by web_search)."""
     if not url:
         return ""
 
     if url in _url_cache:
-        return _url_cache[url][:800]
+        cached = _url_cache[url]
+        return cached[:3000] if cached else ""
 
     safe, _ = is_safe_url(url)
     if not safe:
@@ -108,12 +110,12 @@ async def fetch_text_short(url: str) -> str:
                 url,
                 headers={"User-Agent": "Mozilla/5.0 (research bot)"},
                 timeout=8,
-                follow_redirects=False,
+                follow_redirects=True,
             )
             response.raise_for_status()
         text = _strip_html(response.text, extra_tags=("svg",))
-        _url_cache[url] = text[:8000]
-        return text[:800]
+        _url_cache[url] = text[:12000]
+        return text[:3000]
     except Exception:
         return ""
 
@@ -139,15 +141,15 @@ async def fetch_text_full(url: str) -> tuple[str, str | None]:
             ),
         }
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=15, follow_redirects=False)
+            response = await client.get(url, headers=headers, timeout=15, follow_redirects=True)
             response.raise_for_status()
         text = _strip_html(response.text)
         if not text:
             return "", "Page returned no text content."
-        result = text[:8000]
+        result = text[:12000]
         _url_cache[url] = result
         return result, None
     except Exception as exc:
         error_msg = f"Failed to fetch page: {exc}"
-        _url_cache[url] = error_msg
+        # Do NOT cache failures — retrying may succeed (transient network error)
         return "", error_msg

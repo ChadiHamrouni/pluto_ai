@@ -44,18 +44,43 @@ async def run_ingestion() -> None:
         for name in cfg.get("obsidian", {}).get("ignored_folders", [])
     }
 
+    # Directory names that should NEVER be embedded regardless of where they appear
+    # in the vault tree (venvs, package caches, build artefacts, VCS internals, etc.)
+    _ALWAYS_SKIP_DIRS: frozenset[str] = frozenset({
+        "site-packages", "dist-packages",
+        "node_modules",
+        "__pycache__",
+        ".git", ".svn", ".hg",
+        ".venv", "venv", ".env", "env",
+        "dist", "build", ".tox",
+        ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ".idea", ".vscode",
+        "eggs", ".eggs",
+    })
+
     if obsidian_path and Path(obsidian_path).exists():
         scan_targets.append((obsidian_path, "obsidian", "obsidian::", True))
 
     def _is_ignored(file_path: Path, vault_root: str) -> bool:
-        """Return True if the file lives inside an Obsidian ignored folder."""
-        if not obsidian_ignored or not vault_root:
-            return False
+        """Return True if the file should be skipped.
+
+        Skips files when:
+        - They live inside a user-configured ignored top-level folder, OR
+        - Any path segment matches a known dependency/build directory name.
+        """
         try:
             rel = file_path.relative_to(vault_root)
-            return rel.parts[0].lower() in obsidian_ignored if rel.parts else False
         except ValueError:
             return False
+
+        parts_lower = [p.lower() for p in rel.parts]
+
+        # User-configured top-level folder exclusions
+        if obsidian_ignored and parts_lower and parts_lower[0] in obsidian_ignored:
+            return True
+
+        # Always-skip directory names anywhere in the path
+        return bool(_ALWAYS_SKIP_DIRS.intersection(parts_lower))
 
     # Build a map of source_key → file path for every file currently on disk
     # Source key uses relative path (not just filename) to avoid collisions across subfolders
