@@ -9,7 +9,7 @@ from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.file_parser import extract_pdf, ocr_image
 from models.results import HandlerResult
-from my_agents.orchestrator import get_orchestrator
+from my_agents.single import get_single_agent
 
 logger = get_logger(__name__)
 
@@ -79,7 +79,7 @@ async def file_handler(
     windowed_history = history[-(window * 2):]
     messages = list(format_chat_history(windowed_history)) + messages
 
-    result = await run_agent(get_orchestrator(), messages)
+    result = await run_agent(get_single_agent(), messages)
     return HandlerResult(
         response=result.response,
         elapsed=time.perf_counter() - t0,

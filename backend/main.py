@@ -20,14 +20,12 @@ from helpers.core.exceptions import PlutoError
 from helpers.core.logger import get_logger, setup_logging
 from helpers.cron.ingestion_job import run_ingestion
 from routes.auth import router as auth_router
-from routes.autonomous import router as autonomous_router
 from routes.files import router as files_router
 from routes.messaging import router as messaging_router
 from routes.search import router as search_router
 from routes.sessions import router as sessions_router
 from routes.settings import router as settings_router
 from routes.stream import router as stream_router
-from routes.voice import router as voice_router
 
 setup_logging()
 
@@ -127,14 +125,6 @@ _TAGS_METADATA = [
         "name": "settings",
         "description": "Read and update runtime configuration (models, hyperparameters).",
     },
-    {
-        "name": "voice",
-        "description": "Voice mode — VAD-triggered audio input and TTS audio output.",
-    },
-    {
-        "name": "autonomous",
-        "description": "Long-running autonomous task loops with plan-execute-reflect cycles.",
-    },
 ]
 
 
@@ -232,11 +222,9 @@ def create_app() -> FastAPI:
     app.include_router(sessions_router)
     app.include_router(messaging_router)
     app.include_router(stream_router)
-    app.include_router(autonomous_router)
     app.include_router(settings_router)
     app.include_router(files_router)
     app.include_router(search_router)
-    app.include_router(voice_router)
 
     @app.get("/", tags=["health"], summary="Root")
     async def root():

@@ -58,9 +58,7 @@ async def set_vault_path(body: dict, _user: str = Depends(get_current_user)):
 # Agent keys exposed in the UI — maps display label → config.json section key
 _AGENT_KEYS = {
     "orchestrator": "orchestrator",
-    "notes_agent": "notes_agent",
     "slides_agent": "slides_agent",
-    "autonomous": "autonomous",
 }
 
 
@@ -106,9 +104,7 @@ async def set_agent_models(
 
     updates = {
         "orchestrator": body.orchestrator,
-        "notes_agent": body.notes_agent,
         "slides_agent": body.slides_agent,
-        "autonomous": body.autonomous,
     }
     if available:
         for key, model in updates.items():
@@ -139,14 +135,10 @@ async def set_agent_models(
 
     reload_config()
 
-    # Bust agent singletons so the next request picks up the new models
-    from my_agents.notes import reset_notes_agent
-    from my_agents.orchestrator import reset_orchestrator
-    from my_agents.slides import reset_slides_agent
+    # Bust the single-agent singleton so the next request picks up the new model
+    from my_agents.single import reset_single_agent
 
-    reset_orchestrator()
-    reset_notes_agent()
-    reset_slides_agent()
+    reset_single_agent()
 
     logger.info("Agent models updated: %s", updates)
     return {"status": "ok", "updated": updates}

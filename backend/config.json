@@ -58,14 +58,6 @@
     "max_tokens": 1024,
     "tool_choice": "required"
   },
-  "autonomous": {
-    "planner_model": "qwen3.5:2b",
-    "executor_model": "qwen3.5:2b",
-    "max_iterations": 50,
-    "max_duration_seconds": 300,
-    "max_retries_per_step": 2,
-    "model": "qwen3.5:2b"
-  },
   "knowledge_base": {
     "embedding_model": "bge-m3",
     "embeddings_path": "data/embeddings",
