@@ -16,6 +16,7 @@ from tools.budget import (
     list_savings_goals,
     list_transactions,
 )
+from tools.calculator import calculate
 from tools.diagrams import generate_diagram
 from tools.obsidian import (
     generate_budget_report,
@@ -64,6 +65,8 @@ def get_dashboard_agent() -> Agent:
                 create_savings_goal,
                 list_savings_goals,
                 delete_savings_goal,
+                # Calculator
+                calculate,
                 # Diagrams
                 generate_diagram,
                 # Obsidian vault

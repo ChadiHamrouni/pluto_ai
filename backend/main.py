@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,7 +16,6 @@ from helpers.core.config_loader import load_config
 from helpers.core.db import init_db
 from helpers.core.exceptions import PlutoError
 from helpers.core.logger import get_logger, setup_logging
-from helpers.cron.ingestion_job import run_ingestion
 from routes.auth import router as auth_router
 from routes.files import router as files_router
 from routes.messaging import router as messaging_router
@@ -31,14 +28,6 @@ setup_logging()
 
 logger = get_logger(__name__)
 
-
-def _parse_cron_time(time_str: str) -> tuple[int, int]:
-    """Parse 'HH:MM' string into (hour, minute) integers. Defaults to 03:00 on error."""
-    try:
-        h, m = time_str.strip().split(":")
-        return int(h), int(m)
-    except Exception:
-        return 3, 0
 
 
 @asynccontextmanager
@@ -66,22 +55,6 @@ async def lifespan(app: FastAPI):
     # Ensure ChromaDB data directory exists
     os.makedirs(config["knowledge_base"].get("chroma_path", "data/chroma"), exist_ok=True)
 
-    # Run ingestion in a thread so blocking httpx/ChromaDB calls don't starve the event loop
-    def _run_ingestion_sync():
-        import asyncio as _asyncio
-        _asyncio.run(run_ingestion())
-
-    asyncio.get_event_loop().run_in_executor(None, _run_ingestion_sync)
-    logger.info("Startup ingestion started in background.")
-
-    # Schedule nightly knowledge base ingestion
-    ingestion_hour, ingestion_minute = _parse_cron_time(
-        config["knowledge_base"].get("ingestion_cron", "03:00")
-    )
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(run_ingestion, "cron", hour=ingestion_hour, minute=ingestion_minute)
-    scheduler.start()
-    logger.info("Ingestion job scheduled at %02d:%02d", ingestion_hour, ingestion_minute)
 
     # Embedding model — disabled while focusing on agent/tool testing
     # from helpers.tools.embedder import load_model as load_embedder
@@ -98,7 +71,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    scheduler.shutdown(wait=False)
     logger.info("Shutting down.")
 
 

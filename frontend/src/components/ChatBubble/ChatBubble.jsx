@@ -3,7 +3,6 @@ import "./ChatBubble.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import PlanTracker from "../PlanTracker";
 import { fetchFile } from "../../api";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
@@ -118,7 +117,7 @@ export default function ChatBubble({ message: m, onDownload }) {
   const pdfSrc     = useAuthFile(isPdf ? m.file_url : null);
 
   if (m.role === "plan") {
-    return <PlanTracker plan={m.plan} />;
+    return null;
   }
 
   return (

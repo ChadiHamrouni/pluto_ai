@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { getVaultPath, setVaultPath } from "../../api";
 import "./Header.css";
 
-export default function Header({ autoMode, onSettings, onLogout }) {
+export default function Header({ onSettings, onLogout }) {
   const [expanded, setExpanded] = useState(false);
   const [vault, setVault] = useState("");
 
@@ -30,19 +30,13 @@ export default function Header({ autoMode, onSettings, onLogout }) {
     await getCurrentWindow().close();
   }
 
-  // Show just the folder name from the full path
   const vaultLabel = vault ? vault.split(/[/\\]/).filter(Boolean).pop() : "";
 
   return (
     <header className="header" data-tauri-drag-region>
       <div className="header-left" data-tauri-drag-region>
         <span className="header-title" data-tauri-drag-region>PLUTO</span>
-        <span className="header-sub" data-tauri-drag-region>
-          {autoMode ? "autonomous mode" : "personal assistant"}
-        </span>
-        {autoMode && (
-          <span className="header-auto-badge" data-tauri-drag-region>AUTO</span>
-        )}
+        <span className="header-sub" data-tauri-drag-region>personal assistant</span>
       </div>
       <div className="header-actions">
         <button

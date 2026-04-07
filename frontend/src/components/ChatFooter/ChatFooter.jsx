@@ -6,7 +6,6 @@ import "./ChatFooter.css";
 export default function ChatFooter({
   input, onInputChange, onKeyDown, thinking,
   attachments, onRemoveAttachment,
-  autoMode, onAutoToggle,
   voiceMode, onVoiceModeToggle, speaking,
   inputRef,
 }) {
@@ -68,11 +67,9 @@ export default function ChatFooter({
     onKeyDown(e);
   }
 
-  const placeholder = autoMode
-    ? "Describe a multi-step task for Pluto to plan and execute…"
-    : attachments.length
-      ? "Add a message… (or just Enter)"
-      : "Message Pluto…";
+  const placeholder = attachments.length
+    ? "Add a message… (or just Enter)"
+    : "Message Pluto…";
 
   return (
     <footer className="footer">
@@ -117,18 +114,6 @@ export default function ChatFooter({
             disabled={thinking}
           />
           <div className="mic-stack">
-            {/* AUTO pill */}
-            <button
-              className={`mode-btn ${autoMode ? "mode-btn--on" : ""}`}
-              onClick={onAutoToggle}
-              title={autoMode ? "Autonomous mode ON — click to disable" : "Enable autonomous mode"}
-            >
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1l1.8 5.4H15l-4.4 3.2 1.7 5.2L8 12l-4.3 2.8 1.7-5.2L1 6.4h5.2z"/>
-              </svg>
-              Auto
-            </button>
-
             {/* VOICE pill */}
             <button
               className={`mode-btn ${voiceMode ? "mode-btn--on" : ""}`}

@@ -14,6 +14,7 @@ from tools.budget import (
     list_savings_goals,
     list_transactions,
 )
+from tools.calculator import calculate
 from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
 from tools.diagrams import generate_diagram
 from tools.memory_tools import forget_memory, prune_memory, store_memory
@@ -77,6 +78,8 @@ def get_single_agent(model: str | None = None) -> Agent:
             # Budget
             add_transaction, list_transactions, delete_transaction,
             budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
+            # Calculator
+            calculate,
             # Diagrams
             generate_diagram,
             # Obsidian vault

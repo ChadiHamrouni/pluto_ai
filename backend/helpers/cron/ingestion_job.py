@@ -60,6 +60,11 @@ async def run_ingestion() -> None:
 
     if obsidian_path and Path(obsidian_path).exists():
         scan_targets.append((obsidian_path, "obsidian", "obsidian::", True))
+        logger.info("Ingestion: scanning obsidian vault at %s", obsidian_path)
+    elif obsidian_path:
+        logger.warning("Ingestion: obsidian vault path not found: %s", obsidian_path)
+    else:
+        logger.info("Ingestion: no obsidian vault configured.")
 
     def _is_ignored(file_path: Path, vault_root: str) -> bool:
         """Return True if the file should be skipped.
@@ -85,9 +90,10 @@ async def run_ingestion() -> None:
     # Build a map of source_key → file path for every file currently on disk
     # Source key uses relative path (not just filename) to avoid collisions across subfolders
     disk_files: dict[str, Path] = {}
-    for dir_path, _, prefix, recursive in scan_targets:
+    for dir_path, ctype_label, prefix, recursive in scan_targets:
         p = Path(dir_path)
         if not p.exists():
+            logger.info("Ingestion: skipping missing dir [%s] %s", ctype_label, p)
             continue
         items = p.rglob("*") if recursive else p.iterdir()
         for f in items:
@@ -97,6 +103,10 @@ async def run_ingestion() -> None:
                 continue
             rel = f.relative_to(p).as_posix()  # e.g. "Slides/Streamlit_Workshop.pdf"
             disk_files[f"{prefix}{rel}"] = f
+
+    logger.info("Ingestion: found %d files on disk to consider.", len(disk_files))
+    for key in sorted(disk_files.keys()):
+        logger.debug("  disk: %s", key)
 
     # Fetch what ChromaDB currently knows about — source_key → ingested_at timestamp
     ingested = kb.get_ingested_files_with_timestamps()
@@ -140,6 +150,7 @@ async def run_ingestion() -> None:
                 continue
 
             try:
+                logger.info("  → Embedding [%s]: %s", ctype, source_key)
                 result = kb.ingest_file(str(f), content_type=ctype, source_key=source_key)
                 logger.info(
                     "  ✓ %s [%s] — %d chunks (%d chars)",

@@ -1,31 +1,7 @@
 import "./ChatArea.css";
 
-/**
- * ChatArea — the scrollable message list.
- *
- * Renders all messages for the active session, the thinking indicator,
- * the plan tracker (autonomous mode), and the error row.
- * When voiceMode is active, renders VoiceOverlay instead.
- *
- * Props:
- *  - messages        { role, content, ... }[]
- *  - messagesLoading boolean
- *  - thinking        boolean
- *  - error           string|null
- *  - currentPlan     object|null
- *  - onDownload      (fileUrl)=>void
- *  - bottomRef       React ref
- *  - voiceMode       boolean
- *  - recording       boolean
- *  - transcribing    boolean
- *  - speaking        boolean
- *  - lastTranscript  string
- *  - onExitVoice     ()=>void
- */
-
 import StatusLabel from "../StatusLabel";
 import ChatBubble from "../ChatBubble";
-import PlanTracker from "../PlanTracker";
 import VoiceOverlay from "../VoiceOverlay";
 
 const THINKING_WORDS = [
@@ -38,7 +14,6 @@ export default function ChatArea({
   messagesLoading,
   thinking,
   error,
-  currentPlan,
   onDownload,
   bottomRef,
   voiceMode,
@@ -81,21 +56,11 @@ export default function ChatArea({
         <ChatBubble key={i} message={m} onDownload={onDownload} />
       ))}
 
-      {currentPlan && (
-        <PlanTracker plan={currentPlan} />
-      )}
-
       {thinking && (
         <div className="bubble-row assistant">
           <div className="bubble">
             <span className="bubble-label">Pluto</span>
-            <StatusLabel
-              words={
-                currentPlan
-                  ? ["Executing plan…", "Running step…", "Working on it…"]
-                  : THINKING_WORDS
-              }
-            />
+            <StatusLabel words={THINKING_WORDS} />
           </div>
         </div>
       )}

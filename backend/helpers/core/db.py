@@ -193,6 +193,14 @@ async def init_db(db_path: str) -> None:
         except Exception:
             pass
 
+        # Migrate: add currency column to budget_transactions if it doesn't exist
+        try:
+            await db.execute(
+                "ALTER TABLE budget_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'TND';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
         await db.commit()
 
     logger.info("Database initialised successfully.")

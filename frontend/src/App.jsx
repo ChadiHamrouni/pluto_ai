@@ -2,7 +2,7 @@
  * App — root layout shell.
  *
  * Owns only:
- *  - Top-level shared state (sidebar, settings, attachments, input, autoMode)
+ *  - Top-level shared state (sidebar, settings, attachments, input)
  *  - Session management via useSessions
  *  - Chat send logic via useChat
  *  - Voice, file-drop, and keyboard shortcut hooks
@@ -35,8 +35,6 @@ import LoginPage from "./components/LoginPage/LoginPage";
 
 import "./App.css";
 
-// ── File download (Tauri native save dialog) ─────────────────────────────────
-
 async function downloadFile(fileUrl) {
   try {
     const filename = fileUrl.split("/").pop();
@@ -56,16 +54,13 @@ async function downloadFile(fileUrl) {
   }
 }
 
-// ── Root component ────────────────────────────────────────────────────────────
-
 export default function App() {
   const { isLoggedIn, loading: authLoading, error: authError, login, logout } = useAuth();
 
-  // Show login screen until authenticated
   if (!isLoggedIn) {
     return (
       <div className="layout">
-        <Header autoMode={false} />
+        <Header />
         <LoginPage onLogin={login} loading={authLoading} error={authError} />
       </div>
     );
@@ -81,17 +76,13 @@ function AppShell({ onLogout }) {
   const [input, setInput]               = useState("");
   const [attachments, setAttachments]   = useState([]);
   const [dragging, setDragging]         = useState(false);
-  const [autoMode, setAutoMode]         = useState(false);
   const [voiceMode, setVoiceMode]       = useState(false);
-  // Keep ref in sync so async TTS onDone always sees the latest value
   useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
-  const voiceModeRef   = useRef(false);   // always-current voiceMode for async callbacks
-  const toggleVoiceRef = useRef(null);    // set after useVoice, used by TTS onDone
-
-  // ── Sessions ──────────────────────────────────────────────────────────────
+  const voiceModeRef   = useRef(false);
+  const toggleVoiceRef = useRef(null);
 
   const {
     sessions,
@@ -110,14 +101,10 @@ function AppShell({ onLogout }) {
   const messages        = activeSession?.messages ?? [];
   const messagesLoading = activeSession?.messages === null;
 
-  // ── Chat logic ────────────────────────────────────────────────────────────
-
   const {
     thinking,
     error,
     setError,
-    currentPlan,
-    setCurrentPlan,
     handleSend,
     handleEscape,
   } = useChat({
@@ -131,7 +118,6 @@ function AppShell({ onLogout }) {
       if (voiceModeRef.current) {
         speak(text, {
           onDone: () => {
-            // Auto-restart listening after TTS finishes — only if still in voice mode
             if (voiceModeRef.current) toggleVoiceRef.current?.();
           },
         });
@@ -139,11 +125,7 @@ function AppShell({ onLogout }) {
     },
   });
 
-  // ── TTS ───────────────────────────────────────────────────────────────────
-
   const { speaking, speak, stop: stopTTS } = useTTS();
-
-  // ── Mount: load persisted sessions (or create a fresh one) ────────────────
 
   useEffect(() => {
     (async () => {
@@ -151,8 +133,6 @@ function AppShell({ onLogout }) {
       if (!firstId) await newChat();
     })();
   }, []);
-
-  // ── Auto-scroll and input focus ───────────────────────────────────────────
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -162,20 +142,13 @@ function AppShell({ onLogout }) {
     inputRef.current?.focus();
   }, [activeId]);
 
-  // ── Voice ─────────────────────────────────────────────────────────────────
-
   const { recording, transcribing, lastTranscript, startRecording, stopRecording } = useVoice({
     onSend: (text) => {
       stopTTS();
-      handleSend({ text, attachments: [], autoMode: false, inputRef, setInput, setAttachments });
+      handleSend({ text, attachments: [], inputRef, setInput, setAttachments });
     },
   });
-  // toggleVoiceRef used by TTS onDone to restart listening in voice mode
   toggleVoiceRef.current = recording ? stopRecording : startRecording;
-
-  // ── VAD (barge-in) — rendered conditionally so ONNX never loads at startup
-
-  // ── File drop ─────────────────────────────────────────────────────────────
 
   useFileDrop({
     onDragging: setDragging,
@@ -186,14 +159,7 @@ function AppShell({ onLogout }) {
     onError: setError,
   });
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────────────
-
   useKeyboardShortcuts([
-    {
-      combo: ["ctrlKey", "l"],
-      handler: () => { setAutoMode(p => !p); setCurrentPlan(null); },
-      deps: [],
-    },
     {
       combo: ["ctrlKey", "h"],
       handler: () => setSidebarOpen(p => !p),
@@ -212,8 +178,6 @@ function AppShell({ onLogout }) {
     },
   ]);
 
-  // ── Handlers passed down to children ─────────────────────────────────────
-
   function handleInputChange(e) {
     setInput(e.target.value);
     const el = e.target;
@@ -228,14 +192,11 @@ function AppShell({ onLogout }) {
 
   function handleSelectSession(id) {
     setError(null);
-    setCurrentPlan(null);
     selectSession(id, sessions);
   }
 
   async function handleNewChat() {
     setError(null);
-    setCurrentPlan(null);
-    setAutoMode(false);
     setInput("");
     await newChat();
   }
@@ -249,14 +210,11 @@ function AppShell({ onLogout }) {
     handleSend({
       text: input.trim(),
       attachments,
-      autoMode,
       inputRef,
       setInput,
       setAttachments,
     });
   }
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={`layout ${dragging ? "drag-over" : ""}`}>
@@ -277,7 +235,7 @@ function AppShell({ onLogout }) {
         </div>
       )}
 
-      <Header autoMode={autoMode} onSettings={() => setShowSettings(true)} onLogout={onLogout} />
+      <Header onSettings={() => setShowSettings(true)} onLogout={onLogout} />
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
 
@@ -298,8 +256,6 @@ function AppShell({ onLogout }) {
             messagesLoading={messagesLoading}
             thinking={thinking}
             error={error}
-            currentPlan={currentPlan}
-
             onDownload={downloadFile}
             bottomRef={bottomRef}
             voiceMode={voiceMode}
@@ -322,8 +278,6 @@ function AppShell({ onLogout }) {
             thinking={thinking}
             attachments={attachments}
             onRemoveAttachment={removeAttachment}
-            autoMode={autoMode}
-            onAutoToggle={() => { setAutoMode(p => !p); setCurrentPlan(null); }}
             voiceMode={voiceMode}
             onVoiceModeToggle={() => { setVoiceMode(p => !p); if (speaking) stopTTS(); }}
             speaking={speaking}

@@ -5,12 +5,53 @@ from __future__ import annotations
 import sqlite3
 from calendar import monthrange
 from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.budget import SavingsGoalCreate, TransactionCreate
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Recurring expansion
+# ---------------------------------------------------------------------------
+
+def _expand_recurring(rows: list, as_of: date) -> list[dict]:
+    """
+    Expand recurring transactions into one dict per occurrence up to `as_of`.
+
+    For a "monthly" transaction recorded on 2026-03-15 with as_of=2026-06-01:
+      → occurrences on 2026-03-15, 2026-04-15, 2026-05-15  (June not yet reached)
+
+    Non-recurring rows are returned as-is (one dict each).
+    """
+    expanded: list[dict] = []
+    for row in rows:
+        d = row if isinstance(row, dict) else dict(row)
+        recurring = d.get("recurring", "")
+        start = date.fromisoformat(d["date"])
+
+        if not recurring or start > as_of:
+            if start <= as_of:
+                expanded.append(d)
+            continue
+
+        # Generate all occurrences from start up to (but not including) as_of+1
+        occurrence = start
+        while occurrence <= as_of:
+            expanded.append({**d, "date": occurrence.isoformat()})
+            if recurring == "monthly":
+                occurrence += relativedelta(months=1)
+            elif recurring == "weekly":
+                occurrence += timedelta(weeks=1)
+            elif recurring == "yearly":
+                occurrence += relativedelta(years=1)
+            else:
+                break  # unknown recurrence — treat as one-time
+
+    return expanded
 
 
 def get_db_path() -> str:
@@ -37,6 +78,7 @@ def add_transaction(
     tx_date: str = "",
     recurring: str = "",
     recurring_day: int | None = None,
+    currency: str = "TND",
 ) -> dict:
     # Validate via Pydantic
     validated = TransactionCreate(
@@ -49,11 +91,12 @@ def add_transaction(
         recurring_day=recurring_day,
     )
     effective_date = validated.date or date.today().isoformat()
+    currency = currency.strip().upper() or "TND"
     conn = _connect(db_path)
     cursor = conn.execute(
         """INSERT INTO budget_transactions
-           (type, amount, category, description, date, recurring, recurring_day)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (type, amount, category, description, date, recurring, recurring_day, currency)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             validated.tx_type,
             validated.amount,
@@ -62,12 +105,13 @@ def add_transaction(
             effective_date,
             validated.recurring,
             validated.recurring_day,
+            currency,
         ),
     )
     tx_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    logger.info("Added %s transaction id=%d amount=%.2f cat=%s", tx_type, tx_id, amount, category)
+    logger.info("Added %s transaction id=%d amount=%.2f %s cat=%s", tx_type, tx_id, amount, currency, category)
     return get_transaction(db_path, tx_id)
 
 
@@ -120,59 +164,112 @@ def delete_transaction(db_path: str, tx_id: int) -> bool:
     return deleted
 
 
-def get_summary(db_path: str, month: str = "") -> dict:
-    """Return income/expense totals and per-category breakdown for a month (YYYY-MM) or all time."""
+def get_summary_range(db_path: str, from_month: str, to_month: str) -> dict:
+    """Return per-month breakdown from from_month to to_month (both inclusive, YYYY-MM format)."""
     conn = _connect(db_path)
+    all_rows = conn.execute("SELECT * FROM budget_transactions").fetchall()
+    conn.close()
 
+    today = date.today()
+    fy, fm = int(from_month[:4]), int(from_month[5:7])
+    ty, tm = int(to_month[:4]), int(to_month[5:7])
+
+    months = []
+    cy, cm = fy, fm
+    while (cy, cm) <= (ty, tm):
+        months.append((cy, cm))
+        cm += 1
+        if cm > 12:
+            cm = 1
+            cy += 1
+
+    # Expand recurring up to end of to_month — no cap at today, so future months are projected
+    _, last_day_to = monthrange(ty, tm)
+    as_of = date(ty, tm, last_day_to)
+    expanded = _expand_recurring(all_rows, as_of)
+
+    monthly_rows = []
+    total_income = total_expense = 0.0
+    by_category: dict[str, dict] = {}
+
+    for year, mon in months:
+        _, last_day = monthrange(year, mon)
+        m_start = date(year, mon, 1).isoformat()
+        m_end = date(year, mon, last_day).isoformat()
+        m_rows = [r for r in expanded if m_start <= r["date"] <= m_end]
+        m_income = sum(r["amount"] for r in m_rows if r["type"] == "income")
+        m_expense = sum(r["amount"] for r in m_rows if r["type"] == "expense")
+        total_income += m_income
+        total_expense += m_expense
+        monthly_rows.append({
+            "month": f"{year}-{mon:02d}",
+            "income": round(m_income, 2),
+            "expenses": round(m_expense, 2),
+            "net": round(m_income - m_expense, 2),
+            "projected": date(year, mon, 1) > today,
+        })
+        for r in m_rows:
+            key = f"{r['type']}:{r['category']}"
+            if key not in by_category:
+                by_category[key] = {"type": r["type"], "category": r["category"], "total": 0.0}
+            by_category[key]["total"] = round(by_category[key]["total"] + r["amount"], 2)
+
+    return {
+        "period": f"{from_month} to {to_month}",
+        "monthly_breakdown": monthly_rows,
+        "total_income": round(total_income, 2),
+        "total_expenses": round(total_expense, 2),
+        "net": round(total_income - total_expense, 2),
+        "by_category": sorted(by_category.values(), key=lambda x: x["total"], reverse=True),
+    }
+
+
+def get_summary(db_path: str, month: str = "") -> dict:
+    """Return income/expense totals and per-category breakdown for a month (YYYY-MM) or all time.
+
+    Recurring transactions are expanded into all occurrences up to today (or the end of the
+    requested month), so a "monthly" expense recorded once is counted every month it applies.
+    """
+    conn = _connect(db_path)
+    all_rows = conn.execute("SELECT * FROM budget_transactions").fetchall()
+    conn.close()
+
+    today = date.today()
     if month:
         year, mon = int(month[:4]), int(month[5:7])
         _, last_day = monthrange(year, mon)
-        from_date = f"{month}-01"
-        to_date = f"{month}-{last_day:02d}"
-        date_filter = "AND date >= ? AND date <= ?"
-        date_params = [from_date, to_date]
-        cat_where = "WHERE date >= ? AND date <= ?"
+        period_start = date(year, mon, 1)
+        period_end = date(year, mon, last_day)
+        as_of = min(period_end, today)
     else:
-        date_filter = ""
-        date_params = []
-        cat_where = ""
+        period_start = None
+        period_end = None
+        as_of = today
 
-    def _total(tx_type: str) -> float:
-        q = (
-            f"SELECT COALESCE(SUM(amount), 0) FROM budget_transactions"
-            f" WHERE type = ? {date_filter}"
-        )
-        row = conn.execute(q, [tx_type] + date_params).fetchone()
-        return float(row[0])
+    # Expand recurring transactions into all occurrences up to as_of
+    expanded = _expand_recurring(all_rows, as_of)
 
-    total_income = _total("income")
-    total_expense = _total("expense")
+    # Filter to period if requested
+    if period_start:
+        expanded = [r for r in expanded if period_start.isoformat() <= r["date"] <= period_end.isoformat()]
+
+    total_income = sum(r["amount"] for r in expanded if r["type"] == "income")
+    total_expense = sum(r["amount"] for r in expanded if r["type"] == "expense")
     net = total_income - total_expense
 
-    # Per-category breakdown
-    rows = conn.execute(
-        f"SELECT type, category, SUM(amount) as total"
-        f" FROM budget_transactions {cat_where}"
-        f" GROUP BY type, category ORDER BY total DESC",
-        date_params,
-    ).fetchall()
-    conn.close()
-
     by_category: dict[str, dict] = {}
-    for r in rows:
+    for r in expanded:
         key = f"{r['type']}:{r['category']}"
-        by_category[key] = {
-            "type": r["type"],
-            "category": r["category"],
-            "total": round(float(r["total"]), 2),
-        }
+        if key not in by_category:
+            by_category[key] = {"type": r["type"], "category": r["category"], "total": 0.0}
+        by_category[key]["total"] = round(by_category[key]["total"] + r["amount"], 2)
 
     return {
         "period": month or "all_time",
         "total_income": round(total_income, 2),
         "total_expenses": round(total_expense, 2),
         "net": round(net, 2),
-        "by_category": list(by_category.values()),
+        "by_category": sorted(by_category.values(), key=lambda x: x["total"], reverse=True),
     }
 
 
@@ -240,37 +337,29 @@ def recalculate_goals(db_path: str) -> list[dict]:
     - projected_completion_date = today + months until (target - current) / monthly_rate
     """
     conn = _connect(db_path)
+    all_rows = [dict(r) for r in conn.execute("SELECT * FROM budget_transactions").fetchall()]
 
-    # Total net savings
-    total_income = float(
-        conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions WHERE type = 'income'"
-        ).fetchone()[0]
-    )
-    total_expense = float(
-        conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions WHERE type = 'expense'"
-        ).fetchone()[0]
-    )
+    today = date.today()
+
+    # Expand all recurring transactions up to today
+    expanded = _expand_recurring(all_rows, today)
+
+    # Total net savings (all time, expanded)
+    total_income = sum(r["amount"] for r in expanded if r["type"] == "income")
+    total_expense = sum(r["amount"] for r in expanded if r["type"] == "expense")
     net_savings = total_income - total_expense
 
-    # Monthly savings rate: average over last 3 full calendar months
-    today = date.today()
+    # Monthly savings rate: average over last 3 full calendar months (expanded)
     monthly_rates = []
     for offset in range(1, 4):
-        # Walk back offset months
         first_of_this = today.replace(day=1)
-        target_month = (first_of_this - timedelta(days=offset * 28)).replace(day=1)
+        target_month = (first_of_this - relativedelta(months=offset))
         _, last_day = monthrange(target_month.year, target_month.month)
-        m_from = target_month.isoformat()
+        m_from = target_month.replace(day=1).isoformat()
         m_to = target_month.replace(day=last_day).isoformat()
 
-        _q = (
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_transactions"
-            " WHERE type = ? AND date >= ? AND date <= ?"
-        )
-        m_income = float(conn.execute(_q, ("income", m_from, m_to)).fetchone()[0])
-        m_expense = float(conn.execute(_q, ("expense", m_from, m_to)).fetchone()[0])
+        m_income = sum(r["amount"] for r in expanded if r["type"] == "income" and m_from <= r["date"] <= m_to)
+        m_expense = sum(r["amount"] for r in expanded if r["type"] == "expense" and m_from <= r["date"] <= m_to)
         monthly_rates.append(m_income - m_expense)
 
     avg_monthly_rate = sum(monthly_rates) / len(monthly_rates) if monthly_rates else 0.0

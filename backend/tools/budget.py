@@ -24,6 +24,7 @@ from helpers.tools.budget import (
 )
 from helpers.tools.budget import (
     get_summary as _get_summary,
+    get_summary_range as _get_summary_range,
 )
 from helpers.tools.budget import (
     list_goals as _list_goals,
@@ -46,6 +47,7 @@ def add_transaction(
     tx_type: str,
     amount: float,
     category: str,
+    currency: str = "TND",
     description: str = "",
     date: str = "",
     recurring: str = "",
@@ -57,9 +59,15 @@ def add_transaction(
     paid a bill, received a salary, got paid, etc. Every transaction immediately
     recalculates all savings goals and projections.
 
+    IMPORTANT: Always record the currency the user actually mentioned (TND, USD, EUR, etc.).
+    Never assume a currency — if the user says "1000 TND", use currency="TND".
+    Default currency is TND (Tunisian Dinar) if the user doesn't specify.
+
     Args:
         tx_type:     REQUIRED. Either "income" or "expense".
-        amount:      REQUIRED. Positive numeric amount (e.g. 150.0).
+        amount:      REQUIRED. Positive numeric amount (e.g. 1000.0). Use the exact
+                     number the user stated — never convert or invent values.
+        currency:    Currency code (e.g. "TND", "USD", "EUR"). Default: "TND".
         category:    REQUIRED. One of: salary, freelance, food, transport, rent,
                      utilities, subscriptions, entertainment, health, education,
                      savings, other.
@@ -79,7 +87,7 @@ def add_transaction(
 
     db_path = get_db_path()
     try:
-        tx = _add_transaction(db_path, tx_type, amount, category, description, date, recurring)
+        tx = _add_transaction(db_path, tx_type, amount, category, description, date, recurring, currency=currency)
         goals = _recalculate_goals(db_path)
 
         goal_lines = []
@@ -89,8 +97,9 @@ def add_transaction(
             goal_lines.append(f"  • {g['name']}: {pct}% funded → {proj}")
 
         goal_summary = "\n".join(goal_lines) if goal_lines else "  (no savings goals yet)"
+        currency_code = tx.get("currency", currency).upper()
         return (
-            f"Transaction recorded (id={tx['id']}): {tx_type} {amount:.2f} [{category}]"
+            f"Transaction recorded (id={tx['id']}): {tx_type} {amount:.2f} {currency_code} [{category}]"
             f"{' — ' + description if description else ''}\n"
             f"Goals updated:\n{goal_summary}"
         )
@@ -160,22 +169,30 @@ def delete_transaction(transaction_id: int) -> str:
 
 
 @function_tool
-def budget_summary(month: str = "") -> str:
+def budget_summary(month: str = "", from_month: str = "", to_month: str = "") -> str:
     """
     Get a full budget summary with income, expenses, net, and goal progress.
 
     Use this when the user asks about their finances, spending, budget overview,
     how much they've saved, or how their goals are doing.
 
+    ALWAYS call this after add_transaction or delete_transaction to show updated numbers.
+    NEVER compute totals yourself — always call this tool and report what it returns.
+
     Args:
-        month: Month in "YYYY-MM" format (e.g. "2026-03"). Empty = all-time summary.
+        month:      Single month in "YYYY-MM" format (e.g. "2026-04"). Empty = all-time.
+        from_month: Start of a month range (e.g. "2026-04"). Use with to_month for multi-month view.
+        to_month:   End of a month range (e.g. "2026-09"). Use with from_month for multi-month view.
 
     Returns:
-        JSON object with totals, per-category breakdown, and savings goal projections.
+        JSON object with totals, per-month breakdown (if range), per-category breakdown, and savings goals.
     """
     db_path = get_db_path()
     try:
-        summary = _get_summary(db_path, month)
+        if from_month and to_month:
+            summary = _get_summary_range(db_path, from_month, to_month)
+        else:
+            summary = _get_summary(db_path, month)
         goals = _recalculate_goals(db_path)
         summary["savings_goals"] = goals
         return json.dumps(summary, indent=2)
