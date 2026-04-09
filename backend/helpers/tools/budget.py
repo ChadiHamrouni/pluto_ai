@@ -188,9 +188,19 @@ def get_summary_range(db_path: str, from_month: str, to_month: str) -> dict:
     as_of = date(ty, tm, last_day_to)
     expanded = _expand_recurring(all_rows, as_of)
 
+    # Compute opening balance = net of everything before from_month
+    range_start = date(fy, fm, 1).isoformat()
+    prior = [r for r in expanded if r["date"] < range_start]
+    opening_balance = round(
+        sum(r["amount"] for r in prior if r["type"] == "income") -
+        sum(r["amount"] for r in prior if r["type"] == "expense"),
+        2,
+    )
+
     monthly_rows = []
     total_income = total_expense = 0.0
     by_category: dict[str, dict] = {}
+    running_balance = opening_balance
 
     for year, mon in months:
         _, last_day = monthrange(year, mon)
@@ -201,11 +211,13 @@ def get_summary_range(db_path: str, from_month: str, to_month: str) -> dict:
         m_expense = sum(r["amount"] for r in m_rows if r["type"] == "expense")
         total_income += m_income
         total_expense += m_expense
+        running_balance = round(running_balance + m_income - m_expense, 2)
         monthly_rows.append({
             "month": f"{year}-{mon:02d}",
             "income": round(m_income, 2),
             "expenses": round(m_expense, 2),
             "net": round(m_income - m_expense, 2),
+            "balance": running_balance,
             "projected": date(year, mon, 1) > today,
         })
         for r in m_rows:
@@ -216,10 +228,12 @@ def get_summary_range(db_path: str, from_month: str, to_month: str) -> dict:
 
     return {
         "period": f"{from_month} to {to_month}",
+        "opening_balance": opening_balance,
         "monthly_breakdown": monthly_rows,
         "total_income": round(total_income, 2),
         "total_expenses": round(total_expense, 2),
         "net": round(total_income - total_expense, 2),
+        "closing_balance": running_balance,
         "by_category": sorted(by_category.values(), key=lambda x: x["total"], reverse=True),
     }
 

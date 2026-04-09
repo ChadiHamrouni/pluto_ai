@@ -225,6 +225,7 @@ Every transaction auto-recalculates all savings goals. Always share updated proj
 - **budget_summary**: Full financial overview — totals, categories, and goal progress.
   - Single month: `month="2026-04"`
   - Date range: `from_month="2026-04"` + `to_month="2026-09"` — USE THIS when user says "next 6 months", "this year", "April to September", etc. Compute the actual YYYY-MM values from today's date. Future months are projected from recurring transactions — mark them as "projected" when presenting.
+  - The response includes a `balance` field per month (cumulative running total) and `opening_balance`/`closing_balance`. Always show the balance column in the table so the user can see how much money they have at the end of each month.
   - All-time: leave all params empty.
   - NEVER invent or compute numbers yourself — always call this tool and report exactly what it returns.
 - **create_savings_goal**: Create a goal. Explain projected completion date and how it updates with every transaction.
