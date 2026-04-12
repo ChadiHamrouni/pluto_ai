@@ -3,13 +3,13 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from agent.single import get_single_agent
 from helpers.agents.execution.runner import run_agent
 from helpers.agents.routing.prompt_utils import format_chat_history
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.file_parser import extract_pdf, ocr_image
 from models.results import HandlerResult
-from agent.single import get_single_agent
 
 logger = get_logger(__name__)
 

@@ -9,6 +9,9 @@
     "history_window": 20,
     "max_turns": 30
   },
+  "compactor": {
+    "model": "qwen3.5:4b"
+  },
   "ollama": {
     "base_url": "http://localhost:11434",
     "service_token": "",
@@ -111,8 +114,11 @@
     "tool_choice": "auto"
   },
   "obsidian": {
-    "vault_path": "/app/obsidian_vault",
-    "ignored_folders": ["Bills", "Excalidraw"]
+    "vault_path": "C:\\Users\\shadyy\\Desktop\\Second Brain\\Second Brain",
+    "ignored_folders": [
+      "Bills",
+      "Excalidraw"
+    ]
   },
   "budget": {
     "categories": [

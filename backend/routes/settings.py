@@ -58,7 +58,7 @@ async def set_vault_path(body: dict, _user: str = Depends(get_current_user)):
 # Agent keys exposed in the UI — maps display label → config.json section key
 _AGENT_KEYS = {
     "orchestrator": "orchestrator",
-    "slides_agent": "slides_agent",
+    "compactor": "compactor",
 }
 
 
@@ -104,7 +104,7 @@ async def set_agent_models(
 
     updates = {
         "orchestrator": body.orchestrator,
-        "slides_agent": body.slides_agent,
+        "compactor": body.compactor,
     }
     if available:
         for key, model in updates.items():

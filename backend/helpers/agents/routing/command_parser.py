@@ -37,13 +37,6 @@ COMMAND_REGISTRY: list[dict] = [
         "aliases": ["/slide"],
     },
     {
-        "cmd": "/research",
-        "desc": "Deep research with multiple sources",
-        "intent": "research",
-        "tool_group": "research",
-        "aliases": [],
-    },
-    {
         "cmd": "/calendar",
         "desc": "Schedule or view calendar events",
         "intent": "calendar",

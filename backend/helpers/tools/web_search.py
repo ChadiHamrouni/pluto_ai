@@ -79,7 +79,7 @@ def is_safe_url(url: str) -> tuple[bool, str]:
 
 # ── Page fetching ────────────────────────────────────────────────────────────
 
-MAX_RESULTS = 3
+MAX_RESULTS = 6
 
 
 def _strip_html(text: str, extra_tags: tuple[str, ...] = ()) -> str:
@@ -177,16 +177,21 @@ async def cached_web_search(query: str) -> str:
         return "No results found for this query."
 
     urls = [r.get("href", "") for r in results]
-    page_texts = await asyncio.gather(*[fetch_text_short(u) for u in urls])
+    page_results = await asyncio.gather(*[fetch_text_full(u) for u in urls])
 
     sections: list[str] = []
     source_lines: list[str] = []
 
-    for i, (r, page_text) in enumerate(zip(results, page_texts), 1):
+    for i, (r, (page_text, fetch_err)) in enumerate(zip(results, page_results), 1):
         title = r.get("title", "No title")
         url = r.get("href", "")
         snippet = r.get("body", "")
-        content = f"{snippet}\n\n{page_text}" if page_text and len(page_text) > len(snippet) else snippet
+        if page_text and len(page_text) > len(snippet):
+            content = f"{snippet}\n\n{page_text}"
+        elif snippet:
+            content = f"{snippet}\n\n[full page unavailable — snippet only]"
+        else:
+            content = "[no content retrieved]"
         sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
         source_lines.append(f"- [{title}]({url})")
 

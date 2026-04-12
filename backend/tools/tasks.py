@@ -13,7 +13,6 @@ from helpers.tools.tasks import (
     VALID_STATUSES,
     get_db_path,
 )
-from models.tasks import VALID_CATEGORIES
 from helpers.tools.tasks import (
     create_task as _create_task,
 )
@@ -26,6 +25,7 @@ from helpers.tools.tasks import (
 from helpers.tools.tasks import (
     update_task as _update_task,
 )
+from models.tasks import VALID_CATEGORIES
 
 logger = get_logger(__name__)
 

@@ -120,7 +120,7 @@ def show_kanban(project: str = "") -> str:
         Markdown kanban board to display directly to the user.
     """
     try:
-        tasks = list_tasks(get_tasks_db(), project=project)
+        tasks = list_tasks(get_tasks_db(), category=project)
     except Exception as exc:
         logger.error("show_kanban failed: %s", exc)
         return f"Failed to load tasks: {exc}"

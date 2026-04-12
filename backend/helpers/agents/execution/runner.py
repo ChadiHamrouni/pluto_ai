@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -115,6 +116,9 @@ async def run_agent_streamed(
     tools_used: list[str] = []
     agents_seen: list[str] = [agent.name]
     full_response = ""
+    t0 = time.perf_counter()
+    turn_start = t0
+    turn_num = 0
 
     try:
         result = Runner.run_streamed(
@@ -129,6 +133,17 @@ async def run_agent_streamed(
                 event, full_response, tools_used, agents_seen
             )
             for sse in to_yield:
+                if sse["event"] == "tool_call":
+                    elapsed = time.perf_counter() - turn_start
+                    turn_num += 1
+                    logger.info(
+                        "  ⏱ Turn %d LLM → tool_call '%s' (%.1fs)",
+                        turn_num, sse["data"].get("tool", "?"), elapsed,
+                    )
+                elif sse["event"] == "tool_output":
+                    tool_elapsed = time.perf_counter() - turn_start
+                    logger.info("  ⏱ Turn %d tool executed (%.1fs total)", turn_num, tool_elapsed)
+                    turn_start = time.perf_counter()
                 yield sse
 
         # No text streamed — try final_output then last tool output.
@@ -149,8 +164,8 @@ async def run_agent_streamed(
         return
 
     logger.info(
-        "Streamed run complete — agents=%s tools=%s response_len=%d",
-        agents_seen, tools_used, len(full_response),
+        "Streamed run complete — agents=%s tools=%s response_len=%d total=%.1fs turns=%d",
+        agents_seen, tools_used, len(full_response), time.perf_counter() - t0, turn_num,
     )
     yield {
         "event": "done",

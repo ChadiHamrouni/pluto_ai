@@ -5,7 +5,6 @@ from agents import Agent, ModelSettings
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
-
 from tools.budget import (
     add_transaction,
     budget_summary,
@@ -46,44 +45,65 @@ from tools.web_search import web_search
 # for a 4B model: fewer choices → fewer wrong-tool picks, and ~2–3k fewer
 # schema tokens per turn.
 #
+# _ALWAYS_AVAILABLE tools are injected into every group automatically.
+# Add a tool here when the core instructions unconditionally mandate its use
+# (e.g. "ALWAYS use calculate for ANY arithmetic") — otherwise the model will
+# try to call it and crash with "Tool not found in agent".
+#
 # "core" is the fallback for unrecognised / free-form messages. It exposes
 # a small read-oriented set so the agent can answer most questions and
 # naturally ask for clarification rather than guessing a write tool.
 # ---------------------------------------------------------------------------
 
+_ALWAYS_AVAILABLE = [
+    calculate,    # core instructions mandate this for ALL arithmetic
+    store_memory, # agent should silently save facts it learns in any domain
+    web_search,   # always available regardless of domain
+]
+
+def _group(*tools) -> list:
+    """Return the tool list for a group, prepending _ALWAYS_AVAILABLE and deduplicating."""
+    seen: set[int] = set()
+    result = []
+    for t in [*_ALWAYS_AVAILABLE, *tools]:
+        if id(t) not in seen:
+            seen.add(id(t))
+            result.append(t)
+    return result
+
+
 TOOL_GROUPS: dict[str, list] = {
-    "core": [
-        # Let the model answer most things without tools, but give it the
-        # cheap read-only operations so it can fetch context when needed.
-        calculate,
+    "core": _group(
+        # Cheap read-only tools so the agent can fetch context and answer
+        # most questions without guessing a write tool.
         web_search,
         search_memory,
+        list_notes,
+        get_note,
         list_tasks,
         list_events,
         budget_summary,
         search_vault,
         show_kanban,
-    ],
-    "notes": [create_note, list_notes, get_note],
-    "slides": [draft_slides, render_slides, web_search],
-    "research": [web_search],
-    "calendar": [schedule_event, list_events, upcoming_events, cancel_event],
-    "memory": [store_memory, forget_memory, prune_memory, search_memory],
-    "tasks": [create_task, list_tasks, update_task, complete_task, delete_task, show_kanban],
-    "budget": [
+    ),
+    "notes":    _group(create_note, list_notes, get_note),
+    "slides":   _group(draft_slides, render_slides, web_search),
+    "calendar": _group(schedule_event, list_events, upcoming_events, cancel_event),
+    "memory":   _group(store_memory, forget_memory, prune_memory, search_memory),
+    "tasks":    _group(create_task, list_tasks, update_task, complete_task, delete_task, show_kanban),
+    "budget":   _group(
         add_transaction, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
-        calculate,
-    ],
-    "diagrams": [generate_diagram],
-    "vault": [
+    ),
+    "diagrams": _group(generate_diagram),
+    "vault":    _group(
         update_dashboard, generate_calendar_view, show_kanban,
         generate_budget_report, generate_weekly_plan, sync_vault,
         search_vault, read_vault_file, create_vault_file,
         append_vault_file, delete_vault_file,
-    ],
+    ),
     # Full set — used only for eval sweeps or unknown intents that opt in explicitly.
-    "all": [
+    "all": _group(
         store_memory, forget_memory, prune_memory, search_memory,
         web_search,
         create_note, list_notes, get_note,
@@ -92,13 +112,12 @@ TOOL_GROUPS: dict[str, list] = {
         create_task, list_tasks, update_task, complete_task, delete_task,
         add_transaction, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
-        calculate,
         generate_diagram,
         update_dashboard, generate_calendar_view, show_kanban,
         generate_budget_report, generate_weekly_plan, sync_vault,
         search_vault, read_vault_file, create_vault_file,
         append_vault_file, delete_vault_file,
-    ],
+    ),
 }
 
 _single_agent: Agent | None = None
@@ -133,6 +152,8 @@ def get_single_agent(model: str | None = None) -> Agent:
         model_settings=ModelSettings(
             temperature=cfg.get("temperature", 0.0),
             tool_choice=cfg.get("tool_choice", "auto"),
+            parallel_tool_calls=True,
+            extra_body={"think": False},
         ),
     )
 

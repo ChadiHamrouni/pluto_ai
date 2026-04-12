@@ -6,16 +6,22 @@ import { useRef, useState } from "react";
 import { sendMessage, streamMessage } from "../api";
 
 export function useChat({ activeId, messages, appendMessage, appendDelta, finalizeLastMessage, updateSession, onReply }) {
-  const [thinking, setThinking]     = useState(false);
-  const [error, setError]           = useState(null);
+  const [thinkingMap, setThinkingMap] = useState({});
+  const [error, setError]             = useState(null);
+
+  const thinking = thinkingMap[activeId] ?? false;
 
   const streamAbortRef = useRef(null);
+
+  function setThinkingFor(sessionId, val) {
+    setThinkingMap(prev => ({ ...prev, [sessionId]: val }));
+  }
 
   async function handleEscape() {
     if (!thinking) return;
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
-    setThinking(false);
+    setThinkingFor(activeId, false);
   }
 
   async function handleSend({ text, attachments, inputRef, setInput, setAttachments }) {
@@ -38,9 +44,10 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
       previews: sentAttachments.map(a => a.preview).filter(Boolean),
       attachmentNames: sentAttachments.filter(a => !a.preview).map(a => a.file.name),
     });
-    setThinking(true);
 
     const currentSessionId = activeId;
+    setThinkingFor(currentSessionId, true);
+
     const hasFiles = sentAttachments.length > 0;
 
     if (!hasFiles) {
@@ -50,7 +57,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
         onToken: (delta) => {
           if (!placeholderAdded) {
             placeholderAdded = true;
-            setThinking(false);
+            setThinkingFor(currentSessionId, false);
             appendMessage(currentSessionId, {
               role: "assistant",
               content: "",
@@ -80,12 +87,12 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
             });
           }
           onReply?.(response);
-          setThinking(false);
+          setThinkingFor(currentSessionId, false);
           inputRef.current?.focus();
         },
         onError: (msg) => {
           setError(msg);
-          setThinking(false);
+          setThinkingFor(currentSessionId, false);
           streamAbortRef.current = null;
           inputRef.current?.focus();
         },
@@ -107,14 +114,14 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
             file_url,
           });
           onReply?.(reply);
-          setThinking(false);
+          setThinkingFor(currentSessionId, false);
           inputRef.current?.focus();
         } catch (e) {
           if (e.message === "Failed to fetch") {
             setTimeout(tryFetch, 3000);
           } else {
             setError(e.message);
-            setThinking(false);
+            setThinkingFor(currentSessionId, false);
             inputRef.current?.focus();
           }
         }

@@ -4,9 +4,7 @@ import "./SettingsPanel.css";
 
 const AGENTS = [
   { key: "orchestrator", label: "Main agent" },
-  { key: "notes_agent",  label: "Notes agent" },
-  { key: "slides_agent", label: "Slides agent" },
-  { key: "autonomous",   label: "Autonomous agent" },
+  { key: "compactor",    label: "Compactor" },
 ];
 
 export default function SettingsPanel({ onClose }) {

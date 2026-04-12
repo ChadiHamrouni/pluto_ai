@@ -78,11 +78,14 @@ def get_openai_client() -> AsyncOpenAI:
     Build an AsyncOpenAI client pointed at Ollama's OpenAI-compatible
     endpoint, with service auth headers forwarded.
     """
+    cfg = _ollama_cfg()
     base_url = f"{get_ollama_base_url()}/v1"
     token = _get_service_token() or "ollama"
+    timeout = cfg.get("request_timeout_seconds", 120)
 
     return AsyncOpenAI(
         base_url=base_url,
         api_key=token,
         default_headers=_build_headers(),
+        timeout=timeout,
     )
