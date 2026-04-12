@@ -13,6 +13,7 @@ from helpers.tools.tasks import (
     VALID_STATUSES,
     get_db_path,
 )
+from models.tasks import VALID_CATEGORIES
 from helpers.tools.tasks import (
     create_task as _create_task,
 )
@@ -32,28 +33,30 @@ logger = get_logger(__name__)
 @function_tool
 def create_task(
     title: str,
+    category: str = "personal",
     description: str = "",
     status: str = "todo",
     priority: str = "medium",
     due_date: str = "",
     tags: str = "",
-    project: str = "",
 ) -> str:
     """
     Create a new task and add it to the kanban board.
 
     Use this when the user wants to add a task, to-do item, action item, or anything
-    they need to get done. Tasks have a kanban status (todo/in_progress/done) and a
-    priority level. Use project to group related tasks (e.g. "work", "personal").
+    they need to get done. Tasks have a kanban status (todo/in_progress/done), a
+    priority level, and a category that groups tasks by life area.
 
     Args:
-        title:       REQUIRED. Short task title (e.g. "Buy groceries").
+        title:       REQUIRED. Short task title (e.g. "Buy clipper").
+        category:    REQUIRED. One of: groceries, work, career, finance, health, personal, home.
+                     Infer from context — shopping/food → groceries, job/school → work or career,
+                     money/bills → finance, doctor/gym → health, repairs/cleaning → home.
         description: Optional longer description or notes about the task.
         status:      One of: todo, in_progress, done. Default: todo.
         priority:    One of: low, medium, high, urgent. Default: medium.
         due_date:    Optional ISO-8601 due date (e.g. "2026-04-01"). Leave empty if none.
         tags:        Comma-separated tags (e.g. "shopping,errands"). Empty string if none.
-        project:     Project or area name to group tasks (e.g. "work", "health"). Empty if none.
 
     Returns:
         Confirmation string with the task id, or an error message.
@@ -62,6 +65,8 @@ def create_task(
         return f"Error: invalid status '{status}'. Must be one of: {sorted(VALID_STATUSES)}"
     if priority not in VALID_PRIORITIES:
         return f"Error: invalid priority '{priority}'. Must be one of: {sorted(VALID_PRIORITIES)}"
+    if category not in VALID_CATEGORIES:
+        return f"Error: invalid category '{category}'. Must be one of: {sorted(VALID_CATEGORIES)}"
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     tags_json = json.dumps(tag_list)
@@ -69,12 +74,12 @@ def create_task(
     try:
         task = _create_task(
             get_db_path(), title, description, status, priority,
-            due_date, tags_json, project,
+            due_date, tags_json, category,
         )
         due_str = f", due {task['due_date']}" if task.get("due_date") else ""
         return (
             f"Task created (id={task['id']}): \"{title}\" "
-            f"[{priority.upper()}]{due_str}"
+            f"[{priority.upper()}] [{category}]{due_str}"
         )
     except Exception as exc:
         logger.error("create_task failed: %s", exc)
@@ -82,31 +87,35 @@ def create_task(
 
 
 @function_tool
-def list_tasks(status: str = "", priority: str = "", project: str = "") -> str:
+def list_tasks(status: str = "", priority: str = "", category: str = "") -> str:
     """
-    List tasks, optionally filtered by status, priority, or project.
+    List tasks, optionally filtered by status, priority, or category.
 
     Use this to show the user their tasks, kanban board, to-do list, or backlog.
     Returns tasks sorted by priority (urgent first) then due date.
 
+    To show ALL tasks organized by category, call with no filters — then group the
+    results by the "category" field in your response.
+
     Args:
         status:   Filter by status. One of: todo, in_progress, done. Empty = all.
         priority: Filter by priority. One of: low, medium, high, urgent. Empty = all.
-        project:  Filter by project name. Empty = all projects.
+        category: Filter by category. One of: groceries, work, career, finance, health,
+                  personal, home. Empty = all categories.
 
     Returns:
         JSON array of task objects, or a message if no tasks found.
     """
     try:
-        tasks = _list_tasks(get_db_path(), status, priority, project)
+        tasks = _list_tasks(get_db_path(), status, priority, category)
         if not tasks:
             filters = []
             if status:
                 filters.append(f"status={status}")
             if priority:
                 filters.append(f"priority={priority}")
-            if project:
-                filters.append(f"project={project}")
+            if category:
+                filters.append(f"category={category}")
             filter_str = f" matching {', '.join(filters)}" if filters else ""
             return f"No tasks found{filter_str}."
         return json.dumps(tasks, indent=2)
@@ -124,7 +133,7 @@ def update_task(
     priority: str = "",
     due_date: str = "",
     tags: str = "",
-    project: str = "",
+    category: str = "",
 ) -> str:
     """
     Update an existing task. Only provided (non-empty) fields are changed.
@@ -140,7 +149,7 @@ def update_task(
         priority:    New priority: low, medium, high, urgent. Leave empty to keep current.
         due_date:    New due date (ISO-8601) or "none" to clear. Leave empty to keep current.
         tags:        New comma-separated tags. Leave empty to keep current.
-        project:     New project. Leave empty to keep current.
+        category:    New category. One of: groceries, work, career, finance, health, personal, home.
 
     Returns:
         Updated task as JSON, or an error message.
@@ -149,6 +158,8 @@ def update_task(
         return f"Error: invalid status '{status}'. Must be one of: {sorted(VALID_STATUSES)}"
     if priority and priority not in VALID_PRIORITIES:
         return f"Error: invalid priority '{priority}'. Must be one of: {sorted(VALID_PRIORITIES)}"
+    if category and category not in VALID_CATEGORIES:
+        return f"Error: invalid category '{category}'. Must be one of: {sorted(VALID_CATEGORIES)}"
 
     fields: dict = {}
     if title:
@@ -166,8 +177,8 @@ def update_task(
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         fields["tags"] = json.dumps(tag_list)
-    if project:
-        fields["project"] = project
+    if category:
+        fields["category"] = category
 
     try:
         task = _update_task(get_db_path(), task_id, **fields)

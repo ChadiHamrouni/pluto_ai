@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field, field_validator
 
 TaskStatus = Literal["todo", "in_progress", "done"]
 TaskPriority = Literal["low", "medium", "high", "urgent"]
+TaskCategory = Literal["groceries", "work", "career", "finance", "health", "personal", "home"]
+
+VALID_CATEGORIES: set[str] = {"groceries", "work", "career", "finance", "health", "personal", "home"}
 
 
 class TaskCreate(BaseModel):
@@ -17,7 +20,7 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = "medium"
     due_date: Optional[str] = Field(default=None, description="ISO-8601 date e.g. 2026-04-01")
     tags: list[str] = Field(default_factory=list)
-    project: str = Field(default="", max_length=100)
+    category: TaskCategory = "personal"
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -32,7 +35,7 @@ class TaskUpdate(BaseModel):
     priority: Optional[TaskPriority] = None
     due_date: Optional[str] = None
     tags: Optional[list[str]] = None
-    project: Optional[str] = Field(default=None, max_length=100)
+    category: Optional[TaskCategory] = None
 
 
 class TaskOut(BaseModel):
@@ -43,7 +46,7 @@ class TaskOut(BaseModel):
     priority: TaskPriority
     due_date: Optional[str]
     tags: list[str]
-    project: str
+    category: str
     created_at: str
     completed_at: Optional[str]
 
@@ -64,7 +67,7 @@ class TaskOut(BaseModel):
             priority=row.get("priority", "medium"),
             due_date=row.get("due_date"),
             tags=tags,
-            project=row.get("project", ""),
+            category=row.get("category", row.get("project", "personal")),
             created_at=row.get("created_at", ""),
             completed_at=row.get("completed_at"),
         )

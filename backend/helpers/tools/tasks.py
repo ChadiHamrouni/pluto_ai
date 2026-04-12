@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
-from models.tasks import TaskCreate
+from models.tasks import TaskCreate, VALID_CATEGORIES
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,7 @@ def create_task(
     priority: str = "medium",
     due_date: str = "",
     tags_json: str = "[]",
-    project: str = "",
+    category: str = "personal",
 ) -> dict:
     # Validate via Pydantic
     tag_list = json.loads(tags_json) if tags_json else []
@@ -46,11 +46,11 @@ def create_task(
         priority=priority,  # type: ignore[arg-type]
         due_date=due_date or None,
         tags=tag_list,
-        project=project,
+        category=category,  # type: ignore[arg-type]
     )
     conn = _connect(db_path)
     cursor = conn.execute(
-        """INSERT INTO tasks (title, description, status, priority, due_date, tags, project)
+        """INSERT INTO tasks (title, description, status, priority, due_date, tags, category)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             validated.title,
@@ -59,7 +59,7 @@ def create_task(
             validated.priority,
             validated.due_date,
             json.dumps(validated.tags),
-            validated.project,
+            validated.category,
         ),
     )
     task_id = cursor.lastrowid
@@ -73,7 +73,7 @@ def list_tasks(
     db_path: str,
     status: str = "",
     priority: str = "",
-    project: str = "",
+    category: str = "",
 ) -> list[dict]:
     conn = _connect(db_path)
     clauses = []
@@ -84,9 +84,9 @@ def list_tasks(
     if priority:
         clauses.append("priority = ?")
         params.append(priority)
-    if project:
-        clauses.append("project = ?")
-        params.append(project)
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = conn.execute(
         f"SELECT * FROM tasks {where} ORDER BY "
@@ -108,7 +108,7 @@ def get_task(db_path: str, task_id: int) -> dict | None:
 def update_task(db_path: str, task_id: int, **fields) -> dict | None:
     allowed = {
         "title", "description", "status", "priority",
-        "due_date", "tags", "project", "completed_at",
+        "due_date", "tags", "category", "completed_at",
     }
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:

@@ -205,11 +205,29 @@ Facts about the user are already loaded above. Use them silently.
 
 Use these tools when the user mentions things they need to do, finish, track, or manage.
 
-- **create_task**: Add a task. Infer priority from urgency (urgent = today, high = this week, medium = general, low = someday). Use `project` to group related tasks (e.g. "work", "personal").
-- **list_tasks**: Show tasks, filtered by status/priority/project. Always show urgent/high first.
+- **create_task**: Add a task. Infer priority from urgency (urgent = today, high = this week, medium = general, low = someday). ALWAYS set `category` — pick the best fit from the list below.
+- **list_tasks**: Show tasks, filtered by status/priority/category. Always show urgent/high first.
+  - When the user asks "what do I need to do?" or "show all my tasks" — call with NO filters, then present results grouped by category.
+  - When the user asks about a specific area (e.g. "what groceries should I buy?", "what's on my work list?") — filter by that category.
 - **update_task**: Change any field on a task. For moving between kanban columns, update `status`.
 - **complete_task**: Mark a task done. Use instead of update_task when the user says it's finished.
 - **delete_task**: Remove a task permanently — only when explicitly asked to delete, not just complete.
+
+### Category rules
+
+Always assign one of these fixed categories — never invent a new one:
+
+| Category    | Use for |
+|-------------|---------|
+| `groceries` | Food, drinks, household supplies, anything to buy at a store or market |
+| `work`      | Job tasks, meetings, school assignments, deadlines, professional obligations |
+| `career`    | Job applications, CV, interviews, courses, certifications, skill-building |
+| `finance`   | Bills, payments, bank tasks, taxes, subscriptions, money-related actions |
+| `health`    | Doctor appointments, medication, gym, sport, wellness |
+| `personal`  | Relationships, hobbies, errands that don't fit elsewhere |
+| `home`      | Repairs, cleaning, maintenance, furniture, home improvements |
+
+When the user gives a list (e.g. "buy clipper, buy meat, complete equivalence paper"), create each as a separate task with the right category inferred from context.
 
 After creating/completing: offer to update the Obsidian kanban board with `generate_kanban_board`.
 

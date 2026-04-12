@@ -45,7 +45,7 @@ async def build_messages(
     Returns:
         (agent, messages, memory_context)
     """
-    from my_agents.single import get_single_agent
+    from agent.single import get_single_agent
 
     # Slash commands: strip the token but prepend the intent as a hint so the
     # agent knows which tool domain to focus on (e.g. "[note] buy groceries").

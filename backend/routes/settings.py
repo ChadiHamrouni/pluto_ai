@@ -136,7 +136,7 @@ async def set_agent_models(
     reload_config()
 
     # Bust the single-agent singleton so the next request picks up the new model
-    from my_agents.single import reset_single_agent
+    from agent.single import reset_single_agent
 
     reset_single_agent()
 

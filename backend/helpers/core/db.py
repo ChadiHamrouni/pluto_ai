@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     priority     TEXT    NOT NULL DEFAULT 'medium',
     due_date     TEXT,
     tags         TEXT    NOT NULL DEFAULT '[]',
-    project      TEXT    NOT NULL DEFAULT '',
+    category     TEXT    NOT NULL DEFAULT 'personal',
     created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
 );
@@ -114,6 +114,10 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE_TASKS_IDX = """
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+"""
+
+CREATE_TASKS_CATEGORY_IDX = """
+CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category);
 """
 
 CREATE_BUDGET_TRANSACTIONS_TABLE = """
@@ -171,6 +175,7 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_EVENTS_IDX)
         await db.execute(CREATE_TASKS_TABLE)
         await db.execute(CREATE_TASKS_IDX)
+        await db.execute(CREATE_TASKS_CATEGORY_IDX)
         await db.execute(CREATE_BUDGET_TRANSACTIONS_TABLE)
         await db.execute(CREATE_BUDGET_IDX)
         await db.execute(CREATE_SAVINGS_GOALS_TABLE)
@@ -197,6 +202,20 @@ async def init_db(db_path: str) -> None:
         try:
             await db.execute(
                 "ALTER TABLE budget_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'TND';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        # Migrate: rename project → category on tasks, copy existing values
+        try:
+            await db.execute(
+                "ALTER TABLE tasks ADD COLUMN category TEXT NOT NULL DEFAULT 'personal';"
+            )
+            # Copy project values into category where they match valid categories
+            await db.execute(
+                """UPDATE tasks SET category = project
+                   WHERE project IN ('groceries','work','career','finance','health','personal','home')
+                   AND category = 'personal';"""
             )
         except Exception:
             pass  # column already exists — safe to ignore

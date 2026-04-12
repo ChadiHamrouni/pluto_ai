@@ -9,7 +9,7 @@ from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from helpers.tools.file_parser import extract_pdf, ocr_image
 from models.results import HandlerResult
-from my_agents.single import get_single_agent
+from agent.single import get_single_agent
 
 logger = get_logger(__name__)
 
