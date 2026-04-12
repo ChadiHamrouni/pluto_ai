@@ -90,7 +90,9 @@ TOOL_GROUPS: dict[str, list] = {
     "slides":   _group(draft_slides, render_slides, web_search),
     "calendar": _group(schedule_event, list_events, upcoming_events, cancel_event),
     "memory":   _group(store_memory, forget_memory, prune_memory, search_memory),
-    "tasks":    _group(create_task, list_tasks, update_task, complete_task, delete_task, show_kanban),
+    "tasks":    _group(
+        create_task, list_tasks, update_task, complete_task, delete_task, show_kanban
+    ),
     "budget":   _group(
         add_transaction, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,

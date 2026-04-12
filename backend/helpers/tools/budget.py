@@ -113,7 +113,10 @@ def add_transaction(
     tx_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    logger.info("Added %s transaction id=%d amount=%.2f %s cat=%s", tx_type, tx_id, amount, currency, category)
+    logger.info(
+        "Added %s transaction id=%d amount=%.2f %s cat=%s",
+        tx_type, tx_id, amount, currency, category,
+    )
     result = get_transaction(db_path, tx_id)
     sync_vault_background()
     return result
@@ -271,7 +274,10 @@ def get_summary(db_path: str, month: str = "") -> dict:
 
     # Filter to period if requested
     if period_start:
-        expanded = [r for r in expanded if period_start.isoformat() <= r["date"] <= period_end.isoformat()]
+        expanded = [
+            r for r in expanded
+            if period_start.isoformat() <= r["date"] <= period_end.isoformat()
+        ]
 
     total_income = sum(r["amount"] for r in expanded if r["type"] == "income")
     total_expense = sum(r["amount"] for r in expanded if r["type"] == "expense")
@@ -378,8 +384,14 @@ def recalculate_goals(db_path: str) -> list[dict]:
         m_from = target_month.replace(day=1).isoformat()
         m_to = target_month.replace(day=last_day).isoformat()
 
-        m_income = sum(r["amount"] for r in expanded if r["type"] == "income" and m_from <= r["date"] <= m_to)
-        m_expense = sum(r["amount"] for r in expanded if r["type"] == "expense" and m_from <= r["date"] <= m_to)
+        m_income = sum(
+            r["amount"] for r in expanded
+            if r["type"] == "income" and m_from <= r["date"] <= m_to
+        )
+        m_expense = sum(
+            r["amount"] for r in expanded
+            if r["type"] == "expense" and m_from <= r["date"] <= m_to
+        )
         monthly_rates.append(m_income - m_expense)
 
     avg_monthly_rate = sum(monthly_rates) / len(monthly_rates) if monthly_rates else 0.0

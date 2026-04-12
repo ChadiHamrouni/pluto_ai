@@ -24,9 +24,12 @@ def sync_vault_background() -> None:
         except ValueError:
             return  # vault not configured — nothing to do
 
-        from helpers.tools.budget import get_db_path as get_budget_db, get_summary, list_goals, list_transactions
-        from helpers.tools.calendar import get_db_path as get_cal_db, list_events
-        from helpers.tools.tasks import get_db_path as get_tasks_db, list_tasks
+        from helpers.tools.budget import get_db_path as get_budget_db
+        from helpers.tools.budget import get_summary, list_goals, list_transactions
+        from helpers.tools.calendar import get_db_path as get_cal_db
+        from helpers.tools.calendar import list_events
+        from helpers.tools.tasks import get_db_path as get_tasks_db
+        from helpers.tools.tasks import list_tasks
 
         today = date.today()
         month_str = today.strftime("%Y-%m")
@@ -43,7 +46,10 @@ def sync_vault_background() -> None:
             )
             budget = get_summary(get_budget_db())
             goals = list_goals(get_budget_db())
-            write_vault_file(vault_path, "Dashboard.md", generate_dashboard_md(tasks, events, budget, goals))
+            write_vault_file(
+                vault_path, "Dashboard.md",
+                generate_dashboard_md(tasks, events, budget, goals),
+            )
         except Exception as exc:
             logger.warning("sync_vault_background: dashboard failed: %s", exc)
 
@@ -59,25 +65,38 @@ def sync_vault_background() -> None:
             summary = get_summary(get_budget_db(), month_str)
             all_goals = list_goals(get_budget_db())
             txs = list_transactions(get_budget_db())
-            write_vault_file(vault_path, f"Budget/{month_str}.md", generate_budget_md(summary, all_goals, txs))
+            write_vault_file(
+                vault_path, f"Budget/{month_str}.md",
+                generate_budget_md(summary, all_goals, txs),
+            )
         except Exception as exc:
             logger.warning("sync_vault_background: budget failed: %s", exc)
 
         # Calendar (current month)
         try:
             _, last_day = calendar.monthrange(today.year, today.month)
-            cal_events = list_events(get_cal_db(), f"{month_str}-01", f"{month_str}-{last_day:02d}T23:59:59")
-            write_vault_file(vault_path, f"Calendar/{month_str}.md", generate_calendar_md(cal_events, today.year, today.month))
+            cal_events = list_events(
+                get_cal_db(), f"{month_str}-01", f"{month_str}-{last_day:02d}T23:59:59"
+            )
+            write_vault_file(
+                vault_path, f"Calendar/{month_str}.md",
+                generate_calendar_md(cal_events, today.year, today.month),
+            )
         except Exception as exc:
             logger.warning("sync_vault_background: calendar failed: %s", exc)
 
         # Weekly plan
         try:
             week_end = week_start + timedelta(days=6)
-            week_events = list_events(get_cal_db(), week_start.isoformat(), week_end.isoformat() + "T23:59:59")
+            week_events = list_events(
+                get_cal_db(), week_start.isoformat(), week_end.isoformat() + "T23:59:59"
+            )
             all_tasks = list_tasks(get_tasks_db())
             label = _week_label(week_start)
-            write_vault_file(vault_path, f"Weekly/{label}.md", generate_weekly_plan_md(week_events, all_tasks, week_start))
+            write_vault_file(
+                vault_path, f"Weekly/{label}.md",
+                generate_weekly_plan_md(week_events, all_tasks, week_start),
+            )
         except Exception as exc:
             logger.warning("sync_vault_background: weekly plan failed: %s", exc)
 

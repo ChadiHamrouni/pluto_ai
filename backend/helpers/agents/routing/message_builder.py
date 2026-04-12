@@ -105,7 +105,10 @@ async def build_messages(
     messages.append({"role": "user", "content": user_content})
 
     if needs_compaction(messages):
-        model = config.get("compactor", {}).get("model") or config.get("orchestrator", {}).get("model", "qwen2.5:3b")
+        model = (
+            config.get("compactor", {}).get("model")
+            or config.get("orchestrator", {}).get("model", "qwen2.5:3b")
+        )
         messages = await compact_history(messages, get_openai_client(), model)
 
     return agent, messages, memory_context

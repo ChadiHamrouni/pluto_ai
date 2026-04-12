@@ -180,7 +180,10 @@ def validate_outline(slides: list[dict]) -> list[str]:
                 errors.append(
                     f"Slide {i + 1}: 'code' must be an object with 'language' and 'content' keys."
                 )
-            elif not isinstance(code.get("content", ""), str) or not code.get("content", "").strip():
+            elif (
+                not isinstance(code.get("content", ""), str)
+                or not code.get("content", "").strip()
+            ):
                 errors.append(f"Slide {i + 1}: 'code.content' must be a non-empty string.")
 
     return errors

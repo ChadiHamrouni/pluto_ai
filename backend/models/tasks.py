@@ -10,7 +10,9 @@ TaskStatus = Literal["todo", "in_progress", "done"]
 TaskPriority = Literal["low", "medium", "high", "urgent"]
 TaskCategory = Literal["groceries", "work", "career", "finance", "health", "personal", "home"]
 
-VALID_CATEGORIES: set[str] = {"groceries", "work", "career", "finance", "health", "personal", "home"}
+VALID_CATEGORIES: set[str] = {
+    "groceries", "work", "career", "finance", "health", "personal", "home"
+}
 
 
 class TaskCreate(BaseModel):

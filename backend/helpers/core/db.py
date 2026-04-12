@@ -183,7 +183,9 @@ async def init_db(db_path: str) -> None:
             )
             await db.execute(
                 """UPDATE tasks SET category = project
-                   WHERE project IN ('groceries','work','career','finance','health','personal','home')
+                   WHERE project IN (
+                       'groceries','work','career','finance','health','personal','home'
+                   )
                    AND category = 'personal';"""
             )
         except Exception:

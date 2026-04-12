@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
-from models.tasks import TaskCreate, VALID_CATEGORIES
 from helpers.tools.obsidian import sync_vault_background
+from models.tasks import TaskCreate
 
 logger = get_logger(__name__)
 

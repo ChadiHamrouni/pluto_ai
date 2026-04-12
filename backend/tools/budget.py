@@ -89,7 +89,10 @@ def add_transaction(
 
     db_path = get_db_path()
     try:
-        tx = _add_transaction(db_path, tx_type, amount, category, description, date, recurring, currency=currency)
+        tx = _add_transaction(
+            db_path, tx_type, amount, category, description, date, recurring,
+            currency=currency,
+        )
         goals = _recalculate_goals(db_path)
 
         goal_lines = []
@@ -101,7 +104,8 @@ def add_transaction(
         goal_summary = "\n".join(goal_lines) if goal_lines else "  (no savings goals yet)"
         currency_code = tx.get("currency", currency).upper()
         return (
-            f"Transaction recorded (id={tx['id']}): {tx_type} {amount:.2f} {currency_code} [{category}]"
+            f"Transaction recorded (id={tx['id']}): "
+            f"{tx_type} {amount:.2f} {currency_code} [{category}]"
             f"{' — ' + description if description else ''}\n"
             f"Goals updated:\n{goal_summary}"
         )
@@ -187,7 +191,8 @@ def budget_summary(month: str = "", from_month: str = "", to_month: str = "") ->
         to_month:   End of a month range (e.g. "2026-09"). Use with from_month for multi-month view.
 
     Returns:
-        JSON object with totals, per-month breakdown (if range), per-category breakdown, and savings goals.
+        JSON object with totals, per-month breakdown (if range),
+        per-category breakdown, and savings goals.
     """
     db_path = get_db_path()
     try:
