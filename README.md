@@ -18,63 +18,64 @@ Built with **OpenAI Agents SDK**, **Ollama**, **FastAPI**, and **Tauri + React**
 
 | Feature | Details |
 |---|---|
-| **Multi-agent orchestration** | Orchestrator routes to specialist agents via SDK handoffs |
-| **Streaming responses** | SSE token-by-token delivery with tool call + handoff visibility |
+| **Single agent, all tools** | One Pluto agent with tool groups scoped per intent — no handoff overhead |
+| **Streaming responses** | SSE token-by-token delivery with tool call visibility |
 | **Hybrid routing** | Deterministic slash commands + LLM routing for ambiguous requests |
 | **Persistent memory** | FTS5-indexed SQLite facts injected into every system prompt |
 | **Context compaction** | Parallel fact extraction + summarisation when history overflows |
-| **LLM guardrails** | SDK `OutputGuardrail` — repetition detection and coherence check |
-| **Research agent** | Multi-step web search → read full pages → synthesise with citations |
-| **Calendar agent** | Natural language scheduling, proactive 24h event context injection |
-| **Notes agent** | Structured markdown notes with YAML front matter, SQLite index |
-| **Slides agent** | Marp PDF presentations from natural language outlines |
+| **Calendar** | Natural language scheduling, proactive 24h event context injection |
+| **Notes** | Structured markdown notes with YAML front matter, SQLite index |
+| **Tasks** | Kanban-style task management with categories |
+| **Budget** | Transaction tracking, savings goals, monthly summaries |
+| **Slides** | Marp PDF presentations from natural language outlines |
+| **Diagrams** | Mermaid diagram generation |
+| **Obsidian sync** | Dashboard, kanban, calendar, budget, and weekly plan vault pages |
 | **Voice mode** | VAD + local TTS for hands-free interaction |
 | **File attachments** | Images (multimodal), PDFs (OCR), and plain text |
 | **100% local** | Zero cloud calls — Ollama + SQLite + local filesystem |
 
 ---
 
-## Agent Map
+## Slash Commands
 
-```
-/note, /notes  ──────────────────────────────► NotesAgent
-/slides, /slide ─────────────────────────────► SlidesAgent
-/research ───────────────────────────────────► ResearchAgent
-/calendar, /schedule, /event ────────────────► CalendarAgent
+| Command | Aliases | What it does |
+|---|---|---|
+| `/note` | `/notes` | Create or manage notes |
+| `/slides` | `/slide` | Generate a Marp PDF presentation |
+| `/calendar` | `/schedule`, `/event` | Schedule or list events |
+| `/task` | `/tasks` | Create or manage tasks |
+| `/budget` | — | Log transactions, check summaries, manage savings goals |
+| `/diagram` | — | Generate a Mermaid diagram |
+| `/dashboard` | `/obsidian`, `/vault` | Sync Obsidian vault pages |
+| `/remember` | `/memory` | Store a personal fact |
+| `/forget` | — | Delete a stored fact |
 
-(no slash command)
-    └─► Orchestrator ──► LLM decides:
-            ├── general Q&A       → answer directly + web_search
-            ├── note task         → handoff → NotesAgent
-            ├── slide task        → handoff → SlidesAgent
-            ├── research task     → handoff → ResearchAgent
-            └── calendar task     → handoff → CalendarAgent
-```
+Without a slash command, the agent decides how to handle the request based on context.
 
 ---
 
 ## Design Decisions
 
-### 1. Hybrid routing — fast AND flexible
-Slash commands deterministically bypass the LLM for known intents (`/note`, `/slides`, etc.). Unknown or ambiguous requests go through LLM routing via Orchestrator handoffs. This gives sub-100ms routing for common tasks while preserving flexibility.
+### 1. Single agent with scoped tool groups
+Rather than routing between specialist agents via handoffs, Pluto uses one agent with tool groups. Each slash command activates a relevant subset of tools, keeping context tight without sacrificing capability.
 
-### 2. Context compaction with parallel fact extraction
-When the conversation history approaches the model's context window, the compactor runs two parallel LLM calls: one to summarise the old messages, one to extract durable facts into permanent memory. The conversation continues seamlessly without losing long-term information.
+### 2. Hybrid routing — fast AND flexible
+Slash commands deterministically bypass LLM routing for known intents. Unknown or ambiguous requests go through the agent with the full tool set. This gives sub-100ms routing for common tasks while preserving flexibility.
 
-### 3. Local-first architecture
-Every component — LLM inference (Ollama), vector storage (SQLite), file storage — runs on-device. Privacy is guaranteed by design, not policy. Latency is bounded by local hardware, not network conditions.
+### 3. Context compaction with parallel fact extraction
+When conversation history approaches the model's context window, the compactor runs two parallel LLM calls: one to summarise old messages, one to extract durable facts into permanent memory. The conversation continues seamlessly without losing long-term information.
 
-### 4. LLM-based output guardrails
-Rather than heuristic regex checks, two `OutputGuardrail` agents (SDK-native) evaluate every response before it reaches the user. `RepetitionGuard` detects looping output common in sub-7B models. `RelevanceGuard` flags incoherent responses. Both fail open — if the evaluator call fails, the response passes through.
+### 4. Local-first architecture
+Every component — LLM inference (Ollama), storage (SQLite), file storage — runs on-device. Privacy is guaranteed by design, not policy.
 
-### 5. Streaming SSE with agent visibility
-The `/chat/stream` endpoint emits structured SSE events: `token` (text delta), `tool_call` (tool name + args), `agent_handoff` (which agent took over), and `done` (metadata). The frontend renders all of this in real time.
+### 5. Streaming SSE with tool visibility
+The `/chat/stream` endpoint emits structured SSE events: `token` (text delta), `tool_call` (tool name + args), and `done` (metadata). The frontend renders all of this in real time.
 
 ### 6. Memory as flat injection (not RAG)
-Personal facts are stored in SQLite and injected verbatim into every orchestrator system prompt. No embedding overhead for memory retrieval — the full fact store fits in context for a personal assistant. RAG is reserved for the knowledge base (`data/files/`).
+Personal facts are stored in SQLite and injected verbatim into every system prompt. No embedding overhead — the full fact store fits in context for a personal assistant.
 
 ### 7. Proactive calendar context
-The orchestrator system prompt is augmented with any events starting in the next 24 hours before every turn. No tool call needed — the model knows about upcoming commitments automatically.
+The system prompt is augmented with events starting in the next 24 hours before every turn. No tool call needed — the model knows about upcoming commitments automatically.
 
 ---
 
@@ -121,11 +122,9 @@ npm run tauri build    # production build → installers in src-tauri/target/rel
 ### Docker (backend only)
 
 ```bash
-cd backend
-docker compose build    # first run: builds image
-docker compose up -d
-docker compose exec ollama ollama pull qwen2.5:3b
-curl http://localhost:8000/health
+make dev                                              # build + start
+docker compose exec ollama ollama pull qwen2.5:3b     # pull model once
+curl http://localhost:8000/health                     # 200 = ready
 ```
 
 ---
@@ -142,30 +141,20 @@ POST /chat
 POST /chat/stream
   Form: message (str), session_id (str, optional)
   Response: text/event-stream
-    event: token        data: {"delta": "..."}
-    event: tool_call    data: {"tool": "...", "arguments": "..."}
-    event: agent_handoff data: {"agent": "..."}
-    event: done         data: {"response": "...", "tools_used": [...], "agents_trace": [...]}
-    event: error        data: {"message": "..."}
-
-POST /chat/session        → create session, returns session_id
-GET  /chat/sessions       → list all sessions
-GET  /chat/session/{id}/messages → full history for session
-DELETE /chat/session/{id} → delete session
+    event: token      data: {"delta": "..."}
+    event: tool_call  data: {"tool": "...", "arguments": "..."}
+    event: done       data: {"response": "...", "tools_used": [...]}
+    event: error      data: {"message": "..."}
 ```
 
-### Slash Commands
+### Sessions
 
-| Command | Agent | Example |
-|---|---|---|
-| `/note`, `/notes` | NotesAgent | `/note prep for astrophysics seminar` |
-| `/slides`, `/slide` | SlidesAgent | `/slides dark matter detection methods` |
-| `/research` | ResearchAgent | `/research latest JWST exoplanet findings` |
-| `/calendar`, `/schedule`, `/event` | CalendarAgent | `/schedule paper deadline Friday 23:59` |
-| `/remember`, `/memory` | Orchestrator (store) | `/remember I prefer Python over R` |
-| `/forget` | Orchestrator (delete) | `/forget old email address` |
-
-Without a slash command, the Orchestrator's LLM decides routing automatically.
+```
+POST   /sessions              → create session, returns session_id
+GET    /sessions              → list all sessions
+GET    /sessions/{id}/messages → full history for session
+DELETE /sessions/{id}         → delete session
+```
 
 ---
 
@@ -179,39 +168,44 @@ personal_ai/
 │   ├── config.example.json        # Safe-to-commit template (no secrets)
 │   ├── requirements.txt
 │   ├── Dockerfile
-│   ├── docker-compose.yml
 │   │
-│   ├── my_agents/                 # Agent definitions (OpenAI Agents SDK)
-│   │   ├── orchestrator.py        # Central router with all handoffs
-│   │   ├── notes_agent.py
-│   │   ├── slides_agent.py
-│   │   ├── research_agent.py
-│   │   └── calendar_agent.py
+│   ├── agent/
+│   │   └── single.py              # Singleton Pluto agent — all tools registered here
 │   │
-│   ├── tools/                     # @function_tool wrappers only
+│   ├── tools/                     # @function_tool wrappers only (no business logic)
+│   │   ├── budget.py
+│   │   ├── calendar.py
+│   │   ├── diagrams.py
 │   │   ├── memory_tools.py
-│   │   ├── notes_tools.py
-│   │   ├── slides_tools.py
-│   │   ├── calendar_tools.py
-│   │   ├── research_tools.py
+│   │   ├── notes.py
+│   │   ├── obsidian.py
+│   │   ├── slides.py
+│   │   ├── tasks.py
+│   │   ├── vault_files.py
 │   │   └── web_search.py
 │   │
 │   ├── helpers/
 │   │   ├── core/                  # config_loader, db, logger, exceptions
-│   │   ├── agents/                # runner, guardrails, compactor, command_parser
-│   │   └── tools/                 # memory, notes, slides, calendar helpers
+│   │   ├── agents/
+│   │   │   ├── execution/         # ollama_client, runner, event parsing
+│   │   │   ├── routing/           # message_builder, command_parser, prompt_utils
+│   │   │   └── session/           # SQLite session store, compaction, token counter
+│   │   └── tools/                 # All tool logic as plain callables
 │   │
-│   ├── handlers/                  # text_handler (routing + memory injection)
-│   ├── instructions/              # Agent system prompts as markdown
-│   ├── routes/                    # FastAPI routers (chat, files, voice)
+│   ├── handlers/                  # text_handler, file_handler
+│   ├── routes/                    # FastAPI routers (messaging, stream, sessions, files, auth, settings)
 │   ├── models/                    # Pydantic schemas
-│   └── tests/                     # pytest unit + integration tests
+│   ├── instructions/agents/       # System prompts as .md files
+│   └── tests/
+│       ├── unit/                  # Fast, offline, mocked LLM
+│       └── e2e/                   # Require running Ollama
 │
 └── frontend/
     └── src/
-        ├── hooks/useChat.js       # Streaming + non-streaming chat logic
-        ├── hooks/useSessions.js   # Session state management
-        └── api.js                 # streamMessage(), sendMessage()
+        ├── App.jsx                # Layout shell — shared state + composition
+        ├── api.js                 # Single API client — every backend call lives here
+        ├── components/            # Header, Sidebar, ChatArea, ChatFooter, SettingsPanel
+        └── hooks/                 # useAuth, useChat, useSessions, useVoice, useTTS, useFileDrop
 ```
 
 ---
@@ -220,8 +214,6 @@ personal_ai/
 
 ```bash
 cd backend
-pip install pytest pytest-asyncio
-pytest
+pytest                   # all tests (requires Ollama for e2e)
+pytest -m "not e2e"      # unit tests only — fully offline, no Ollama needed
 ```
-
-Tests are fully offline — no Ollama, no network. All LLM calls are mocked at the SDK boundary.
