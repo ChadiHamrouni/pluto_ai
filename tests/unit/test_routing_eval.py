@@ -32,8 +32,6 @@ SLASH_ROUTING_CASES = [
     ("/memory What do I know?", "memory"),
     # Forget
     ("/forget I don't like coffee anymore", "forget"),
-    # Research
-    ("/research Latest exoplanet detection methods", "research"),
     # Calendar
     ("/calendar Show this week", "calendar"),
     ("/schedule Meeting tomorrow 3pm", "calendar"),
@@ -78,8 +76,8 @@ def test_parse_command_case_insensitive():
 
 
 def test_parse_command_preserves_multi_word_content():
-    parsed = parse_command("/research Find out about gravitational wave detection methods")
-    assert parsed.intent == "research"
+    parsed = parse_command("/note Find out about gravitational wave detection methods")
+    assert parsed.intent == "note"
     assert parsed.content == "Find out about gravitational wave detection methods"
 
 

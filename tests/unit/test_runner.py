@@ -112,21 +112,18 @@ async def test_run_agent_raises_on_sdk_error():
 
 
 @pytest.mark.asyncio
-async def test_run_agent_injects_memory_context_via_clone():
-    """When memory_context is given, the orchestrator is cloned with updated instructions."""
-    agent = _agent("Orchestrator")
-    cloned = MagicMock()
-    cloned.name = "Orchestrator"
-    cloned.instructions = "You are helpful.\n\nUser remembers: X"
-    agent.clone = MagicMock(return_value=cloned)
+async def test_run_agent_injects_memory_context_via_system_message():
+    """When memory_context is given, it is injected as a leading system message."""
+    agent = _agent("Pluto")
 
     run_result = _make_run_result("Got it.")
     with patch("helpers.agents.execution.runner.Runner.run", new=AsyncMock(return_value=run_result)) as mock_run:
         from helpers.agents.execution.runner import run_agent
         await run_agent(agent, MESSAGES, memory_context="User remembers: X")
 
-    agent.clone.assert_called_once()
-    # The cloned agent (not original) is what gets passed to Runner.run
+    # Memory is injected into the input list, not via clone
+    agent.clone.assert_not_called()
     call_kwargs = mock_run.call_args.kwargs
-    used_agent = call_kwargs.get("starting_agent", mock_run.call_args.args[0] if mock_run.call_args.args else None)
-    assert used_agent is cloned
+    input_items = call_kwargs.get("input", [])
+    system_messages = [m for m in input_items if m.get("role") == "system"]
+    assert any("User remembers: X" in m.get("content", "") for m in system_messages)

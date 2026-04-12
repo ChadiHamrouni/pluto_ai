@@ -68,7 +68,7 @@ async def test_text_handler_slash_note_routes_to_Pluto(tmp_db):
     )
     # Single-agent architecture: all commands route through Pluto
     assert agent_used is not None
-    assert agent_used.name.lower() == "Pluto"
+    assert agent_used.name.lower() == "pluto"
 
 
 @pytest.mark.asyncio
@@ -90,7 +90,7 @@ async def test_text_handler_slash_slides_routes_to_Pluto(tmp_db):
     )
     # Single-agent architecture: all commands route through Pluto
     assert agent_used is not None
-    assert agent_used.name.lower() == "Pluto"
+    assert agent_used.name.lower() == "pluto"
 
 
 @pytest.mark.asyncio
