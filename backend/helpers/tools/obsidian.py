@@ -4,12 +4,86 @@ from __future__ import annotations
 
 import calendar
 import os
+import threading
 from datetime import date, datetime, timedelta
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def sync_vault_background() -> None:
+    """
+    Fire-and-forget vault sync. Regenerates all structured pages in a background
+    thread so callers are never blocked. Silently skips if vault is not configured.
+    """
+    def _run() -> None:
+        try:
+            vault_path = get_vault_path()
+        except ValueError:
+            return  # vault not configured — nothing to do
+
+        from helpers.tools.budget import get_db_path as get_budget_db, get_summary, list_goals, list_transactions
+        from helpers.tools.calendar import get_db_path as get_cal_db, list_events
+        from helpers.tools.tasks import get_db_path as get_tasks_db, list_tasks
+
+        today = date.today()
+        month_str = today.strftime("%Y-%m")
+        week_start = today - timedelta(days=today.weekday())
+
+        # Dashboard
+        try:
+            tasks = list_tasks(get_tasks_db())
+            _, last_day = calendar.monthrange(today.year, today.month)
+            events = list_events(
+                get_cal_db(),
+                today.isoformat(),
+                (today.replace(day=last_day) + timedelta(days=60)).isoformat(),
+            )
+            budget = get_summary(get_budget_db())
+            goals = list_goals(get_budget_db())
+            write_vault_file(vault_path, "Dashboard.md", generate_dashboard_md(tasks, events, budget, goals))
+        except Exception as exc:
+            logger.warning("sync_vault_background: dashboard failed: %s", exc)
+
+        # Kanban
+        try:
+            all_tasks = list_tasks(get_tasks_db())
+            write_vault_file(vault_path, "Kanban/tasks.md", generate_kanban_md(all_tasks))
+        except Exception as exc:
+            logger.warning("sync_vault_background: kanban failed: %s", exc)
+
+        # Budget
+        try:
+            summary = get_summary(get_budget_db(), month_str)
+            all_goals = list_goals(get_budget_db())
+            txs = list_transactions(get_budget_db())
+            write_vault_file(vault_path, f"Budget/{month_str}.md", generate_budget_md(summary, all_goals, txs))
+        except Exception as exc:
+            logger.warning("sync_vault_background: budget failed: %s", exc)
+
+        # Calendar (current month)
+        try:
+            _, last_day = calendar.monthrange(today.year, today.month)
+            cal_events = list_events(get_cal_db(), f"{month_str}-01", f"{month_str}-{last_day:02d}T23:59:59")
+            write_vault_file(vault_path, f"Calendar/{month_str}.md", generate_calendar_md(cal_events, today.year, today.month))
+        except Exception as exc:
+            logger.warning("sync_vault_background: calendar failed: %s", exc)
+
+        # Weekly plan
+        try:
+            week_end = week_start + timedelta(days=6)
+            week_events = list_events(get_cal_db(), week_start.isoformat(), week_end.isoformat() + "T23:59:59")
+            all_tasks = list_tasks(get_tasks_db())
+            label = _week_label(week_start)
+            write_vault_file(vault_path, f"Weekly/{label}.md", generate_weekly_plan_md(week_events, all_tasks, week_start))
+        except Exception as exc:
+            logger.warning("sync_vault_background: weekly plan failed: %s", exc)
+
+        logger.info("sync_vault_background: done")
+
+    threading.Thread(target=_run, daemon=True).start()
 
 PRIORITY_EMOJI = {"urgent": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
 STATUS_EMOJI = {"todo": "⬜", "in_progress": "🔵", "done": "✅"}

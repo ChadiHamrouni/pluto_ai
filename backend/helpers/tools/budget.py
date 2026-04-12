@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.budget import SavingsGoalCreate, TransactionCreate
+from helpers.tools.obsidian import sync_vault_background
 
 logger = get_logger(__name__)
 
@@ -112,7 +113,9 @@ def add_transaction(
     conn.commit()
     conn.close()
     logger.info("Added %s transaction id=%d amount=%.2f %s cat=%s", tx_type, tx_id, amount, currency, category)
-    return get_transaction(db_path, tx_id)
+    result = get_transaction(db_path, tx_id)
+    sync_vault_background()
+    return result
 
 
 def get_transaction(db_path: str, tx_id: int) -> dict | None:
@@ -161,6 +164,8 @@ def delete_transaction(db_path: str, tx_id: int) -> bool:
     conn.commit()
     deleted = cursor.rowcount > 0
     conn.close()
+    if deleted:
+        sync_vault_background()
     return deleted
 
 

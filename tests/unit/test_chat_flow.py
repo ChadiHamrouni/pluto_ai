@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import sys
-import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,14 +22,6 @@ from fastapi.testclient import TestClient
 for _mod in ("colpali_engine", "torch", "PIL", "pdf2image", "ddgs", "fitz", "numpy", "numpy.typing", "sounddevice", "soundfile"):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock()
-
-# Stub helpers.tools.embedder so main.py's load_model() call is a no-op
-_embedder_stub = types.ModuleType("helpers.tools.embedder")
-_embedder_stub.load_model = lambda: None
-_embedder_stub.is_ready = lambda: True
-_embedder_stub.embed_text = MagicMock(return_value=[0.0])
-sys.modules["helpers.tools.embedder"] = _embedder_stub
-
 
 # ---------------------------------------------------------------------------
 # Helpers

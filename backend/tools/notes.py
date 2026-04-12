@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import threading
 
 from agents import function_tool
 
@@ -59,17 +58,6 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
         file_path = write_note_file(get_notes_dir(), title, content, category, tag_list)
         note_id = insert_note_db(get_db_path(), title, content, category, tags_json, file_path)
         logger.info("Created note id=%d title='%s' path=%s", note_id, title, file_path)
-        # Ingest into ChromaDB in the background so new notes are immediately searchable
-        try:
-            from helpers.core import knowledge_base as kb
-            threading.Thread(
-                target=kb.ingest_file,
-                args=(file_path,),
-                kwargs={"content_type": "note"},
-                daemon=True,
-            ).start()
-        except Exception:
-            pass  # non-fatal — cron will pick it up at 3 AM
         return f"Note created successfully. id={note_id}, file={file_path}"
     except Exception as exc:
         logger.error("Failed to create note: %s", exc)

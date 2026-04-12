@@ -322,15 +322,6 @@ export async function fetchFile(fileUrl) {
   return r.blob();
 }
 
-// ── Content search ────────────────────────────────────────────────────────────
-
-export async function searchContent(query, topK = 10) {
-  const params = new URLSearchParams({ q: query, top_k: topK });
-  const r = await _fetch(`${BASE}/search?${params}`);
-  if (!r.ok) throw new Error(`Search error ${r.status}: ${await r.text()}`);
-  return r.json();
-}
-
 // ── TTS ───────────────────────────────────────────────────────────────────────
 
 export async function ttsStream(text, signal) {

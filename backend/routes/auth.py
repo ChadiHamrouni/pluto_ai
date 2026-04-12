@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import jwt
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
 
 from helpers.core.logger import get_logger
 from helpers.routes.auth import (
@@ -13,29 +12,11 @@ from helpers.routes.auth import (
     create_refresh_token,
     verify_token,
 )
+from models.auth import LoginRequest, RefreshRequest, TokenResponse, VerifyRequest
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
-class VerifyRequest(BaseModel):
-    token: str
 
 
 @router.post("/login", response_model=TokenResponse)

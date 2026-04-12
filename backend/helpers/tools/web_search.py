@@ -1,6 +1,6 @@
 """
-Web search helpers: SSRF protection, session caching, and page fetching.
-Used by tools/web_search.py (@function_tool wrappers).
+Web search helpers: SSRF protection, session caching, page fetching, and
+the core search logic used by tools/web_search.py (@function_tool wrappers).
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import socket
 from urllib.parse import urlparse
 
 import httpx
+from ddgs import DDGS
 
 from helpers.core.logger import get_logger
 
@@ -153,3 +154,44 @@ async def fetch_text_full(url: str) -> tuple[str, str | None]:
         error_msg = f"Failed to fetch page: {exc}"
         # Do NOT cache failures — retrying may succeed (transient network error)
         return "", error_msg
+
+
+# ── High-level search + fetch helpers used by @function_tool wrappers ────────
+
+async def cached_web_search(query: str) -> str:
+    """
+    Search the web for *query* and return extracted content from the top results.
+    Results are cached for the lifetime of the process.
+    """
+    if query in _query_cache:
+        logger.debug("web_search cache hit: %r", query)
+        return _query_cache[query]
+
+    try:
+        results = DDGS().text(query, max_results=MAX_RESULTS)
+    except Exception as exc:
+        logger.error("DuckDuckGo search failed: %s", exc)
+        return f"Search failed: {exc}"
+
+    if not results:
+        return "No results found for this query."
+
+    urls = [r.get("href", "") for r in results]
+    page_texts = await asyncio.gather(*[fetch_text_short(u) for u in urls])
+
+    sections: list[str] = []
+    source_lines: list[str] = []
+
+    for i, (r, page_text) in enumerate(zip(results, page_texts), 1):
+        title = r.get("title", "No title")
+        url = r.get("href", "")
+        snippet = r.get("body", "")
+        content = f"{snippet}\n\n{page_text}" if page_text and len(page_text) > len(snippet) else snippet
+        sections.append(f"[Result {i}] {title}\nSource: {url}\n{content}")
+        source_lines.append(f"- [{title}]({url})")
+
+    result = "\n\n---\n\n".join(sections) + "\n\nSources:\n" + "\n".join(source_lines)
+    _query_cache[query] = result
+    return result
+
+

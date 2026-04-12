@@ -5,6 +5,7 @@ from agents import Agent, ModelSettings
 from helpers.agents.execution.instructions_loader import load_instructions
 from helpers.agents.execution.ollama_client import get_model
 from helpers.core.config_loader import load_config
+
 from tools.budget import (
     add_transaction,
     budget_summary,
@@ -14,6 +15,7 @@ from tools.budget import (
     list_savings_goals,
     list_transactions,
 )
+
 from tools.calculator import calculate
 from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
 from tools.diagrams import generate_diagram
@@ -27,7 +29,15 @@ from tools.obsidian import (
     sync_vault,
     update_dashboard,
 )
-from tools.rag import search_knowledge
+
+from tools.vault_files import (
+    append_vault_file,
+    create_vault_file,
+    delete_vault_file,
+    read_vault_file,
+    search_vault,
+)
+
 from tools.slides import draft_slides, render_slides
 from tools.tasks import complete_task, create_task, delete_task, list_tasks, update_task
 from tools.web_search import web_search
@@ -65,8 +75,8 @@ def get_single_agent(model: str | None = None) -> Agent:
         tools=[
             # Memory
             store_memory, forget_memory, prune_memory,
-            # Web + knowledge base
-            web_search, search_knowledge,
+            # Web
+            web_search,
             # Notes
             create_note, list_notes, get_note,
             # Slides
@@ -82,9 +92,12 @@ def get_single_agent(model: str | None = None) -> Agent:
             calculate,
             # Diagrams
             generate_diagram,
-            # Obsidian vault
+            # Obsidian vault — structured pages
             update_dashboard, generate_calendar_view, generate_kanban_board,
             generate_budget_report, generate_weekly_plan, sync_vault,
+            # Obsidian vault — file operations
+            search_vault, read_vault_file, create_vault_file,
+            append_vault_file, delete_vault_file,
         ],
         model_settings=ModelSettings(
             temperature=cfg.get("temperature", 0.0),

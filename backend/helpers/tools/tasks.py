@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
 from models.tasks import TaskCreate, VALID_CATEGORIES
+from helpers.tools.obsidian import sync_vault_background
 
 logger = get_logger(__name__)
 
@@ -66,7 +67,9 @@ def create_task(
     conn.commit()
     conn.close()
     logger.info("Created task id=%d title='%s'", task_id, title)
-    return get_task(db_path, task_id)
+    result = get_task(db_path, task_id)
+    sync_vault_background()
+    return result
 
 
 def list_tasks(
@@ -126,7 +129,9 @@ def update_task(db_path: str, task_id: int, **fields) -> dict | None:
     conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", params)
     conn.commit()
     conn.close()
-    return get_task(db_path, task_id)
+    result = get_task(db_path, task_id)
+    sync_vault_background()
+    return result
 
 
 def delete_task(db_path: str, task_id: int) -> bool:
@@ -135,4 +140,6 @@ def delete_task(db_path: str, task_id: int) -> bool:
     conn.commit()
     deleted = cursor.rowcount > 0
     conn.close()
+    if deleted:
+        sync_vault_background()
     return deleted

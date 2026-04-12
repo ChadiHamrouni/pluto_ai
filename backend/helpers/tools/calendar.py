@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from helpers.tools.obsidian import sync_vault_background
 
 logger = get_logger(__name__)
 
@@ -45,7 +46,9 @@ def create_event(
     conn.commit()
     conn.close()
     logger.info("Created event %d: %s at %s", event_id, title, start_time)
-    return {"id": event_id, "title": title, "start_time": start_time, "end_time": end_time}
+    result = {"id": event_id, "title": title, "start_time": start_time, "end_time": end_time}
+    sync_vault_background()
+    return result
 
 
 def list_events(db_path: str, from_time: str, to_time: str) -> list[dict]:
@@ -76,4 +79,6 @@ def delete_event(db_path: str, event_id: int) -> bool:
     conn.commit()
     deleted = cursor.rowcount > 0
     conn.close()
+    if deleted:
+        sync_vault_background()
     return deleted

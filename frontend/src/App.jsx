@@ -30,7 +30,6 @@ import Sidebar from "./components/Sidebar";
 import ChatArea from "./components/ChatArea";
 import ChatFooter from "./components/ChatFooter";
 import SettingsPanel from "./components/SettingsPanel";
-import SearchModal from "./components/SearchModal";
 import LoginPage from "./components/LoginPage/LoginPage";
 
 import "./App.css";
@@ -72,7 +71,6 @@ export default function App() {
 function AppShell({ onLogout }) {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showSearch, setShowSearch]     = useState(false);
   const [input, setInput]               = useState("");
   const [attachments, setAttachments]   = useState([]);
   const [dragging, setDragging]         = useState(false);
@@ -166,11 +164,6 @@ function AppShell({ onLogout }) {
       deps: [],
     },
     {
-      combo: ["ctrlKey", "p"],
-      handler: () => setShowSearch(p => !p),
-      deps: [],
-    },
-    {
       combo: ["Escape"],
       handler: handleEscape,
       condition: thinking,
@@ -237,7 +230,6 @@ function AppShell({ onLogout }) {
 
       <Header onSettings={() => setShowSettings(true)} onLogout={onLogout} />
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
-      {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
 
       <div className="app-body">
         <Sidebar

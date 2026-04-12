@@ -19,7 +19,6 @@ from helpers.core.logger import get_logger, setup_logging
 from routes.auth import router as auth_router
 from routes.files import router as files_router
 from routes.messaging import router as messaging_router
-from routes.search import router as search_router
 from routes.sessions import router as sessions_router
 from routes.settings import router as settings_router
 from routes.stream import router as stream_router
@@ -43,22 +42,9 @@ async def lifespan(app: FastAPI):
         path = config["storage"][dir_key]
         os.makedirs(path, exist_ok=True)
 
-    for path in (
-        config["knowledge_base"]["embeddings_path"],
-        config["knowledge_base"]["files_path"],
-    ):
-        os.makedirs(path, exist_ok=True)
-
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
 
-    # Ensure ChromaDB data directory exists
-    os.makedirs(config["knowledge_base"].get("chroma_path", "data/chroma"), exist_ok=True)
-
-
-    # Embedding model — disabled while focusing on agent/tool testing
-    # from helpers.tools.embedder import load_model as load_embedder
-    # load_embedder()
 
     # TTS model — disabled while focusing on agent/tool testing
     # from helpers.tools.tts import load_model as load_tts
@@ -196,7 +182,6 @@ def create_app() -> FastAPI:
     app.include_router(stream_router)
     app.include_router(settings_router)
     app.include_router(files_router)
-    app.include_router(search_router)
 
     @app.get("/", tags=["health"], summary="Root")
     async def root():
