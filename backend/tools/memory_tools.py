@@ -11,6 +11,7 @@ from helpers.tools.memory import (
     delete_old_memories,
     get_db_path,
     insert_memory,
+    search_memories,
 )
 from helpers.tools.memory_files import write_memory_md
 
@@ -121,3 +122,43 @@ def prune_memory(days: int = 0) -> str:
     except Exception as exc:
         logger.error("Failed to prune memories: %s", exc)
         return f"Error pruning memories: {exc}"
+
+
+@function_tool
+def search_memory(query: str) -> str:
+    """
+    Search stored memory facts using full-text search.
+
+    Use this tool when the user asks "do you remember…?", "what do you know
+    about…?", or any question whose answer might be stored in memory. Also
+    use it before storing a new fact to avoid duplicates.
+
+    The search is powered by SQLite FTS5 (BM25 ranking) and falls back to
+    the most-recently stored facts when no FTS match is found.
+
+    Args:
+        query: Keywords or a short phrase describing what to look for.
+               Examples: "job title", "preferred language", "savings goal".
+
+    Returns:
+        A formatted list of matching memory facts (content, category, tags),
+        or a message stating no relevant memories were found.
+    """
+    top_k = load_config()["memory"].get("search_top_k", 10)
+    try:
+        results = search_memories(get_db_path(), query, top_k=top_k)
+    except Exception as exc:
+        logger.error("Memory search failed: %s", exc)
+        return f"Error searching memory: {exc}"
+
+    if not results:
+        return "No memories found matching that query."
+
+    lines = [f"Found {len(results)} memory fact(s) for '{query}':"]
+    for mem in results:
+        tags = mem.get("tags", "[]")
+        lines.append(
+            f"- [id={mem['id']}] ({mem['category']}) {mem['content']}"
+            + (f"  tags={tags}" if tags and tags != "[]" else "")
+        )
+    return "\n".join(lines)

@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 def _calendar_context() -> str:
-    """Return a concise upcoming-events blurb for injection into the orchestrator prompt."""
+    """Return a concise upcoming-events blurb for injection into the prompt."""
     try:
         events = upcoming_events(get_cal_db_path(), hours=24)
         if not events:
@@ -40,26 +40,38 @@ async def build_messages(
     history: list[dict],
     image_path: Path | None = None,
 ) -> tuple[Any, list[dict[str, Any]], str]:
-    """Parse the message, strip any slash-command prefix, build the message list, and compact.
+    """Parse the message, select a tool-scoped agent, build the message list, and compact.
+
+    Slash commands are resolved to both an intent hint and a tool group so the
+    agent cloned by get_agent_for_intent() only sees the tools relevant to this
+    turn — typically 3–8 instead of all 29. This is the primary accuracy and
+    latency lever for a small local model.
 
     Returns:
         (agent, messages, memory_context)
     """
-    from agent.single import get_single_agent
+    from agent.single import get_agent_for_intent
 
-    # Slash commands: strip the token but prepend the intent as a hint so the
-    # agent knows which tool domain to focus on (e.g. "[note] buy groceries").
     parsed = parse_command(message)
+
+    # Prepend [intent] hint so the agent knows which domain to focus on.
     if parsed.intent and parsed.content:
         content = f"[{parsed.intent}] {parsed.content}"
     elif parsed.intent and not parsed.content:
-        # bare command with no body (e.g. just "/dashboard") — keep intent as full message
+        # Bare command with no body (e.g. just "/dashboard") — intent is the message.
         content = parsed.intent
     else:
         content = message
 
-    agent = get_single_agent()
-    logger.info("Routing to %s (single-agent mode)", agent.name)
+    # Select the scoped agent for this intent (falls back to "core" tool group).
+    agent = get_agent_for_intent(intent=parsed.intent, tool_group=parsed.tool_group)
+    logger.info(
+        "Routing to %s | intent=%s | tool_group=%s | tools=%d",
+        agent.name,
+        parsed.intent or "none",
+        parsed.tool_group or "core",
+        len(agent.tools),
+    )
 
     config = load_config()
     window = config.get("orchestrator", {}).get("history_window", 20)
@@ -67,10 +79,10 @@ async def build_messages(
     if len(history) > len(windowed_history):
         logger.debug("History truncated: %d → %d messages", len(history), len(windowed_history))
 
-    memory_context = ""
-    cal_ctx = _calendar_context()
-    if cal_ctx:
-        memory_context = cal_ctx
+    # Calendar context is injected as memory_context (appended as a system
+    # message in runner.py, after the static instructions prefix, so it does
+    # not invalidate the KV cache on the stable instructions prefix).
+    memory_context = _calendar_context()
 
     messages: list[dict] = list(format_chat_history(windowed_history))
 
@@ -82,10 +94,11 @@ async def build_messages(
             image_path.stat().st_size,
             len(extracted),
         )
-        if extracted:
-            user_content = f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
-        else:
-            user_content = content or message
+        user_content = (
+            f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
+            if extracted
+            else content or message
+        )
     else:
         user_content = content or message
 

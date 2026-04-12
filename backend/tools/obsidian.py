@@ -105,31 +105,52 @@ def generate_calendar_view(month: str = "") -> str:
 
 
 @function_tool
-def generate_kanban_board(project: str = "") -> str:
+def show_kanban(project: str = "") -> str:
     """
-    Generate a Kanban board page in the Obsidian vault.
+    Show the Kanban board inline as a markdown response.
 
-    Creates a markdown kanban board with Todo / In Progress / Done columns.
-    Optionally filtered to a specific project.
+    Displays all tasks grouped into Todo / In Progress / Done columns.
+    Use this when the user asks to see their kanban board, task board, or
+    wants a visual overview of their tasks by status.
 
     Args:
-        project: Project name to filter tasks (e.g. "work"). Empty = all tasks.
+        project: Optional category to filter tasks (e.g. "work"). Empty = all tasks.
 
     Returns:
-        Path to the written kanban file, or an error message.
+        Markdown kanban board to display directly to the user.
     """
     try:
-        vault_path = get_vault_path()
         tasks = list_tasks(get_tasks_db(), project=project)
-        content = generate_kanban_md(tasks, project)
-        filename = f"Kanban/{project}.md" if project else "Kanban/tasks.md"
-        path = write_vault_file(vault_path, filename, content)
-        return f"Kanban board generated: {path}"
-    except ValueError as exc:
-        return f"Configuration error: {exc}"
     except Exception as exc:
-        logger.error("generate_kanban_board failed: %s", exc)
-        return f"Failed to generate kanban board: {exc}"
+        logger.error("show_kanban failed: %s", exc)
+        return f"Failed to load tasks: {exc}"
+
+    PRIORITY_EMOJI = {"urgent": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
+
+    todo = [t for t in tasks if t.get("status") == "todo"]
+    wip  = [t for t in tasks if t.get("status") == "in_progress"]
+    done = [t for t in tasks if t.get("status") == "done"]
+
+    def _item(t: dict) -> str:
+        emoji = PRIORITY_EMOJI.get(t.get("priority", "medium"), "🟡")
+        due   = f" _(due {t['due_date']})_" if t.get("due_date") else ""
+        desc  = f"\n  _{t['description']}_" if t.get("description") else ""
+        check = "x" if t.get("status") == "done" else " "
+        return f"- [{check}] {emoji} **{t['title']}**{due}{desc}"
+
+    title = f"Kanban — {project}" if project else "Kanban Board"
+    lines = [f"## 📋 {title}", ""]
+
+    lines += [f"### ⬜ Todo ({len(todo)})", ""]
+    lines += [_item(t) for t in todo] or ["_Nothing here._"]
+
+    lines += ["", f"### 🔵 In Progress ({len(wip)})", ""]
+    lines += [_item(t) for t in wip] or ["_Nothing here._"]
+
+    lines += ["", f"### ✅ Done ({len(done)})", ""]
+    lines += [_item(t) for t in done] or ["_Nothing completed yet._"]
+
+    return "\n".join(lines)
 
 
 @function_tool

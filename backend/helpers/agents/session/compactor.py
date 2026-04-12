@@ -42,7 +42,7 @@ async def _call_ollama(client: AsyncOpenAI, model: str, prompt: str, content: st
                 {"role": "user", "content": content},
             ],
             max_tokens=512,
-            temperature=0.3,
+            temperature=0.0,
         )
         return resp.choices[0].message.content or ""
     except Exception as exc:
