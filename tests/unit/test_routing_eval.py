@@ -36,6 +36,17 @@ SLASH_ROUTING_CASES = [
     ("/calendar Show this week", "calendar"),
     ("/schedule Meeting tomorrow 3pm", "calendar"),
     ("/event Add dentist Friday", "calendar"),
+    # Tasks
+    ("/task Add a new task", "task"),
+    ("/tasks Show all tasks", "task"),
+    # Budget
+    ("/budget Show summary", "budget"),
+    # Diagram
+    ("/diagram Draw a flowchart", "diagram"),
+    # Dashboard / Obsidian
+    ("/dashboard Sync vault", "dashboard"),
+    ("/obsidian Sync vault", "dashboard"),
+    ("/vault Sync vault", "dashboard"),
     # Unknown slash — should fall through (intent=None)
     ("/unknown do something", None),
     ("/foo bar", None),
@@ -113,7 +124,7 @@ def test_command_agents_covers_all_known_intents():
 
     # All known intents in the single-agent hint system (memory/forget handled inline)
     known_intents = {
-        "note", "slides", "research", "calendar",
+        "note", "slides", "calendar",
         "task", "budget", "diagram", "dashboard",
         "memory", "forget",
     }
