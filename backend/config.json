@@ -1,6 +1,6 @@
 {
   "orchestrator": {
-    "model": "qwen3.5:2b",
+    "model": "qwen3.5:4b",
     "temperature": 0.0,
     "max_tokens": 2048,
     "tool_choice": "auto",

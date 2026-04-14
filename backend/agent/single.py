@@ -15,7 +15,7 @@ from tools.budget import (
     list_transactions,
 )
 from tools.calculator import calculate
-from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events
+from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events, update_event
 from tools.diagrams import generate_diagram
 from tools.memory_tools import forget_memory, prune_memory, search_memory, store_memory
 from tools.notes import create_note, get_note, list_notes
@@ -36,6 +36,7 @@ from tools.vault_files import (
     read_vault_file,
     search_vault,
 )
+from tools.reminders import delete_reminder, list_reminders, set_reminder
 from tools.web_search import web_search
 
 # ---------------------------------------------------------------------------
@@ -82,13 +83,15 @@ TOOL_GROUPS: dict[str, list] = {
         get_note,
         list_tasks,
         list_events,
+        list_reminders,
         budget_summary,
         search_vault,
         show_kanban,
     ),
     "notes":    _group(create_note, list_notes, get_note),
     "slides":   _group(draft_slides, render_slides, web_search),
-    "calendar": _group(schedule_event, list_events, upcoming_events, cancel_event),
+    "calendar": _group(schedule_event, list_events, upcoming_events, cancel_event, update_event),
+    "reminders": _group(set_reminder, list_reminders, delete_reminder),
     "memory":   _group(store_memory, forget_memory, prune_memory, search_memory),
     "tasks":    _group(
         create_task, list_tasks, update_task, complete_task, delete_task, show_kanban
@@ -110,11 +113,12 @@ TOOL_GROUPS: dict[str, list] = {
         web_search,
         create_note, list_notes, get_note,
         draft_slides, render_slides,
-        schedule_event, list_events, upcoming_events, cancel_event,
+        schedule_event, list_events, upcoming_events, cancel_event, update_event,
         create_task, list_tasks, update_task, complete_task, delete_task,
         add_transaction, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
         generate_diagram,
+        set_reminder, list_reminders, delete_reminder,
         update_dashboard, generate_calendar_view, show_kanban,
         generate_budget_report, generate_weekly_plan, sync_vault,
         search_vault, read_vault_file, create_vault_file,

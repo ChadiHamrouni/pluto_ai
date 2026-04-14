@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS events (
     end_time    TEXT,
     description TEXT    NOT NULL DEFAULT '',
     location    TEXT    NOT NULL DEFAULT '',
+    recurrence  TEXT    NOT NULL DEFAULT '',
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 """
@@ -147,6 +148,21 @@ CREATE TABLE IF NOT EXISTS savings_goals (
     deadline       TEXT,
     created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+"""
+
+CREATE_REMINDERS_TABLE = """
+CREATE TABLE IF NOT EXISTS reminders (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    title        TEXT    NOT NULL,
+    remind_at    TEXT    NOT NULL,
+    recurrence   TEXT    NOT NULL DEFAULT '',
+    notified_at  TEXT,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_REMINDERS_IDX = """
+CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at);
 """
 
 
@@ -225,6 +241,18 @@ async def init_db(db_path: str) -> None:
             )
         except Exception:
             pass  # column already exists — safe to ignore
+
+        # Migrate: add recurrence column to events if it doesn't exist
+        try:
+            await db.execute(
+                "ALTER TABLE events ADD COLUMN recurrence TEXT NOT NULL DEFAULT '';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        # Reminders table
+        await db.execute(CREATE_REMINDERS_TABLE)
+        await db.execute(CREATE_REMINDERS_IDX)
 
         await db.commit()
 

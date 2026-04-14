@@ -85,6 +85,13 @@ COMMAND_REGISTRY: list[dict] = [
         "tool_group": "vault",
         "aliases": ["/obsidian", "/vault"],
     },
+    {
+        "cmd": "/remind",
+        "desc": "Set a reminder notification",
+        "intent": "reminders",
+        "tool_group": "reminders",
+        "aliases": ["/reminder", "/reminders"],
+    },
 ]
 
 # Flat alias → intent lookup built from the registry above
