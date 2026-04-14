@@ -3,18 +3,22 @@ services:
   app:
     build:
       context: ./backend
+      args:
+        HF_TOKEN: ${HF_TOKEN}
     ports:
       - "8000:8000"
     volumes:
       - ./backend/data:/app/data
       - ./backend/config.json:/app/config.json
-      - hf_cache:/root/.cache/huggingface
+      - hf_cache:/app/model_cache
       - "C:\\Users\\shadyy\\Desktop\\Second Brain\\Second Brain:/app/obsidian_vault:rw"
     user: "1000:1000"
     env_file:
       - ./backend/.env
     environment:
       - OPENAI_AGENTS_DISABLE_TRACING=1
+      - HF_HOME=/app/model_cache
+      - HF_TOKEN=${HF_TOKEN}
       # Tells the app where to find the host's Ollama.
       # On Mac/Windows Docker Desktop this works out of the box.
       # On Linux, Docker resolves host.docker.internal via extra_hosts below.

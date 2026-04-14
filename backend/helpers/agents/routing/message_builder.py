@@ -39,6 +39,7 @@ async def build_messages(
     message: str,
     history: list[dict],
     image_path: Path | None = None,
+    source: str = "",
 ) -> tuple[Any, list[dict[str, Any]], str]:
     """Parse the message, select a tool-scoped agent, build the message list, and compact.
 
@@ -50,28 +51,43 @@ async def build_messages(
     Returns:
         (agent, messages, memory_context)
     """
-    from agent.single import get_agent_for_intent
+    from agent.single import get_agent_for_intent, get_single_agent
 
-    parsed = parse_command(message)
-
-    # Prepend [intent] hint so the agent knows which domain to focus on.
-    if parsed.intent and parsed.content:
-        content = f"[{parsed.intent}] {parsed.content}"
-    elif parsed.intent and not parsed.content:
-        # Bare command with no body (e.g. just "/dashboard") — intent is the message.
-        content = parsed.intent
-    else:
+    # Voice input: skip intent routing and give the agent all tools so it can
+    # handle any request without a slash command prefix.
+    if source == "voice":
+        agent = get_single_agent()
         content = message
+        logger.info(
+            "Routing to %s | intent=voice (all tools) | tools=%d",
+            agent.name,
+            len(agent.tools),
+        )
+    else:
+        parsed = parse_command(message)
 
-    # Select the scoped agent for this intent (falls back to "core" tool group).
-    agent = get_agent_for_intent(intent=parsed.intent, tool_group=parsed.tool_group)
-    logger.info(
-        "Routing to %s | intent=%s | tool_group=%s | tools=%d",
-        agent.name,
-        parsed.intent or "none",
-        parsed.tool_group or "core",
-        len(agent.tools),
-    )
+        # Prepend [intent] hint so the agent knows which domain to focus on.
+        if parsed.intent and parsed.content:
+            content = f"[{parsed.intent}] {parsed.content}"
+        elif parsed.intent and not parsed.content:
+            # Bare command with no body (e.g. just "/dashboard") — intent is the message.
+            content = parsed.intent
+        else:
+            content = message
+
+        # Slash command → scoped tool group. Free-form text → all tools so the
+        # agent can handle any natural-language request (voice, dictate, typing).
+        if parsed.intent:
+            agent = get_agent_for_intent(intent=parsed.intent, tool_group=parsed.tool_group)
+        else:
+            agent = get_single_agent()
+        logger.info(
+            "Routing to %s | intent=%s | tool_group=%s | tools=%d",
+            agent.name,
+            parsed.intent or "none",
+            parsed.tool_group or "all",
+            len(agent.tools),
+        )
 
     config = load_config()
     window = config.get("orchestrator", {}).get("history_window", 20)

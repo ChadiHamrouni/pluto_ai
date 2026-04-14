@@ -6,7 +6,8 @@ import "./ChatFooter.css";
 export default function ChatFooter({
   input, onInputChange, onKeyDown, thinking,
   attachments, onRemoveAttachment,
-  voiceMode, onVoiceModeToggle, speaking,
+  recording, transcribing, waveformBars,
+  onMicPress, onMicRelease,
   inputRef,
 }) {
   const [slashIndex, setSlashIndex] = useState(0);
@@ -16,7 +17,6 @@ export default function ChatFooter({
     fetchCommands().then(setCommands).catch(() => {});
   }, []);
 
-  // Detect slash command prefix in input
   const slashQuery = (() => {
     const trimmed = input.trimStart();
     if (!trimmed.startsWith("/")) return null;
@@ -31,7 +31,6 @@ export default function ChatFooter({
       ? commands.filter((c) => c.cmd.startsWith(slashQuery))
       : [];
 
-  // Reset index when menu appears or filter changes
   useEffect(() => { setSlashIndex(0); }, [slashQuery]);
 
   function handleSlashSelect(cmd) {
@@ -43,26 +42,10 @@ export default function ChatFooter({
 
   function handleKeyDown(e) {
     if (slashQuery && slashFiltered.length) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSlashIndex((i) => (i + 1) % slashFiltered.length);
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSlashIndex((i) => (i - 1 + slashFiltered.length) % slashFiltered.length);
-        return;
-      }
-      if (e.key === "Tab" || e.key === "Enter") {
-        e.preventDefault();
-        handleSlashSelect(slashFiltered[slashIndex].cmd);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onInputChange({ target: { value: "" } });
-        return;
-      }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSlashIndex((i) => (i + 1) % slashFiltered.length); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setSlashIndex((i) => (i - 1 + slashFiltered.length) % slashFiltered.length); return; }
+      if (e.key === "Tab" || e.key === "Enter") { e.preventDefault(); handleSlashSelect(slashFiltered[slashIndex].cmd); return; }
+      if (e.key === "Escape") { e.preventDefault(); onInputChange({ target: { value: "" } }); return; }
     }
     onKeyDown(e);
   }
@@ -93,7 +76,6 @@ export default function ChatFooter({
         </div>
       )}
 
-
       <div className="input-wrap">
         {slashQuery && (
           <SlashMenu
@@ -103,42 +85,66 @@ export default function ChatFooter({
             onSelect={handleSlashSelect}
           />
         )}
-        <div className="input-row">
-          <textarea
-            ref={inputRef}
-            className="msg-input"
-            placeholder={placeholder}
-            value={input}
-            onChange={onInputChange}
-            onKeyDown={handleKeyDown}
-            disabled={thinking}
-          />
-          <div className="mic-stack">
-            {/* VOICE pill */}
-            <button
-              className={`mode-btn ${voiceMode ? "mode-btn--on" : ""}`}
-              onClick={onVoiceModeToggle}
-              title={voiceMode ? "Voice mode ON — click to disable" : "Enable voice mode"}
-            >
-              {speaking ? (
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="1" y="4" width="3" height="8" rx="1.5" />
-                  <rect x="6" y="1" width="3" height="14" rx="1.5" />
-                  <rect x="11" y="4" width="3" height="8" rx="1.5" />
-                </svg>
-              ) : (
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="5" y="1" width="6" height="9" rx="3" />
-                  <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                </svg>
-              )}
-              Voice
-            </button>
 
+        <div className="input-row">
+          <div className="input-area">
+            {/* Waveform — shown above textarea while recording */}
+            {(recording || transcribing) && (
+              <div className={`waveform-bar-row ${transcribing ? "waveform-bar-row--fading" : ""}`}>
+                {waveformBars.map((h, i) => (
+                  <div
+                    key={i}
+                    className="waveform-bar"
+                    style={{ "--h": Math.max(0.08, h) }}
+                  />
+                ))}
+              </div>
+            )}
+
+            <textarea
+              ref={inputRef}
+              className={`msg-input ${recording ? "msg-input--recording" : ""}`}
+              placeholder={placeholder}
+              value={input}
+              onChange={onInputChange}
+              onKeyDown={handleKeyDown}
+              disabled={thinking}
+            />
           </div>
+
+          {/* Mic button — hold to dictate */}
+          <button
+            className={`mic-btn ${recording ? "mic-btn--recording" : transcribing ? "mic-btn--processing" : ""}`}
+            onMouseDown={onMicPress}
+            onMouseUp={onMicRelease}
+            onTouchStart={onMicPress}
+            onTouchEnd={onMicRelease}
+            title={recording ? "Recording… release to transcribe" : "Hold to dictate"}
+            disabled={thinking}
+          >
+            {recording ? (
+              // Stop square icon while recording
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="3" y="3" width="10" height="10" rx="2" />
+              </svg>
+            ) : transcribing ? (
+              // Spinner dots while transcribing
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="3" cy="8" r="1.5" opacity="1" />
+                <circle cx="8" cy="8" r="1.5" opacity="0.6" />
+                <circle cx="13" cy="8" r="1.5" opacity="0.3" />
+              </svg>
+            ) : (
+              // Mic icon
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="5" y="1" width="6" height="9" rx="3" />
+                <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+                <line x1="8" y1="13.5" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            )}
+          </button>
         </div>
       </div>
-
     </footer>
   );
 }

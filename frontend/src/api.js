@@ -105,6 +105,7 @@ export async function createSession() {
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 export async function sendMessage(message, files = []) {
+  if (!sessionId) throw new Error("No active session — please wait for the session to load.");
   const formData = new FormData();
   formData.append("message", message);
   formData.append("session_id", sessionId);
@@ -134,13 +135,18 @@ export async function sendMessage(message, files = []) {
  * @param {object} callbacks — { onToken, onToolCall, onHandoff, onDone, onError }
  * @returns {AbortController} — call .abort() to cancel the stream
  */
-export function streamMessage(message, callbacks = {}) {
+export function streamMessage(message, callbacks = {}, { source = "" } = {}) {
   const controller = new AbortController();
 
   (async () => {
+    if (!sessionId) {
+      callbacks.onError?.("No active session — please wait for the session to load.");
+      return;
+    }
     const formData = new FormData();
     formData.append("message", message);
     formData.append("session_id", sessionId);
+    if (source) formData.append("source", source);
 
     const r = await _fetch(`${BASE}/chat/stream`, {
       method: "POST",
@@ -340,4 +346,19 @@ export async function ttsStreamSentences(text, signal) {
     body: JSON.stringify({ text }),
     signal,
   });
+}
+
+// ── STT ───────────────────────────────────────────────────────────────────────
+
+export async function transcribeAudio(blob, filename) {
+  const ext = blob.type.includes("ogg") ? ".ogg" : blob.type.includes("mp4") ? ".m4a" : ".webm";
+  const formData = new FormData();
+  formData.append("file", blob, filename || `audio${ext}`);
+  const r = await _fetch(`${BASE}/transcribe`, { method: "POST", body: formData });
+  if (!r.ok) {
+    const body = await r.text();
+    throw new Error(`Transcription failed (${r.status}): ${body}`);
+  }
+  const d = await r.json();
+  return d.text;
 }

@@ -22,6 +22,7 @@ from routes.messaging import router as messaging_router
 from routes.sessions import router as sessions_router
 from routes.settings import router as settings_router
 from routes.stream import router as stream_router
+from routes.transcribe import router as transcribe_router
 
 setup_logging()
 
@@ -52,6 +53,14 @@ async def lifespan(app: FastAPI):
     #     load_tts()
     # except Exception as e:
     #     logger.warning("TTS model failed to load (voice mode disabled): %s", e)
+
+    # Pre-warm the STT model so the first transcription request is instant.
+    try:
+        from helpers.tools.stt import _get_model
+        import asyncio
+        await asyncio.get_event_loop().run_in_executor(None, _get_model)
+    except Exception as e:
+        logger.warning("STT model failed to pre-load (transcription will load on first use): %s", e)
 
     logger.info("Server ready on %s:%d", config["api"]["host"], config["api"]["port"])
 
@@ -182,6 +191,7 @@ def create_app() -> FastAPI:
     app.include_router(stream_router)
     app.include_router(settings_router)
     app.include_router(files_router)
+    app.include_router(transcribe_router)
 
     @app.get("/", tags=["health"], summary="Root")
     async def root():

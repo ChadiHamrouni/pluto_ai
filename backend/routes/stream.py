@@ -67,6 +67,7 @@ async def chat_stream(
     _user: str = Depends(get_current_user),
     message: str = Form(default="", description="The user's message."),
     session_id: str = Form(default="", description="Session ID from `POST /chat/session`."),
+    source: str = Form(default="", description="Optional input source hint (e.g. 'voice')."),
     attachments: List[UploadFile] = File(
         default=[], description="Not supported — use POST /chat for file attachments."
     ),
@@ -130,7 +131,7 @@ async def chat_stream(
         agents_trace: list = []
 
         try:
-            async for event in text_handler_streamed(message, _history):
+            async for event in text_handler_streamed(message, _history, source=source):
                 event_type = event.get("event", "")
                 data = event.get("data", {})
 

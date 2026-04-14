@@ -24,7 +24,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
     setThinkingFor(activeId, false);
   }
 
-  async function handleSend({ text, attachments, inputRef, setInput, setAttachments }) {
+  async function handleSend({ text, attachments, inputRef, setInput, setAttachments, source = "" }) {
     if ((!text && !attachments.length) || thinking || !activeId) return;
 
     setInput("");
@@ -96,7 +96,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
           streamAbortRef.current = null;
           inputRef.current?.focus();
         },
-      });
+      }, { source });
       streamAbortRef.current = ctrl;
     } else {
       const tryFetch = async () => {

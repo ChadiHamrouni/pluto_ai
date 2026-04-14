@@ -5,7 +5,7 @@
  *  - Top-level shared state (sidebar, settings, attachments, input)
  *  - Session management via useSessions
  *  - Chat send logic via useChat
- *  - Voice, file-drop, and keyboard shortcut hooks
+ *  - Voice dictation, file-drop, and keyboard shortcut hooks
  *  - Layout composition: Header + Sidebar + ChatArea + ChatFooter
  *
  * All feature logic lives in hooks/; all UI pieces live in components/.
@@ -20,10 +20,8 @@ import { useAuth } from "./hooks/useAuth";
 import { useSessions } from "./hooks/useSessions";
 import { useChat } from "./hooks/useChat";
 import { useVoice } from "./hooks/useVoice";
-import { VADListener } from "./hooks/useVAD";
 import { useFileDrop } from "./hooks/useFileDrop";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useTTS } from "./hooks/useTTS";
 
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
@@ -74,13 +72,9 @@ function AppShell({ onLogout }) {
   const [input, setInput]               = useState("");
   const [attachments, setAttachments]   = useState([]);
   const [dragging, setDragging]         = useState(false);
-  const [voiceMode, setVoiceMode]       = useState(false);
-  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
 
-  const bottomRef      = useRef(null);
-  const inputRef       = useRef(null);
-  const voiceModeRef   = useRef(false);
-  const toggleVoiceRef = useRef(null);
+  const bottomRef  = useRef(null);
+  const inputRef   = useRef(null);
 
   const {
     sessions,
@@ -112,18 +106,8 @@ function AppShell({ onLogout }) {
     appendDelta,
     finalizeLastMessage,
     updateSession,
-    onReply: (text) => {
-      if (voiceModeRef.current) {
-        speak(text, {
-          onDone: () => {
-            if (voiceModeRef.current) toggleVoiceRef.current?.();
-          },
-        });
-      }
-    },
+    onReply: () => {},
   });
-
-  const { speaking, speak, stop: stopTTS } = useTTS();
 
   useEffect(() => {
     (async () => {
@@ -140,13 +124,35 @@ function AppShell({ onLogout }) {
     inputRef.current?.focus();
   }, [activeId]);
 
-  const { recording, transcribing, lastTranscript, startRecording, stopRecording } = useVoice({
+  // ── Dictate: hold mic → speak → release → transcript sent directly ──
+  const {
+    recording,
+    transcribing,
+    waveformBars,
+    startRecording,
+    stopRecording,
+  } = useVoice({
     onSend: (text) => {
-      stopTTS();
       handleSend({ text, attachments: [], inputRef, setInput, setAttachments });
     },
+    autoSend: true,
   });
-  toggleVoiceRef.current = recording ? stopRecording : startRecording;
+
+  // ── Shift+Tab toggle — first press starts recording, second press stops and sends ──
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.code === "Tab" && e.shiftKey) {
+        e.preventDefault();
+        if (recording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+      }
+    };
+    window.addEventListener("keydown", onDown);
+    return () => window.removeEventListener("keydown", onDown);
+  }, [recording, startRecording, stopRecording]);
 
   useFileDrop({
     onDragging: setDragging,
@@ -211,14 +217,6 @@ function AppShell({ onLogout }) {
 
   return (
     <div className={`layout ${dragging ? "drag-over" : ""}`}>
-      {voiceMode && (
-        <VADListener
-          speaking={speaking}
-          stopTTS={stopTTS}
-          startRec={startRecording}
-          stopRec={stopRecording}
-        />
-      )}
       {dragging && (
         <div className="drag-overlay">
           <div className="drag-overlay-inner">
@@ -250,12 +248,6 @@ function AppShell({ onLogout }) {
             error={error}
             onDownload={downloadFile}
             bottomRef={bottomRef}
-            voiceMode={voiceMode}
-            recording={recording}
-            transcribing={transcribing}
-            speaking={speaking}
-            lastTranscript={lastTranscript}
-            onExitVoice={() => { setVoiceMode(false); stopTTS(); }}
           />
 
           <ChatFooter
@@ -270,9 +262,11 @@ function AppShell({ onLogout }) {
             thinking={thinking}
             attachments={attachments}
             onRemoveAttachment={removeAttachment}
-            voiceMode={voiceMode}
-            onVoiceModeToggle={() => { setVoiceMode(p => !p); if (speaking) stopTTS(); }}
-            speaking={speaking}
+            recording={recording}
+            transcribing={transcribing}
+            waveformBars={waveformBars}
+            onMicPress={startRecording}
+            onMicRelease={stopRecording}
             inputRef={inputRef}
           />
         </div>

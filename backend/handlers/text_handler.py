@@ -38,9 +38,10 @@ async def text_handler_streamed(
     message: str,
     history: list[dict],
     image_path: Path | None = None,
+    source: str = "",
 ) -> AsyncIterator[dict[str, Any]]:
     """Streaming variant — yields SSE event dicts."""
-    agent, messages, memory_context = await build_messages(message, history, image_path)
+    agent, messages, memory_context = await build_messages(message, history, image_path, source=source)
     async for event in run_agent_streamed(
         agent, messages, memory_context=memory_context, max_turns=_max_turns()
     ):

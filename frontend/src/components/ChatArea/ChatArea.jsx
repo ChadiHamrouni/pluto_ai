@@ -2,7 +2,6 @@ import "./ChatArea.css";
 
 import StatusLabel from "../StatusLabel";
 import ChatBubble from "../ChatBubble";
-import VoiceOverlay from "../VoiceOverlay";
 
 const THINKING_WORDS = [
     "يا قمر الليل", "ليلة و المزود خدام",
@@ -16,26 +15,7 @@ export default function ChatArea({
   error,
   onDownload,
   bottomRef,
-  voiceMode,
-  recording,
-  transcribing,
-  speaking,
-  lastTranscript,
-  onExitVoice,
 }) {
-  if (voiceMode) {
-    return (
-      <VoiceOverlay
-        recording={recording}
-        transcribing={transcribing}
-        thinking={thinking}
-        speaking={speaking}
-        lastTranscript={lastTranscript}
-        onExit={onExitVoice}
-      />
-    );
-  }
-
   return (
     <main className="chat">
       {messagesLoading && (

@@ -19,6 +19,52 @@
   align-items: flex-end;
 }
 
+/* ── Input area (waveform + textarea stacked) ── */
+.input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ── Neon waveform ── */
+.waveform-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px;
+  background: var(--panel-light);
+  border: 1px solid var(--neon-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.waveform-bar-row--fading {
+  opacity: 0.4;
+}
+
+.waveform-bar {
+  flex: 1;
+  max-width: 4px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--neon);
+  box-shadow: 0 0 6px rgba(0, 200, 255, 0.7), 0 0 2px rgba(0, 200, 255, 0.4);
+  height: calc(var(--h, 0.08) * 100%);
+  min-height: 2px;
+  transition: height 0.04s ease-out;
+  will-change: height;
+}
+
+/* Slight mirror glow on bars when loud */
+.waveform-bar:nth-child(even) {
+  background: rgba(0, 220, 255, 0.9);
+}
+
 .msg-input {
   flex: 1;
   background: var(--panel-light);
@@ -31,25 +77,73 @@
   line-height: 1.5;
   resize: none;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   overflow-y: hidden;
   min-height: 42px;
   max-height: 300px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .msg-input:focus {
   border-color: var(--neon);
-  box-shadow: 0 0 0 2px rgba(0,200,255,0.1);
+  box-shadow: 0 0 0 2px rgba(0, 200, 255, 0.1);
+}
+
+.msg-input--recording {
+  border-color: rgba(255, 80, 80, 0.6);
+  box-shadow: 0 0 0 2px rgba(255, 60, 60, 0.08);
 }
 
 .msg-input::placeholder {
   color: var(--text-dim);
 }
 
-.hint {
-  font-size: 11px;
+/* ── Mic button ── */
+.mic-btn {
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--sep);
+  background: transparent;
   color: var(--text-dim);
-  padding-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.mic-btn:hover {
+  border-color: var(--neon-border);
+  color: var(--neon);
+  background: var(--neon-dim);
+}
+
+.mic-btn--recording {
+  background: rgba(255, 50, 50, 0.12);
+  border-color: rgba(255, 80, 80, 0.8);
+  color: rgb(255, 90, 90);
+  animation: mic-pulse-red 1s ease-in-out infinite;
+}
+
+.mic-btn--processing {
+  border-color: var(--neon-border);
+  color: var(--neon);
+  background: var(--neon-dim);
+  animation: mic-pulse-neon 1.2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 60, 60, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(255, 60, 60, 0.2); }
+}
+
+@keyframes mic-pulse-neon {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 200, 255, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(0, 200, 255, 0.2); }
 }
 
 /* ── Attachment bar ── */
@@ -120,54 +214,4 @@
 
 .attachment-remove:hover {
   color: #ff6b6b;
-}
-
-/* ── Mode toggle buttons (AUTO + VOICE) ── */
-.mic-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  flex-shrink: 0;
-  width: 68px;
-}
-
-.mode-btn {
-  -webkit-app-region: no-drag;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  padding: 0 8px;
-  height: 28px;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
-  background: transparent;
-  border: 1px solid var(--sep);
-  color: var(--text-dim);
-  white-space: nowrap;
-  width: 100%;
-}
-
-.mode-btn:hover {
-  border-color: var(--neon-border);
-  color: var(--text);
-  background: var(--neon-dim);
-}
-
-.mode-btn--on {
-  background: var(--neon-dim);
-  border-color: var(--neon);
-  color: var(--neon);
-  box-shadow: 0 0 10px rgba(0, 200, 255, 0.2);
-  animation: pulse-neon 2.5s ease-in-out infinite;
-}
-
-@keyframes pulse-neon {
-  0%, 100% { box-shadow: 0 0 6px rgba(0, 200, 255, 0.15); }
-  50%       { box-shadow: 0 0 14px rgba(0, 200, 255, 0.45); }
 }
