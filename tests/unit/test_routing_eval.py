@@ -126,7 +126,7 @@ def test_command_agents_covers_all_known_intents():
     known_intents = {
         "note", "slides", "calendar",
         "task", "budget", "diagram", "dashboard",
-        "memory", "forget",
+        "memory", "forget", "reminders",
     }
 
     unknown = all_intents - known_intents

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -29,6 +30,24 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+async def _pin_models_in_memory(base_url: str, models: list[str]) -> None:
+    """Send keep_alive=-1 to Ollama's native API for each model so they stay
+    resident in VRAM between requests. Fire-and-forget; failures are logged
+    but never block startup."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for model in models:
+            try:
+                await client.post(
+                    f"{base_url}/api/generate",
+                    json={"model": model, "keep_alive": -1},
+                )
+                logger.info("Pinned model in memory: %s", model)
+            except Exception as exc:
+                logger.warning("Could not pin model %s: %s", model, exc)
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +65,12 @@ async def lifespan(app: FastAPI):
     # Initialise SQLite database
     await init_db(config["memory"]["db_path"])
 
+    # Pin all models in Ollama VRAM so they never unload between requests.
+    # Collects the distinct model names from every section that defines one.
+    from helpers.agents.execution.ollama_client import get_ollama_base_url
+    _models_to_pin = [config["orchestrator"]["model"]]
+    asyncio.create_task(_pin_models_in_memory(get_ollama_base_url(), _models_to_pin))
+
 
     # TTS model — disabled while focusing on agent/tool testing
     # from helpers.tools.tts import load_model as load_tts
@@ -57,7 +82,6 @@ async def lifespan(app: FastAPI):
     # Pre-warm the STT model so the first transcription request is instant.
     try:
         from helpers.tools.stt import _get_model
-        import asyncio
         await asyncio.get_event_loop().run_in_executor(None, _get_model)
     except Exception as e:
         logger.warning("STT model failed to pre-load (transcription will load on first use): %s", e)

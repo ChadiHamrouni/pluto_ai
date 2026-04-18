@@ -254,6 +254,66 @@ async def init_db(db_path: str) -> None:
         await db.execute(CREATE_REMINDERS_TABLE)
         await db.execute(CREATE_REMINDERS_IDX)
 
+        # Migrate: add idempotency_key to events for batch deduplication
+        try:
+            await db.execute(
+                "ALTER TABLE events ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT '';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        try:
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_events_idempotency ON events(idempotency_key) WHERE idempotency_key != '';"
+            )
+        except Exception:
+            pass
+
+        # Migrate: add idempotency_key to reminders for batch deduplication
+        try:
+            await db.execute(
+                "ALTER TABLE reminders ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT '';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        try:
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reminders_idempotency ON reminders(idempotency_key) WHERE idempotency_key != '';"
+            )
+        except Exception:
+            pass
+
+        # Migrate: add idempotency_key to tasks for batch deduplication
+        try:
+            await db.execute(
+                "ALTER TABLE tasks ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT '';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        try:
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_idempotency ON tasks(idempotency_key) WHERE idempotency_key != '';"
+            )
+        except Exception:
+            pass
+
+        # Migrate: add idempotency_key to notes for batch deduplication
+        try:
+            await db.execute(
+                "ALTER TABLE notes ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT '';"
+            )
+        except Exception:
+            pass  # column already exists — safe to ignore
+
+        try:
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_notes_idempotency ON notes(idempotency_key) WHERE idempotency_key != '';"
+            )
+        except Exception:
+            pass
+
         await db.commit()
 
     logger.info("Database initialised successfully.")

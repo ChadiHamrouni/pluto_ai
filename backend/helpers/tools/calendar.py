@@ -216,3 +216,53 @@ def delete_event(db_path: str, event_id: int) -> bool:
     if deleted:
         sync_vault_background()
     return deleted
+
+
+def create_events_batch(
+    db_path: str,
+    events: list[dict],
+) -> list[dict]:
+    """Insert multiple events atomically. Each dict must have 'title' and 'start_time' (UTC ISO-8601).
+    Optional keys: end_time, description, location, recurrence, idempotency_key.
+    Returns list of result dicts with status='created'|'skipped' and the event data.
+    """
+    results: list[dict] = []
+    conn = _connect(db_path)
+    try:
+        for item in events:
+            idem_key = item.get("idempotency_key", "")
+            if idem_key:
+                existing = conn.execute(
+                    "SELECT id, title, start_time FROM events WHERE idempotency_key = ?",
+                    (idem_key,),
+                ).fetchone()
+                if existing:
+                    results.append({"status": "skipped", "id": existing["id"], "idempotency_key": idem_key})
+                    continue
+
+            cursor = conn.execute(
+                """INSERT INTO events (title, start_time, end_time, description, location, recurrence, idempotency_key)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    item["title"],
+                    item["start_time"],
+                    item.get("end_time"),
+                    item.get("description", ""),
+                    item.get("location", ""),
+                    item.get("recurrence", ""),
+                    idem_key,
+                ),
+            )
+            results.append({
+                "status": "created",
+                "id": cursor.lastrowid,
+                "title": item["title"],
+                "start_time": item["start_time"],
+                "idempotency_key": idem_key,
+            })
+            logger.info("Batch created event %d: %s", cursor.lastrowid, item["title"])
+        conn.commit()
+    finally:
+        conn.close()
+    sync_vault_background()
+    return results

@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from helpers.agents.execution.ollama_client import get_openai_client
+from helpers.agents.planning.extractor import extract_items, format_extracted_context, should_extract
 from helpers.agents.routing.command_parser import parse_command
-from helpers.agents.routing.prompt_utils import format_chat_history
+from helpers.agents.routing.prompt_utils import _build_context_block, format_chat_history
 from helpers.agents.session.compactor import compact_history
 from helpers.agents.session.token_counter import needs_compaction
 from helpers.core.config_loader import load_config
@@ -55,6 +56,7 @@ async def build_messages(
 
     # Voice input: skip intent routing and give the agent all tools so it can
     # handle any request without a slash command prefix.
+    is_slash_command = False
     if source == "voice":
         agent = get_single_agent()
         content = message
@@ -78,6 +80,7 @@ async def build_messages(
         # Slash command → scoped tool group. Free-form text → all tools so the
         # agent can handle any natural-language request (voice, dictate, typing).
         if parsed.intent:
+            is_slash_command = True
             agent = get_agent_for_intent(intent=parsed.intent, tool_group=parsed.tool_group)
         else:
             agent = get_single_agent()
@@ -100,19 +103,34 @@ async def build_messages(
     # not invalidate the KV cache on the stable instructions prefix).
     memory_context = _calendar_context()
 
+    # Pre-extraction pass for free-form multi-action prose.
+    # Only runs for free-form messages (not slash commands), using qwen2.5:1.5b
+    # to normalise the request into a structured list so the main agent can map
+    # directly to batch tool calls instead of re-parsing prose mid-run.
+    if not is_slash_command:
+        extract_cfg = config.get("extractor", {})
+        threshold = extract_cfg.get("threshold_chars", 100)
+        if should_extract(content, threshold):
+            context_block = _build_context_block()
+            extracted_items = await extract_items(content, context_block)
+            if extracted_items:
+                extraction_block = format_extracted_context(extracted_items)
+                memory_context = "\n\n---\n\n".join(filter(None, [memory_context, extraction_block]))
+                logger.info("Pre-extraction injected %d item(s) into context", len(extracted_items))
+
     messages: list[dict] = list(format_chat_history(windowed_history))
 
     if image_path and image_path.exists():
-        extracted = ocr_image(image_path)
+        ocr_text = ocr_image(image_path)
         logger.info(
             "Attaching image %s (%d bytes), OCR: %d chars",
             image_path.name,
             image_path.stat().st_size,
-            len(extracted),
+            len(ocr_text),
         )
         user_content = (
-            f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
-            if extracted
+            f"{content or message}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{ocr_text}"
+            if ocr_text
             else content or message
         )
     else:

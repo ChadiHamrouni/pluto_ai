@@ -15,10 +15,10 @@ from tools.budget import (
     list_transactions,
 )
 from tools.calculator import calculate
-from tools.calendar import cancel_event, list_events, schedule_event, upcoming_events, update_event
+from tools.calendar import cancel_event, list_events, schedule_events, upcoming_events, update_event
 from tools.diagrams import generate_diagram
 from tools.memory_tools import forget_memory, prune_memory, search_memory, store_memory
-from tools.notes import create_note, get_note, list_notes
+from tools.notes import create_notes, get_note, list_notes
 from tools.obsidian import (
     generate_budget_report,
     generate_calendar_view,
@@ -28,7 +28,7 @@ from tools.obsidian import (
     update_dashboard,
 )
 from tools.slides import draft_slides, render_slides
-from tools.tasks import complete_task, create_task, delete_task, list_tasks, update_task
+from tools.tasks import complete_task, create_tasks, delete_task, list_tasks, update_task
 from tools.vault_files import (
     append_vault_file,
     create_vault_file,
@@ -36,7 +36,7 @@ from tools.vault_files import (
     read_vault_file,
     search_vault,
 )
-from tools.reminders import delete_reminder, list_reminders, set_reminder
+from tools.reminders import create_reminders, delete_reminder, list_reminders
 from tools.web_search import web_search
 
 # ---------------------------------------------------------------------------
@@ -88,13 +88,13 @@ TOOL_GROUPS: dict[str, list] = {
         search_vault,
         show_kanban,
     ),
-    "notes":    _group(create_note, list_notes, get_note),
+    "notes":    _group(create_notes, list_notes, get_note),
     "slides":   _group(draft_slides, render_slides, web_search),
-    "calendar": _group(schedule_event, list_events, upcoming_events, cancel_event, update_event),
-    "reminders": _group(set_reminder, list_reminders, delete_reminder),
+    "calendar": _group(schedule_events, list_events, upcoming_events, cancel_event, update_event),
+    "reminders": _group(create_reminders, list_reminders, delete_reminder),
     "memory":   _group(store_memory, forget_memory, prune_memory, search_memory),
     "tasks":    _group(
-        create_task, list_tasks, update_task, complete_task, delete_task, show_kanban
+        create_tasks, list_tasks, update_task, complete_task, delete_task, show_kanban
     ),
     "budget":   _group(
         add_transaction, list_transactions, delete_transaction,
@@ -111,14 +111,14 @@ TOOL_GROUPS: dict[str, list] = {
     "all": _group(
         store_memory, forget_memory, prune_memory, search_memory,
         web_search,
-        create_note, list_notes, get_note,
+        create_notes, list_notes, get_note,
         draft_slides, render_slides,
-        schedule_event, list_events, upcoming_events, cancel_event, update_event,
-        create_task, list_tasks, update_task, complete_task, delete_task,
+        schedule_events, list_events, upcoming_events, cancel_event, update_event,
+        create_tasks, list_tasks, update_task, complete_task, delete_task,
         add_transaction, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
         generate_diagram,
-        set_reminder, list_reminders, delete_reminder,
+        create_reminders, list_reminders, delete_reminder,
         update_dashboard, generate_calendar_view, show_kanban,
         generate_budget_report, generate_weekly_plan, sync_vault,
         search_vault, read_vault_file, create_vault_file,

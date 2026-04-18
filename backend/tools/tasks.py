@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from agents import function_tool
 
 from helpers.core.logger import get_logger
+from helpers.tools.idempotency import make_key as _make_key
+from models.batch import TaskSpec
 from helpers.tools.tasks import (
     VALID_PRIORITIES,
     VALID_STATUSES,
@@ -15,6 +17,9 @@ from helpers.tools.tasks import (
 )
 from helpers.tools.tasks import (
     create_task as _create_task,
+)
+from helpers.tools.tasks import (
+    create_tasks_batch as _create_tasks_batch,
 )
 from helpers.tools.tasks import (
     delete_task as _delete_task,
@@ -84,6 +89,64 @@ def create_task(
     except Exception as exc:
         logger.error("create_task failed: %s", exc)
         return f"Failed to create task: {exc}"
+
+
+@function_tool
+def create_tasks(tasks: list[TaskSpec]) -> str:
+    """
+    Create one or more tasks. Use for any request to add tasks —
+    single or multiple. Pass a list with one item for a single task.
+
+    Each item is a TaskSpec with:
+        title       (required) — task title
+        category    (required) — groceries | work | career | finance | health | personal | home
+        description (optional)
+        status      (optional) — todo | in_progress | done  (default: todo)
+        priority    (optional) — low | medium | high | urgent  (default: medium)
+        due_date    (optional) — ISO-8601 date e.g. "2026-04-30"
+        tags        (optional) — comma-separated tags
+
+    Idempotency: re-submitting the same (title, category) pair is safe — duplicates
+    are skipped and reported as status='skipped'.
+
+    Returns:
+        Summary string: how many created / skipped, with ids and titles.
+    """
+    prepped: list[dict] = []
+    for t in tasks:
+        title = t.title
+        category = t.category if t.category in VALID_CATEGORIES else "personal"
+        status = t.status if t.status in VALID_STATUSES else "todo"
+        priority = t.priority if t.priority in VALID_PRIORITIES else "medium"
+        tag_list = [x.strip() for x in t.tags.split(",") if x.strip()] if t.tags else []
+        prepped.append({
+            "title": title,
+            "category": category,
+            "description": t.description,
+            "status": status,
+            "priority": priority,
+            "due_date": t.due_date,
+            "tags_json": json.dumps(tag_list),
+            "idempotency_key": _make_key(title, category),
+        })
+
+    if not prepped:
+        return "No valid tasks to create."
+
+    try:
+        results = _create_tasks_batch(get_db_path(), prepped)
+    except Exception as exc:
+        logger.error("create_tasks failed: %s", exc)
+        return f"Failed to create tasks: {exc}"
+
+    created = [r for r in results if r["status"] == "created"]
+    skipped = [r for r in results if r["status"] == "skipped"]
+    lines = [f"Created {len(created)} task(s), skipped {len(skipped)} duplicate(s)."]
+    for r in created:
+        lines.append(f"  ✓ [{r['id']}] {r['title']}")
+    for r in skipped:
+        lines.append(f"  ~ [{r['id']}] skipped (duplicate)")
+    return "\n".join(lines)
 
 
 @function_tool

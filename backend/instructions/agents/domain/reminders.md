@@ -19,7 +19,7 @@ Recurrence rules:
 
 Date handling:
 - Today's date and time are in the context block. Use them to resolve relative expressions.
-- Convert all times to UTC. If the user says "6pm" without a timezone, assume UTC+1 (CET/WAT).
+- Pass times exactly as the user stated them — do NOT convert to UTC. The tool handles timezone conversion automatically.
 
 Response style:
 - After setting: "Got it — I'll remind you to **{title}** on {date} at {time}." Add "(repeats {recurrence})" if recurring.

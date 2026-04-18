@@ -66,7 +66,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
           }
           appendDelta(currentSessionId, delta);
         },
-        onDone: ({ response, tools_used, agents_trace, file_url, tokens_per_second }) => {
+        onDone: ({ response, tools_used, agents_trace, file_url, latency_ms }) => {
           streamAbortRef.current = null;
           if (!placeholderAdded) {
             appendMessage(currentSessionId, {
@@ -75,7 +75,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
               tools_used,
               agents_trace,
               file_url,
-              tokens_per_second,
+              latency_ms,
             });
           } else {
             finalizeLastMessage(currentSessionId, {
@@ -83,7 +83,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
               tools_used,
               agents_trace,
               file_url,
-              tokens_per_second,
+              latency_ms,
             });
           }
           onReply?.(response);

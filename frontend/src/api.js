@@ -169,6 +169,7 @@ export function streamMessage(message, callbacks = {}, { source = "" } = {}) {
     let fileUrl = null;
     let tokenCount = 0;
     let streamStart = null;
+    const requestStart = performance.now();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -227,10 +228,7 @@ export function streamMessage(message, callbacks = {}, { source = "" } = {}) {
       }
     }
 
-    const elapsedSec = streamStart !== null ? (performance.now() - streamStart) / 1000 : null;
-    const tokensPerSecond = elapsedSec && tokenCount > 0
-      ? Math.round(tokenCount / elapsedSec)
-      : null;
+    const latencyMs = Math.round(performance.now() - requestStart);
 
     let finalResponse = fullResponse;
     if (fileUrl) {
@@ -242,7 +240,7 @@ export function streamMessage(message, callbacks = {}, { source = "" } = {}) {
       tools_used: toolsUsed,
       agents_trace: agentsTrace,
       file_url: fileUrl,
-      tokens_per_second: tokensPerSecond,
+      latency_ms: latencyMs,
     });
   })().catch((err) => {
     if (err.name !== "AbortError") {

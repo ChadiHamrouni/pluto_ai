@@ -7,6 +7,7 @@ from typing import Any
 from agents import Agent, RunConfig, Runner
 
 from helpers.agents.execution.event_parser import (
+    compact_tool_output,
     extract_last_tool_output,
     extract_run_metadata,
     process_stream_event,
@@ -128,6 +129,7 @@ async def run_agent_streamed(
             max_turns=max_turns,
         )
 
+        last_tool_name: str = ""
         async for event in result.stream_events():
             full_response, to_yield = process_stream_event(
                 event, full_response, tools_used, agents_seen
@@ -136,14 +138,21 @@ async def run_agent_streamed(
                 if sse["event"] == "tool_call":
                     elapsed = time.perf_counter() - turn_start
                     turn_num += 1
+                    last_tool_name = sse["data"].get("tool", "")
                     logger.info(
                         "  ⏱ Turn %d LLM → tool_call '%s' (%.1fs)",
-                        turn_num, sse["data"].get("tool", "?"), elapsed,
+                        turn_num, last_tool_name, elapsed,
                     )
                 elif sse["event"] == "tool_output":
                     tool_elapsed = time.perf_counter() - turn_start
                     logger.info("  ⏱ Turn %d tool executed (%.1fs total)", turn_num, tool_elapsed)
                     turn_start = time.perf_counter()
+                    # Compact verbose output before it enters the next-turn context.
+                    raw_out = sse["data"].get("output", "")
+                    compacted = compact_tool_output(last_tool_name, raw_out)
+                    if compacted != raw_out:
+                        logger.debug("  Compacted tool output: %d → %d chars", len(raw_out), len(compacted))
+                        sse = {**sse, "data": {**sse["data"], "output": compacted}}
                 yield sse
 
         # No text streamed — try final_output then last tool output.

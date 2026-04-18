@@ -82,6 +82,45 @@ def extract_run_metadata(new_items: list, fallback_agent: str) -> tuple[list[str
     return tools_used, agents_seen
 
 
+def compact_tool_output(tool_name: str, output: str) -> str:
+    """Return a one-line summary of a tool output for use in compacted history.
+
+    Recognises known batch/CRUD result shapes and templating them into a short
+    summary. Full output is still yielded as SSE for the frontend; only the
+    version stored in intermediate conversation context is compacted.
+    """
+    if not output or len(output) < 120:
+        return output
+
+    name = (tool_name or "").lower()
+
+    # Batch creation tools — extract Created/skipped count from first line
+    if name in ("schedule_events", "create_reminders", "create_tasks", "create_notes"):
+        first_line = output.splitlines()[0]
+        return first_line  # already a one-liner like "Created 5 event(s), skipped 0 duplicate(s)."
+
+    # Single-create tools — already short confirmations, but strip trailing JSON
+    if name in ("schedule_event", "set_reminder", "create_task", "create_note"):
+        return output.splitlines()[0]
+
+    # List tools — summarise count
+    if name in ("list_events", "list_tasks", "list_reminders", "list_notes"):
+        try:
+            items = json.loads(output)
+            if isinstance(items, list):
+                return f"[{name}] returned {len(items)} item(s)."
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Budget summary — keep first 2 lines
+    if "budget" in name or "transaction" in name:
+        lines = output.splitlines()
+        return " | ".join(lines[:2])
+
+    # Generic fallback — first 100 chars
+    return output[:100] + ("…" if len(output) > 100 else "")
+
+
 def process_stream_event(
     event: Any,
     full_response: str,

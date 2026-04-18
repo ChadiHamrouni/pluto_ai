@@ -6,7 +6,10 @@ from agents import function_tool
 
 from helpers.core.config_loader import load_config
 from helpers.core.logger import get_logger
+from helpers.tools.idempotency import make_key as _make_key
+from models.batch import NoteSpec
 from helpers.tools.notes import (
+    create_notes_batch as _create_notes_batch,
     fetch_note_by_title,
     get_db_path,
     get_notes_dir,
@@ -62,6 +65,57 @@ def create_note(title: str, content: str, category: str, tags: str) -> str:
     except Exception as exc:
         logger.error("Failed to create note: %s", exc)
         return f"Error creating note: {exc}"
+
+
+@function_tool
+def create_notes(notes: list[NoteSpec]) -> str:
+    """
+    Create one or more notes. Use for any request to save notes —
+    single or multiple. Pass a list with one item for a single note.
+
+    Each item is a NoteSpec with:
+        title    (required) — unique descriptive title used as filename
+        content  (required) — full markdown body
+        category (required) — teaching | research | career | personal | ideas
+        tags     (optional) — comma-separated tags, e.g. "meeting,project-x"
+
+    Idempotency: re-submitting the same title is safe — duplicates are skipped.
+
+    Returns:
+        Summary string: how many created / skipped, with ids and file paths.
+    """
+    valid_categories = load_config()["memory"]["categories"]
+    prepped: list[dict] = []
+    for n in notes:
+        title = n.title
+        content = n.content
+        category = n.category if n.category in valid_categories else "personal"
+        tag_list = [t.strip() for t in n.tags.split(",") if t.strip()] if n.tags else []
+        prepped.append({
+            "title": title,
+            "content": content,
+            "category": category,
+            "tags": tag_list,
+            "idempotency_key": _make_key(title),
+        })
+
+    if not prepped:
+        return "No valid notes to create."
+
+    try:
+        results = _create_notes_batch(get_db_path(), get_notes_dir(), prepped)
+    except Exception as exc:
+        logger.error("create_notes failed: %s", exc)
+        return f"Failed to create notes: {exc}"
+
+    created = [r for r in results if r["status"] == "created"]
+    skipped = [r for r in results if r["status"] == "skipped"]
+    lines = [f"Created {len(created)} note(s), skipped {len(skipped)} duplicate(s)."]
+    for r in created:
+        lines.append(f"  ✓ [{r['id']}] {r['title']} → {r.get('file_path', '')}")
+    for r in skipped:
+        lines.append(f"  ~ [{r['id']}] skipped (duplicate)")
+    return "\n".join(lines)
 
 
 @function_tool

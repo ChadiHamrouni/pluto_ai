@@ -12,6 +12,9 @@ from helpers.tools.calendar import (
     create_event as _create_event,
 )
 from helpers.tools.calendar import (
+    create_events_batch as _create_events_batch,
+)
+from helpers.tools.calendar import (
     delete_event as _delete_event,
 )
 from helpers.tools.calendar import (
@@ -26,6 +29,8 @@ from helpers.tools.calendar import (
 from helpers.tools.calendar import (
     update_event as _update_event,
 )
+from helpers.tools.idempotency import make_key as _make_key
+from models.batch import EventSpec
 
 logger = get_logger(__name__)
 
@@ -204,6 +209,68 @@ def update_event(
     except Exception as exc:
         logger.error("update_event failed: %s", exc)
         return f"Failed to update event: {exc}"
+
+
+@function_tool
+def schedule_events(events: list[EventSpec]) -> str:
+    """
+    Create one or more calendar events. Use for any request to schedule events —
+    single or multiple. Pass a list with one item for a single event.
+
+    Each item in the list is an EventSpec with:
+        title       (required) — event title
+        start_time  (required) — local ISO-8601 without offset, e.g. "2026-04-21T09:00:00"
+        end_time    (optional) — local ISO-8601 without offset
+        description (optional)
+        location    (optional)
+        recurrence  (optional) — '' | 'daily' | 'weekly'
+
+    Idempotency: re-submitting the same (title, start_time) pair is safe — the
+    duplicate is skipped and reported as status='skipped'.
+
+    Returns:
+        Summary string: how many created / skipped, with titles and times.
+    """
+    db_path = get_db_path()
+    prepped: list[dict] = []
+    for ev in events:
+        title = ev.title
+        start_time = ev.start_time
+        if not title or not start_time:
+            continue
+        try:
+            utc_start = _local_to_utc(start_time)
+            utc_end = _local_to_utc(ev.end_time) if ev.end_time else None
+        except Exception as exc:
+            logger.error("schedule_events: bad time for '%s': %s", title, exc)
+            continue
+        prepped.append({
+            "title": title,
+            "start_time": utc_start,
+            "end_time": utc_end,
+            "description": ev.description,
+            "location": ev.location,
+            "recurrence": ev.recurrence.strip().lower(),
+            "idempotency_key": _make_key(title, start_time),
+        })
+
+    if not prepped:
+        return "No valid events to create."
+
+    try:
+        results = _create_events_batch(db_path, prepped)
+    except Exception as exc:
+        logger.error("schedule_events failed: %s", exc)
+        return f"Failed to create events: {exc}"
+
+    created = [r for r in results if r["status"] == "created"]
+    skipped = [r for r in results if r["status"] == "skipped"]
+    lines = [f"Created {len(created)} event(s), skipped {len(skipped)} duplicate(s)."]
+    for r in created:
+        lines.append(f"  ✓ [{r['id']}] {r['title']} at {r['start_time']}")
+    for r in skipped:
+        lines.append(f"  ~ [{r['id']}] skipped (duplicate)")
+    return "\n".join(lines)
 
 
 @function_tool

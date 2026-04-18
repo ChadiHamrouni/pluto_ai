@@ -93,6 +93,57 @@ def query_notes(db_path: str, category: str = "") -> list[dict]:
     return rows
 
 
+def create_notes_batch(
+    db_path: str,
+    notes_dir: str,
+    notes: list[dict],
+) -> list[dict]:
+    """Write multiple notes atomically (file + DB).
+    Each dict must have 'title', 'content', 'category'. Optional: tags (list[str]), idempotency_key.
+    Returns list of result dicts with status='created'|'skipped'.
+    """
+    import hashlib, json as _json
+
+    results: list[dict] = []
+    conn = sync_db_connection(db_path)
+    try:
+        for item in notes:
+            idem_key = item.get("idempotency_key", "")
+            if idem_key:
+                existing = conn.execute(
+                    "SELECT id FROM notes WHERE idempotency_key = ? LIMIT 1",
+                    (idem_key,),
+                ).fetchone()
+                if existing:
+                    results.append({"status": "skipped", "id": existing["id"], "idempotency_key": idem_key})
+                    continue
+
+            tag_list = item.get("tags", [])
+            if isinstance(tag_list, str):
+                tag_list = [t.strip() for t in tag_list.split(",") if t.strip()]
+            tags_json = _json.dumps(tag_list)
+
+            file_path = write_note_file(notes_dir, item["title"], item["content"], item["category"], tag_list)
+            cursor = conn.execute(
+                "INSERT INTO notes (title, content, category, tags, created_at, file_path, idempotency_key)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (item["title"], item["content"], item["category"], tags_json,
+                 datetime.utcnow().isoformat(), file_path, idem_key),
+            )
+            results.append({
+                "status": "created",
+                "id": cursor.lastrowid,
+                "title": item["title"],
+                "file_path": file_path,
+                "idempotency_key": idem_key,
+            })
+            logger.info("Batch created note id=%d title='%s'", cursor.lastrowid, item["title"])
+        conn.commit()
+    finally:
+        conn.close()
+    return results
+
+
 def fetch_note_by_title(db_path: str, title: str) -> dict | None:
     conn = sync_db_connection(db_path)
     row = conn.execute("SELECT * FROM notes WHERE title = ? LIMIT 1", (title,)).fetchone()

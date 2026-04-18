@@ -134,6 +134,66 @@ def update_task(db_path: str, task_id: int, **fields) -> dict | None:
     return result
 
 
+def create_tasks_batch(
+    db_path: str,
+    tasks: list[dict],
+) -> list[dict]:
+    """Insert multiple tasks atomically.
+    Each dict must have 'title'. Optional: description, status, priority, due_date, tags_json, category, idempotency_key.
+    Returns list of result dicts with status='created'|'skipped'.
+    """
+    results: list[dict] = []
+    conn = _connect(db_path)
+    try:
+        for item in tasks:
+            idem_key = item.get("idempotency_key", "")
+            if idem_key:
+                existing = conn.execute(
+                    "SELECT id FROM tasks WHERE idempotency_key = ?",
+                    (idem_key,),
+                ).fetchone()
+                if existing:
+                    results.append({"status": "skipped", "id": existing["id"], "idempotency_key": idem_key})
+                    continue
+
+            tag_list = json.loads(item.get("tags_json", "[]")) if item.get("tags_json") else []
+            validated = TaskCreate(
+                title=item["title"],
+                description=item.get("description", ""),
+                status=item.get("status", "todo"),
+                priority=item.get("priority", "medium"),
+                due_date=item.get("due_date") or None,
+                tags=tag_list,
+                category=item.get("category", "personal"),
+            )
+            cursor = conn.execute(
+                """INSERT INTO tasks (title, description, status, priority, due_date, tags, category, idempotency_key)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    validated.title,
+                    validated.description,
+                    validated.status,
+                    validated.priority,
+                    validated.due_date,
+                    json.dumps(validated.tags),
+                    validated.category,
+                    idem_key,
+                ),
+            )
+            results.append({
+                "status": "created",
+                "id": cursor.lastrowid,
+                "title": validated.title,
+                "idempotency_key": idem_key,
+            })
+            logger.info("Batch created task id=%d title='%s'", cursor.lastrowid, validated.title)
+        conn.commit()
+    finally:
+        conn.close()
+    sync_vault_background()
+    return results
+
+
 def delete_task(db_path: str, task_id: int) -> bool:
     conn = _connect(db_path)
     cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))

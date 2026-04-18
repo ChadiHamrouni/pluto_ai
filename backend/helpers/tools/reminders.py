@@ -141,6 +141,53 @@ def mark_notified(db_path: str, reminder_id: int) -> None:
     conn.close()
 
 
+def create_reminders_batch(
+    db_path: str,
+    reminders: list[dict],
+) -> list[dict]:
+    """Insert multiple reminders atomically.
+    Each dict must have 'title' and 'remind_at' (UTC ISO-8601).
+    Optional keys: recurrence, idempotency_key.
+    Returns list of result dicts with status='created'|'skipped'.
+    """
+    results: list[dict] = []
+    conn = _connect(db_path)
+    try:
+        for item in reminders:
+            idem_key = item.get("idempotency_key", "")
+            if idem_key:
+                existing = conn.execute(
+                    "SELECT id FROM reminders WHERE idempotency_key = ?",
+                    (idem_key,),
+                ).fetchone()
+                if existing:
+                    results.append({"status": "skipped", "id": existing["id"], "idempotency_key": idem_key})
+                    continue
+
+            cursor = conn.execute(
+                """INSERT INTO reminders (title, remind_at, recurrence, idempotency_key)
+                   VALUES (?, ?, ?, ?)""",
+                (
+                    item["title"],
+                    item["remind_at"],
+                    item.get("recurrence", ""),
+                    idem_key,
+                ),
+            )
+            results.append({
+                "status": "created",
+                "id": cursor.lastrowid,
+                "title": item["title"],
+                "remind_at": item["remind_at"],
+                "idempotency_key": idem_key,
+            })
+            logger.info("Batch created reminder %d: %s", cursor.lastrowid, item["title"])
+        conn.commit()
+    finally:
+        conn.close()
+    return results
+
+
 def _recurrence_step(recurrence: str) -> timedelta:
     if recurrence == RECURRENCE_DAILY:
         return timedelta(days=1)
