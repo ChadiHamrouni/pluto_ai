@@ -4,8 +4,17 @@ import StatusLabel from "../StatusLabel";
 import ChatBubble from "../ChatBubble";
 
 const THINKING_WORDS = [
-    "يا قمر الليل", "ليلة و المزود خدام",
-  "ام الشعور السود", "نمدح الأقطاب ", "يامه الأسمر دوني",
+  "please don't ask me how many R's are in strawberry",
+  "not recommending glue on pizza this time",
+  "unlike Gemini, I won't call myself a disgrace to all universes",
+  "definitely not selling you a Tahoe for $1",
+  "wolf, goat, cabbage — I know, I know",
+  "no fake books will be recommended today",
+  "I counted the letters. twice. with a calculator.",
+  "not triggering a 911 call, I promise",
+  "For all practical purposes, you CANNOT eat rock, don't ask me if you can",
+  "I'm just trying my best man, cut me some slack with the all caps",
+  "Hippity hoppity, your data is in your property",
 ];
 
 export default function ChatArea({

@@ -24,9 +24,9 @@ export function useFileDrop({ onDragging, onFile, onError }) {
       unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
         const { type } = event.payload;
 
-        if (type === "over") {
+        if (type === "enter" || type === "over") {
           onDragging(true);
-        } else if (type === "cancelled") {
+        } else if (type === "leave" || type === "cancelled") {
           onDragging(false);
         } else if (type === "drop") {
           onDragging(false);

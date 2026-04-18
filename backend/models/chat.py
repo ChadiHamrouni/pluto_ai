@@ -54,3 +54,11 @@ class ChatResponse(BaseModel):
         " Null if no file was produced.",
         examples=["/files/presentation_ai_2025.pdf"],
     )
+    latency_ms: Optional[int] = Field(
+        None,
+        description="Total wall-clock time for the request in milliseconds.",
+    )
+    user_file_urls: List[str] = Field(
+        default_factory=list,
+        description="Serve URLs for uploaded user attachments (PDFs/images) stored server-side.",
+    )

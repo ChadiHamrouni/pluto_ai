@@ -125,7 +125,7 @@ export async function sendMessage(message, files = []) {
   }
   const d = await r.json();
   console.log("[api] /chat response received, length:", d.response?.length ?? 0);
-  return { response: d.response, tools_used: d.tools_used ?? [], agents_trace: d.agents_trace ?? [], file_url: d.file_url ?? null };
+  return { response: d.response, tools_used: d.tools_used ?? [], agents_trace: d.agents_trace ?? [], file_url: d.file_url ?? null, latency_ms: d.latency_ms ?? null, user_file_urls: d.user_file_urls ?? [] };
 }
 
 /**

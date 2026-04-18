@@ -54,6 +54,20 @@ export function useSessions() {
     });
   }
 
+  /** Patch the last user message with extra fields (e.g. server-side file URLs). */
+  function patchLastUserMessage(sessionId, updates) {
+    updateSession(sessionId, s => {
+      const msgs = [...(s.messages ?? [])];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "user") {
+          msgs[i] = { ...msgs[i], ...updates };
+          break;
+        }
+      }
+      return { messages: msgs };
+    });
+  }
+
   /** Replace the last assistant message with final metadata (for stream completion). */
   function finalizeLastMessage(sessionId, updates) {
     updateSession(sessionId, s => {
@@ -168,6 +182,7 @@ export function useSessions() {
     appendMessage,
     appendDelta,
     finalizeLastMessage,
+    patchLastUserMessage,
     selectSession,
     newChat,
     loadSessions,

@@ -146,7 +146,7 @@ async def chat_stream(
 
             file_url = None
             history_response = full_response
-            m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md|png)", full_response)
+            m = re.search(r"[\w/\\.:+-]+\.(?:pdf|png)", full_response)
             if m:
                 matched_name = Path(m.group(0)).name
                 file_url = f"/files/{matched_name}"

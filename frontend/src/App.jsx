@@ -83,6 +83,7 @@ function AppShell({ onLogout }) {
     appendMessage,
     appendDelta,
     finalizeLastMessage,
+    patchLastUserMessage,
     selectSession,
     newChat,
     loadSessions,
@@ -105,6 +106,7 @@ function AppShell({ onLogout }) {
     appendMessage,
     appendDelta,
     finalizeLastMessage,
+    patchLastUserMessage,
     updateSession,
     onReply: () => {},
   });

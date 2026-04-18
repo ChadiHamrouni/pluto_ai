@@ -7,6 +7,7 @@ from typing import Any
 
 from helpers.agents.execution.ollama_client import get_openai_client
 from helpers.agents.planning.extractor import extract_items, format_extracted_context, should_extract
+from helpers.agents.planning.planner import build_plan, format_plan_context, is_multi_step_plan, should_plan
 from helpers.agents.routing.command_parser import parse_command
 from helpers.agents.routing.prompt_utils import _build_context_block, format_chat_history
 from helpers.agents.session.compactor import compact_history
@@ -103,20 +104,41 @@ async def build_messages(
     # not invalidate the KV cache on the stable instructions prefix).
     memory_context = _calendar_context()
 
-    # Pre-extraction pass for free-form multi-action prose.
-    # Only runs for free-form messages (not slash commands), using qwen2.5:1.5b
-    # to normalise the request into a structured list so the main agent can map
-    # directly to batch tool calls instead of re-parsing prose mid-run.
+    # Pre-processing pass for free-form messages (not slash commands).
+    # Two strategies, checked in priority order:
+    #
+    # 1. Planner — for complex multi-step tasks (slides, diagrams, research).
+    #    Produces an ordered execution plan injected as a context block so the
+    #    agent follows steps in sequence without re-deriving them.
+    #
+    # 2. Extractor — for multi-action prose (calendar + reminders + tasks in
+    #    one message). Normalises items into a structured list for batch tools.
+    #    Skipped when the planner already handled the message.
     if not is_slash_command:
-        extract_cfg = config.get("extractor", {})
-        threshold = extract_cfg.get("threshold_chars", 100)
-        if should_extract(content, threshold):
-            context_block = _build_context_block()
-            extracted_items = await extract_items(content, context_block)
-            if extracted_items:
-                extraction_block = format_extracted_context(extracted_items)
-                memory_context = "\n\n---\n\n".join(filter(None, [memory_context, extraction_block]))
-                logger.info("Pre-extraction injected %d item(s) into context", len(extracted_items))
+        context_block = _build_context_block()
+        plan_injected = False
+
+        if should_plan(content):
+            plan = await build_plan(content, context_block)
+            if is_multi_step_plan(plan):
+                plan_block = format_plan_context(plan, content)
+                if plan_block:
+                    memory_context = "\n\n---\n\n".join(filter(None, [memory_context, plan_block]))
+                    logger.info(
+                        "Planner injected %d-step plan into context",
+                        len(plan.get("steps", [])),
+                    )
+                    plan_injected = True
+
+        if not plan_injected:
+            extract_cfg = config.get("extractor", {})
+            threshold = extract_cfg.get("threshold_chars", 100)
+            if should_extract(content, threshold):
+                extracted_items = await extract_items(content, context_block)
+                if extracted_items:
+                    extraction_block = format_extracted_context(extracted_items)
+                    memory_context = "\n\n---\n\n".join(filter(None, [memory_context, extraction_block]))
+                    logger.info("Pre-extraction injected %d item(s) into context", len(extracted_items))
 
     messages: list[dict] = list(format_chat_history(windowed_history))
 

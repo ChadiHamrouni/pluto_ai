@@ -5,7 +5,7 @@
 import { useRef, useState } from "react";
 import { sendMessage, streamMessage } from "../api";
 
-export function useChat({ activeId, messages, appendMessage, appendDelta, finalizeLastMessage, updateSession, onReply }) {
+export function useChat({ activeId, messages, appendMessage, appendDelta, finalizeLastMessage, patchLastUserMessage, updateSession, onReply }) {
   const [thinkingMap, setThinkingMap] = useState({});
   const [error, setError]             = useState(null);
 
@@ -43,6 +43,7 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
       content: text || "(image)",
       previews: sentAttachments.map(a => a.preview).filter(Boolean),
       attachmentNames: sentAttachments.filter(a => !a.preview).map(a => a.file.name),
+      pendingFiles: sentAttachments.map(a => a.file.name),
     });
 
     const currentSessionId = activeId;
@@ -101,17 +102,26 @@ export function useChat({ activeId, messages, appendMessage, appendDelta, finali
     } else {
       const tryFetch = async () => {
         try {
-          const { response: reply, tools_used, agents_trace, file_url } =
+          const { response: reply, tools_used, agents_trace, file_url, latency_ms, user_file_urls } =
             await sendMessage(
               text || "(describe this image)",
               sentAttachments.map(a => a.file)
             );
+          if (user_file_urls?.length) {
+            // Build a name→url map so ChatBubble can look up by filename regardless of order
+            const fileUrlMap = {};
+            sentAttachments.forEach((a, i) => {
+              if (user_file_urls[i]) fileUrlMap[a.file.name] = user_file_urls[i];
+            });
+            patchLastUserMessage(currentSessionId, { user_file_urls, fileUrlMap });
+          }
           appendMessage(currentSessionId, {
             role: "assistant",
             content: reply,
             tools_used,
             agents_trace,
             file_url,
+            latency_ms,
           });
           onReply?.(reply);
           setThinkingFor(currentSessionId, false);

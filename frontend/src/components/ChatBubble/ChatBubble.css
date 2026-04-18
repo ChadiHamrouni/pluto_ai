@@ -204,6 +204,17 @@
   margin-bottom: 4px;
 }
 
+.bubble-file-pill--clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bubble-file-pill--clickable:hover {
+  background: rgba(0, 200, 255, 0.15);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
 /* PDF first-page thumbnail */
 .pdf-thumbnail {
   max-width: 100%;

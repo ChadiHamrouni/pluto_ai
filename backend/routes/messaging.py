@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -28,6 +29,14 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 _SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".pdf", ".txt"}
+_VIEWABLE_EXTS  = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".pdf"}
+
+
+def _uploads_dir() -> Path:
+    cfg = load_config()
+    d = Path(cfg["storage"].get("uploads_dir", "data/uploads"))
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 _MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 _MAX_MESSAGE_CHARS = 50_000
 
@@ -158,6 +167,7 @@ async def chat(
 
     temp_paths: list[Path] = []
     attachment_meta: list[Attachment] = []
+    user_file_urls: list[str] = []
 
     try:
         for upload in attachments:
@@ -194,22 +204,23 @@ async def chat(
                     size_bytes=len(data),
                 )
             )
+            # Persist viewable files (PDFs and images) so the frontend can fetch them back
+            if ext in _VIEWABLE_EXTS:
+                slug = Path(upload.filename).stem[:40]
+                stored_name = f"{uuid.uuid4().hex[:8]}-{slug}{ext}"
+                stored_path = _uploads_dir() / stored_name
+                shutil.copy2(tmp_path, stored_path)
+                user_file_urls.append(f"/files/{stored_name}")
 
-        primary = temp_paths[0] if temp_paths else None
-
-        if primary:
-            extra_context = ""
-            if len(temp_paths) > 1:
-                names = ", ".join(a.filename for a in attachment_meta[1:])
-                extra_context = f"\n\n[Additional attached files: {names}]"
-            full_message = message + extra_context
-            handler_result = await file_handler(full_message, history, primary)
+        if temp_paths:
+            handler_result = await file_handler(message, history, temp_paths, attachment_meta)
         else:
             handler_result = await text_handler(message, history)
 
         response_text = handler_result.response
         tools_used = handler_result.tools_used
         agents_trace = handler_result.agents_trace
+        latency_ms = int(handler_result.elapsed * 1000) if handler_result.elapsed else None
 
         logger.info(
             "Response ready (%d chars) for session '%s'", len(response_text), session_id or "(none)"
@@ -217,7 +228,7 @@ async def chat(
 
         file_url: str | None = None
         history_response = response_text
-        m = re.search(r"[\w/\\.:+-]+\.(?:pdf|md|png)", response_text)
+        m = re.search(r"[\w/\\.:+-]+\.(?:pdf|png)", response_text)
         if m:
             matched_name = Path(m.group(0)).name
             file_url = f"/files/{matched_name}"
@@ -228,18 +239,17 @@ async def chat(
                 response_text = "Your presentation is ready."
                 history_response = "Presentation generated successfully."
 
+        has_files = bool(temp_paths)
         history_user = (
             handler_result.user_content
-            if primary and handler_result.user_content
+            if has_files and handler_result.user_content
             else message
         )
         if session_id and exists:
             user_meta: dict = {}
             if attachment_meta:
                 user_meta["attachment_names"] = [a.filename for a in attachment_meta]
-            # Store the original display message so the bubble shows clean text,
-            # not the full extracted PDF/OCR dump that lives in history_user.
-            if primary and message:
+            if has_files and message:
                 user_meta["display_content"] = message
             await append_turn(
                 session_id,
@@ -262,6 +272,8 @@ async def chat(
             tools_used=tools_used,
             agents_trace=agents_trace,
             file_url=file_url,
+            latency_ms=latency_ms,
+            user_file_urls=user_file_urls,
         )
 
     except HTTPException:

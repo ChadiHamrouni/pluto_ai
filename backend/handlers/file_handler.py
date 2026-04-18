@@ -18,66 +18,56 @@ _PDF_EXTS = {".pdf"}
 _TEXT_EXTS = {".txt", ".md"}
 
 
+def _extract_file_block(file_path: Path, filename: str) -> str:
+    """Extract text content from a single file and return a labelled block."""
+    ext = file_path.suffix.lower()
+
+    if ext in _TEXT_EXTS:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+        return f"<attachment type=\"text\" name=\"{filename}\">\n{content}\n</attachment>"
+
+    if ext in _PDF_EXTS:
+        pdf_text = extract_pdf(file_path)
+        if not pdf_text:
+            return f"<attachment type=\"pdf\" name=\"{filename}\">\n[No extractable text found.]\n</attachment>"
+        logger.info("PDF extracted: %d chars from %s", len(pdf_text), filename)
+        return f"<attachment type=\"pdf\" name=\"{filename}\">\n{pdf_text}\n</attachment>"
+
+    if ext in _IMAGE_EXTS:
+        extracted = ocr_image(file_path)
+        if extracted:
+            logger.info("Image content extracted: %d chars from %s", len(extracted), filename)
+            return f"<attachment type=\"image\" name=\"{filename}\">\n{extracted}\n</attachment>"
+        logger.warning("Image analysis returned nothing for %s", filename)
+        return f"<attachment type=\"image\" name=\"{filename}\">\n[Could not extract any content.]\n</attachment>"
+
+    return f"<attachment type=\"file\" name=\"{filename}\">\n[Unsupported file type: {ext}]\n</attachment>"
+
+
 async def file_handler(
     message: str,
     history: list[dict],
-    file_path: Path,
+    file_paths: list[Path],
+    attachment_meta: list | None = None,
 ) -> HandlerResult:
     t0 = time.perf_counter()
 
-    ext = file_path.suffix.lower()
-    if ext not in _IMAGE_EXTS | _PDF_EXTS | _TEXT_EXTS:
-        raise ValueError(f"Unsupported file type: {ext}")
+    blocks: list[str] = []
+    for i, fp in enumerate(file_paths):
+        filename = attachment_meta[i].filename if attachment_meta else fp.name
+        logger.info("File handler: %s (%d bytes)", filename, fp.stat().st_size)
+        blocks.append(_extract_file_block(fp, filename))
 
-    logger.info("File handler: %s (%d bytes)", file_path.name, file_path.stat().st_size)
-
-    if ext in _TEXT_EXTS:
-        text_content = file_path.read_text(encoding="utf-8", errors="replace")
-        user_content = (
-            f"{message}\n\n---\n\n{text_content}"
-            if message and message.strip()
-            else f"Here is the content of the file:\n\n---\n\n{text_content}"
-        )
-        messages = [{"role": "user", "content": user_content}]
-
-    elif ext in _PDF_EXTS:
-        pdf_text = extract_pdf(file_path)
-        if not pdf_text:
-            raise ValueError("PDF contains no extractable content.")
-        logger.info("PDF extracted: %d chars", len(pdf_text))
-        prefix = (
-            "[ATTACHED DOCUMENT — answer from this content only, "
-            "do NOT search the web]"
-        )
-        doc_block = f"{prefix}\n\n{pdf_text}"
-        user_content = (
-            f"{message}\n\n---\n\n{doc_block}"
-            if message and message.strip()
-            else f"Summarise this document:\n\n---\n\n{doc_block}"
-        )
-        messages = [{"role": "user", "content": user_content}]
-
-    else:
-        # Image — OCR then pass as plain text
-        extracted = ocr_image(file_path)
-        user_text = message.strip() if message and message.strip() else "Describe this image."
-        if extracted:
-            logger.info("Image OCR extracted: %d chars", len(extracted))
-            user_content = f"{user_text}\n\n---\n\n[EXTRACTED FROM IMAGE]\n\n{extracted}"
-        else:
-            logger.warning(
-                "Image OCR returned nothing for %s — sending message only", file_path.name
-            )
-            user_content = (
-                f"{user_text}\n\n"
-                "[An image was attached but OCR could not extract any text from it.]"
-            )
-        messages = [{"role": "user", "content": user_content}]
+    combined = "\n\n".join(blocks)
+    user_text = message.strip() if message and message.strip() else "Analyse the attached file(s)."
+    user_content = f"{user_text}\n\n<attachments count=\"{len(blocks)}\">\n{combined}\n</attachments>"
 
     config = load_config()
     window = config.get("orchestrator", {}).get("history_window", 20)
     windowed_history = history[-(window * 2):]
-    messages = list(format_chat_history(windowed_history)) + messages
+    messages = list(format_chat_history(windowed_history)) + [
+        {"role": "user", "content": user_content}
+    ]
 
     result = await run_agent(get_single_agent(), messages)
     return HandlerResult(

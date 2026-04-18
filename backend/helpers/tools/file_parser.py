@@ -111,13 +111,42 @@ def _resize_for_ocr(raw_bytes: bytes, max_pixels: int = 1536) -> bytes:
     return buf.getvalue()
 
 
+def _ocr_text_is_useful(text: str) -> bool:
+    """Return True only if OCR text contains meaningful content (not just markup or whitespace)."""
+    if not text:
+        return False
+    import re
+    stripped = re.sub(r"<[^>]+>", "", text).strip()
+    return len(stripped) >= 30
+
+
+def _describe_image(b64_image: str, ollama_base: str, vision_model: str) -> str:
+    """Ask the vision model to describe image contents using Ollama /api/generate."""
+    import httpx
+
+    payload = {
+        "model": vision_model,
+        "prompt": "What is in this image? Be concise and factual. One short paragraph.",
+        "images": [b64_image],
+        "stream": False,
+    }
+    try:
+        resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=120)
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
+    except Exception as exc:
+        logger.warning("Vision description failed: %s", exc)
+        return ""
+
+
 def ocr_image(path: Path) -> str:
-    """Send an image file to GLM-OCR via Ollama and return extracted text."""
+    """Extract text from an image via GLM-OCR; fall back to vision description if no text found."""
     import httpx
 
     config = load_config()
     ollama_base = config.get("ollama", {}).get("base_url", "http://localhost:11434")
     ocr_model = config.get("pdf", {}).get("ocr_model", "glm-ocr")
+    vision_model = config.get("orchestrator", {}).get("model", "qwen3.5:4b")
 
     resized = _resize_for_ocr(path.read_bytes())
     b64_image = base64.b64encode(resized).decode()
@@ -133,7 +162,14 @@ def ocr_image(path: Path) -> str:
     try:
         resp = httpx.post(f"{ollama_base}/api/generate", json=payload, timeout=120)
         resp.raise_for_status()
-        return resp.json().get("response", "").strip()
+        text = resp.json().get("response", "").strip()
     except Exception as exc:
         logger.warning("GLM-OCR failed on image %s: %s", path.name, exc)
-        return ""
+        text = ""
+
+    if _ocr_text_is_useful(text):
+        return text
+
+    logger.info("OCR result not useful for %s (%d chars) — falling back to vision description", path.name, len(text))
+    description = _describe_image(b64_image, ollama_base, vision_model)
+    return description

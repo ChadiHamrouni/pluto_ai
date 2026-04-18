@@ -22,9 +22,10 @@ logger = get_logger(__name__)
 @function_tool
 def draft_slides(title: str, slides_json: str) -> str:
     """
-    Validate a slide outline before rendering. Call this FIRST.
+    Validate a slide outline before rendering. Call this FIRST, then call render_slides.
 
-    You must research the topic thoroughly, then create a detailed outline.
+    You may use web_search beforehand to gather content — but always complete the full
+    pipeline: draft_slides → render_slides. Never stop at text output.
     Each slide needs a heading and 3-6 substantive bullet points with real
     facts, numbers, or explanations — not vague filler.
 

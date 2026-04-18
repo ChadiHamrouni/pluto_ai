@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import "./ChatBubble.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -108,8 +108,23 @@ function Lightbox({ src, isPdf, onClose }) {
  *  - message  { role, content, previews?, attachmentNames?, tools_used?, agents_trace?, file_url? }
  *  - onDownload  (fileUrl: string) => void
  */
+function useAuthFileOnDemand() {
+  const [cache, setCache] = useState({});
+  const open = useCallback(async (fileUrl, isPdf, setLightbox) => {
+    if (cache[fileUrl]) { setLightbox({ src: cache[fileUrl], isPdf }); return; }
+    try {
+      const blob = await fetchFile(fileUrl);
+      const src = URL.createObjectURL(blob);
+      setCache(prev => ({ ...prev, [fileUrl]: src }));
+      setLightbox({ src, isPdf });
+    } catch { /* silent */ }
+  }, [cache]);
+  return open;
+}
+
 export default function ChatBubble({ message: m, onDownload }) {
   const [lightbox, setLightbox] = useState(null); // { src, isPdf }
+  const openAuthFile = useAuthFileOnDemand();
 
   const isPng = m.role === "assistant" && m.file_url?.endsWith(".png");
   const isPdf = m.file_url?.endsWith(".pdf");
@@ -124,7 +139,7 @@ export default function ChatBubble({ message: m, onDownload }) {
     <>
       <div className={`bubble-row ${m.role}`}>
         <div className="bubble">
-          {m.role === "assistant" && <span className="bubble-label">Pluto</span>}
+
 
           {m.previews?.map((p, j) => (
             <img
@@ -136,14 +151,33 @@ export default function ChatBubble({ message: m, onDownload }) {
             />
           ))}
 
-          {m.attachmentNames?.map((name, j) => (
-            <div key={j} className="bubble-file-pill">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5 1v4h4L9 1zM5.5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
-              </svg>
-              <span>{name}</span>
-            </div>
-          ))}
+          {m.attachmentNames?.map((name, j) => {
+            const fileUrl = m.fileUrlMap?.[name] ?? m.user_file_urls?.[j];
+            const isPdfPill = name.toLowerCase().endsWith(".pdf");
+            return fileUrl ? (
+              <div
+                key={j}
+                className="bubble-file-pill bubble-file-pill--clickable"
+                onClick={() => openAuthFile(fileUrl, isPdfPill, setLightbox)}
+                title="Click to view"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5 1v4h4L9 1zM5.5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+                </svg>
+                <span>{name}</span>
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.5 }}>
+                  <path d="M1.5 1h5.586L10 3.914V6h-1V4.5H7a.5.5 0 0 1-.5-.5V2H2v12h5v1H1.5a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5zM10 7a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm.5 1.5v2h2v1h-2v2h-1v-2h-2v-1h2v-2h1z"/>
+                </svg>
+              </div>
+            ) : (
+              <div key={j} className="bubble-file-pill">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5 1v4h4L9 1zM5.5 8h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+                </svg>
+                <span>{name}</span>
+              </div>
+            );
+          })}
 
           {m.content !== "(image)" && (
             m.role === "assistant" ? (

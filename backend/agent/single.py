@@ -11,6 +11,7 @@ from tools.budget import (
     create_savings_goal,
     delete_savings_goal,
     delete_transaction,
+    list_recurring_expenses,
     list_savings_goals,
     list_transactions,
 )
@@ -97,7 +98,7 @@ TOOL_GROUPS: dict[str, list] = {
         create_tasks, list_tasks, update_task, complete_task, delete_task, show_kanban
     ),
     "budget":   _group(
-        add_transaction, list_transactions, delete_transaction,
+        add_transaction, list_recurring_expenses, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
     ),
     "diagrams": _group(generate_diagram),
@@ -115,7 +116,7 @@ TOOL_GROUPS: dict[str, list] = {
         draft_slides, render_slides,
         schedule_events, list_events, upcoming_events, cancel_event, update_event,
         create_tasks, list_tasks, update_task, complete_task, delete_task,
-        add_transaction, list_transactions, delete_transaction,
+        add_transaction, list_recurring_expenses, list_transactions, delete_transaction,
         budget_summary, create_savings_goal, list_savings_goals, delete_savings_goal,
         generate_diagram,
         create_reminders, list_reminders, delete_reminder,

@@ -17,6 +17,7 @@ def _allowed_dirs() -> list[Path]:
     dirs = [
         Path(cfg["storage"]["slides_dir"]).resolve(),
         Path(cfg["storage"]["notes_dir"]).resolve(),
+        Path(cfg["storage"].get("uploads_dir", "data/uploads")).resolve(),
     ]
     diagrams_dir = cfg.get("storage", {}).get("diagrams_dir")
     if diagrams_dir:

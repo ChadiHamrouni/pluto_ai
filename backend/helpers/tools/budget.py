@@ -131,6 +131,16 @@ def get_transaction(db_path: str, tx_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def list_recurring_expenses(db_path: str) -> list[dict]:
+    """Return all recurring expense rows with their base monthly amount. No expansion needed."""
+    conn = _connect(db_path)
+    rows = conn.execute(
+        "SELECT * FROM budget_transactions WHERE type='expense' AND recurring != '' AND recurring IS NOT NULL ORDER BY amount DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def list_transactions(
     db_path: str,
     tx_type: str = "",

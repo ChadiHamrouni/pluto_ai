@@ -84,6 +84,7 @@
     "notes_dir": "data/notes",
     "slides_dir": "data/slides",
     "diagrams_dir": "data/diagrams",
+    "uploads_dir": "data/uploads",
     "title_slug_max_length": 60
   },
   "slides": {

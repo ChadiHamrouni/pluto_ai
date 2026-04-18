@@ -32,6 +32,9 @@ from helpers.tools.budget import (
     list_goals as _list_goals,
 )
 from helpers.tools.budget import (
+    list_recurring_expenses as _list_recurring_expenses,
+)
+from helpers.tools.budget import (
     list_transactions as _list_transactions,
 )
 from helpers.tools.budget import (
@@ -115,6 +118,35 @@ def add_transaction(
 
 
 @function_tool
+def list_recurring_expenses() -> str:
+    """
+    List all recurring expenses with their exact base amount per recurrence period.
+
+    Use this FIRST whenever the user asks about: recurring expenses, monthly costs,
+    fixed expenses, what bills they have, or what they pay regularly.
+
+    Returns pre-computed rows directly from the database — amounts are exact,
+    no LLM calculation needed. Report these numbers verbatim.
+
+    Returns:
+        JSON object with "recurring_expenses" array and "total_monthly_tnd" pre-calculated.
+    """
+    try:
+        rows = _list_recurring_expenses(get_db_path())
+        if not rows:
+            return "No recurring expenses found."
+        total = sum(r["amount"] for r in rows if r.get("recurring") == "monthly")
+        return json.dumps({
+            "recurring_expenses": rows,
+            "total_monthly_tnd": round(total, 2),
+            "note": "Amounts are exact database values. Report them verbatim — do not recalculate.",
+        }, indent=2)
+    except Exception as exc:
+        logger.error("list_recurring_expenses failed: %s", exc)
+        return f"Failed to list recurring expenses: {exc}"
+
+
+@function_tool
 def list_transactions(
     tx_type: str = "",
     category: str = "",
@@ -122,7 +154,13 @@ def list_transactions(
     to_date: str = "",
 ) -> str:
     """
-    List budget transactions, optionally filtered.
+    List individual budget transactions, optionally filtered. Use this only when the user
+    wants to see raw transaction history (e.g. "show me all my transactions", "what did I
+    spend in March").
+
+    For questions about recurring expenses, totals, or summaries — use budget_summary instead.
+    NEVER compute totals from this output yourself — the numbers in each row are base amounts;
+    recurring entries are NOT expanded here. Use budget_summary for any aggregate calculations.
 
     Args:
         tx_type:   Filter by "income" or "expense". Empty = all.
@@ -131,13 +169,16 @@ def list_transactions(
         to_date:   ISO-8601 end date (e.g. "2026-03-31"). Empty = no upper bound.
 
     Returns:
-        JSON array of transaction objects, or a message if none found.
+        JSON object with a "transactions" array and a "note" warning not to sum these manually.
     """
     try:
         txs = _list_transactions(get_db_path(), tx_type, category, from_date, to_date)
         if not txs:
             return "No transactions found matching those filters."
-        return json.dumps(txs, indent=2)
+        return json.dumps({
+            "note": "These are raw DB rows. Recurring entries appear once with their base amount — do NOT sum them to get monthly totals. Call budget_summary for accurate aggregates.",
+            "transactions": txs,
+        }, indent=2)
     except Exception as exc:
         logger.error("list_transactions failed: %s", exc)
         return f"Failed to list transactions: {exc}"
@@ -179,11 +220,12 @@ def budget_summary(month: str = "", from_month: str = "", to_month: str = "") ->
     """
     Get a full budget summary with income, expenses, net, and goal progress.
 
-    Use this when the user asks about their finances, spending, budget overview,
-    how much they've saved, or how their goals are doing.
+    Use this when the user asks about: their finances, spending, budget overview,
+    how much they've saved, recurring expenses, monthly costs, total expenses, or goal progress.
+    This is the ONLY tool that correctly expands recurring transactions into monthly totals.
 
     ALWAYS call this after add_transaction or delete_transaction to show updated numbers.
-    NEVER compute totals yourself — always call this tool and report what it returns.
+    NEVER compute totals yourself — always call this tool and report EXACTLY what it returns.
 
     Args:
         month:      Single month in "YYYY-MM" format (e.g. "2026-04"). Empty = all-time.
